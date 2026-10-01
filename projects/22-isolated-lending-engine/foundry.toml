@@ -1,0 +1,65 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 1_000
+bytecode_hash = "none"
+cbor_metadata = false
+# Halmos runs `forge build --ast --extra-output storageLayout metadata` and reads every artifact in `out/`. In a local
+# run where Slither had just rebuilt `out/`, Halmos loaded AST-less artifacts and found no tests. Emitting the same
+# outputs on every build makes the artifacts complete whichever gate built them last.
+ast = true
+extra_output = ["storageLayout", "metadata"]
+# The Foundry differential test replays the Rust-generated liquidation vectors.
+fs_permissions = [{ access = "read", path = "./test/vectors" }]
+remappings = [
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "solady/=dependencies/solady-0.1.26/src/",
+]
+
+[profile.default.fuzz]
+runs = 512
+max_test_rejects = 1_000_000
+
+[profile.default.invariant]
+runs = 128
+depth = 80
+fail_on_revert = true
+
+# CI profile: fixed seed so fuzz and invariant campaigns are reproducible.
+[profile.ci]
+fuzz = { runs = 1_024, seed = "0x2222" }
+invariant = { runs = 256, depth = 80, fail_on_revert = true }
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+number_underscore = "thousands"
+sort_imports = true
+
+# forge lint triage (every other lint stays enabled):
+# - reentrancy-events: every engine event follows a call to the allowlisted IRM, the market oracle or an ERC-1271
+#   staticcall, made while the per-market transient lock is held, so no callee can re-enter that market and reorder
+#   its logs (see test/unit/FlashLoanReentrancy.t.sol). The periphery events follow calls to the engine itself.
+# - block-timestamp: timestamps drive interest accrual and signature deadlines; a validator's few seconds of drift
+#   moves interest by a negligible amount and cannot extend a deadline meaningfully.
+[lint]
+exclude_lints = ["reentrancy-events", "block-timestamp"]
+ignore = ["test/**", "script/**"]
+
+[soldeer]
+remappings_generate = false
+remappings_regenerate = false
+
+[dependencies]
+forge-std = "1.16.2"
+"@openzeppelin-contracts" = "5.7.0"
+solady = "0.1.26"

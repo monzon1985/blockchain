@@ -1,0 +1,32 @@
+[package]
+name = "keeper"
+description = "Event-sourced liquidation keeper for the isolated lending engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[features]
+# Spawns a local anvil node, deploys the contracts from Foundry artifacts and
+# runs scripted price crashes end to end. Requires `forge build` and `anvil`.
+anvil-e2e = []
+
+[dependencies]
+alloy.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+risk-math.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

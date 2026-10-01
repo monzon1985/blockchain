@@ -1,0 +1,4 @@
+[global]
+# The explicit arithmetic assumptions keep every assertion query small (the slowest takes about 30 s on a laptop), but
+# shared CI runners are slower: allow 10 minutes per query instead of the 60 s default.
+solver-timeout-assertion = "10m"

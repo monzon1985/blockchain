@@ -1,0 +1,256 @@
+name: "22 · Isolated Lending Engine"
+
+on:
+  push:
+    paths:
+      - "projects/22-isolated-lending-engine/**"
+      - ".github/workflows/22-isolated-lending-engine.yml"
+  pull_request:
+    paths:
+      - "projects/22-isolated-lending-engine/**"
+      - ".github/workflows/22-isolated-lending-engine.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: 22-isolated-lending-engine-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/22-isolated-lending-engine
+
+env:
+  FOUNDRY_PROFILE: ci
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: 4
+  # Fixed proptest seed: the Rust property tests are deterministic in CI (standards section 4).
+  PROPTEST_RNG_SEED: "2222"
+
+jobs:
+  solidity:
+    name: Foundry (fmt, build, lint, tests, gas, coverage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.3
+
+      - name: Install dependencies (Soldeer)
+        run: forge soldeer install
+
+      - name: Format
+        run: forge fmt --check
+
+      - name: Build
+        run: forge build
+
+      - name: Lint (forge lint, src only; triage in foundry.toml)
+        run: forge lint src
+
+      - name: Tests (unit, fuzz, invariants, Rust-generated vectors)
+        run: forge test
+
+      - name: Gas snapshot
+        run: forge snapshot --check --match-contract GasBench
+
+      - name: Coverage gate (>= 90 % of src lines)
+        run: |
+          forge coverage --report summary --report lcov --no-match-coverage "(test|script|dependencies)"
+          awk -F: '/^LF:/ { lf += $2 } /^LH:/ { lh += $2 } END { pct = 100 * lh / lf; printf "src line coverage: %.2f%%\n", pct; exit (pct < 90) }' lcov.info
+
+  medusa:
+    name: Medusa stateful fuzzing
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.3
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.12.20"
+          python-version: "3.12"
+          enable-cache: false
+
+      - name: Install crytic-compile and Medusa 1.5.1 (checksum-pinned)
+        run: |
+          uv tool install crytic-compile==0.4.2
+          curl -fsSL -o "$RUNNER_TEMP/medusa.tar.gz" https://github.com/crytic/medusa/releases/download/v1.5.1/medusa-linux-x64.tar.gz
+          # sha256 of the v1.5.1 release asset, as published in the release's asset metadata.
+          echo "ddfe1517ae9028ef9fc331b00f5a6a9d5406f3fcd11a715d60c6b6fb3e4546d3  $RUNNER_TEMP/medusa.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/medusa"
+          tar -xzf "$RUNNER_TEMP/medusa.tar.gz" -C "$RUNNER_TEMP/medusa"
+          bin="$(find "$RUNNER_TEMP/medusa" -type f -name medusa | head -n 1)"
+          test -n "$bin"
+          chmod +x "$bin"
+          echo "$(dirname "$bin")" >> "$GITHUB_PATH"
+
+      - name: Install dependencies (Soldeer)
+        run: forge soldeer install
+
+      - name: Medusa
+        run: |
+          set -o pipefail
+          medusa --version
+          medusa fuzz --config medusa.json --timeout 600 2>&1 | tee "$RUNNER_TEMP/medusa.log"
+          # Guard against a vacuous pass: all eleven property tests must actually have run and passed.
+          grep -E "Test summary: [1-9][0-9]* test\(s\) passed, 0 test\(s\) failed" "$RUNNER_TEMP/medusa.log"
+          passed="$(grep -E '\[PASSED\] Property Test: LendingProperties\.property_' "$RUNNER_TEMP/medusa.log" | sort -u | wc -l)"
+          echo "property tests passed: $passed"
+          test "$passed" -eq 11
+
+      - name: Keep the Medusa log and corpus on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: medusa-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/medusa.log
+            projects/22-isolated-lending-engine/medusa-corpus
+          if-no-files-found: ignore
+          retention-days: 14
+
+  halmos:
+    name: Halmos symbolic proofs
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.3
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.12.20"
+          python-version: "3.12"
+          enable-cache: false
+
+      - name: Install Halmos 0.3.3
+        run: uv tool install halmos==0.3.3
+
+      - name: Install dependencies (Soldeer)
+        run: forge soldeer install
+
+      - name: Halmos (share-conversion rounding)
+        run: halmos --match-contract SharesMathSymbolic
+
+      - name: Halmos (bonus schedule)
+        run: halmos --match-contract LiquidationBonusSymbolic
+
+  slither:
+    name: Slither
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.3
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.12.20"
+          python-version: "3.12"
+          enable-cache: false
+
+      - name: Install Slither 0.11.6
+        run: uv tool install slither-analyzer==0.11.6 --with crytic-compile==0.4.2
+
+      - name: Install dependencies (Soldeer)
+        run: forge soldeer install
+
+      - name: Slither (fail on medium or higher)
+        run: slither . --config-file slither.config.json --fail-medium
+
+  rust:
+    name: Rust (keeper, risk-math, cascade-sim, anvil e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.3
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/22-isolated-lending-engine/keeper
+
+      - name: Build contracts (artifacts for the anvil e2e test)
+        run: |
+          forge soldeer install
+          forge build
+
+      - name: Format
+        working-directory: projects/22-isolated-lending-engine/keeper
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        working-directory: projects/22-isolated-lending-engine/keeper
+        run: |
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          cargo clippy --locked -p keeper --all-targets --features anvil-e2e -- -D warnings
+
+      - name: Tests
+        working-directory: projects/22-isolated-lending-engine/keeper
+        run: cargo test --locked --workspace
+
+      - name: Keeper end to end on anvil
+        working-directory: projects/22-isolated-lending-engine/keeper
+        run: |
+          set -o pipefail
+          cargo test --locked -p keeper --features anvil-e2e -- --test-threads=1 --nocapture 2>&1 | tee "$RUNNER_TEMP/keeper-e2e.log"
+
+      - name: Simulator determinism (quick grid vs golden file, 1 vs 4 threads)
+        working-directory: projects/22-isolated-lending-engine/keeper
+        run: cargo run --locked --release -p cascade-sim -- --quick --check
+
+      - name: Shared vectors are reproducible
+        working-directory: projects/22-isolated-lending-engine/keeper
+        run: cargo run --locked --release -p cascade-sim -- export-vectors --check
+
+      - name: Keep the e2e log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: keeper-e2e-${{ github.run_id }}
+          path: ${{ runner.temp }}/keeper-e2e.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  risk-reports:
+    name: Committed risk reports are reproducible (full sweep + 4 stability seeds)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/22-isolated-lending-engine/keeper
+
+      - name: Full sweep vs reports/risk-grid.csv and reports/RISK.md
+        working-directory: projects/22-isolated-lending-engine/keeper
+        run: cargo run --locked --release -p cascade-sim -- --check

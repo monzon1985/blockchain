@@ -1,0 +1,10 @@
+# Fuzzer and analyzer outputs
+medusa-corpus/
+crytic-export/
+slither_results.json
+# Coverage
+lcov.info
+coverage/
+# Local keystores and env files never belong in git
+*.keystore.json
+.env

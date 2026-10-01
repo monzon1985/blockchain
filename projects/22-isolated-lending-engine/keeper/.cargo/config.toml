@@ -1,0 +1,5 @@
+# Windows/MSVC only: a dependency of alloy exports symbols from the keeper executable, so link.exe also writes an
+# import library and says so on stdout, which rustc reports as a `linker_messages` warning. An executable never
+# needs that import library.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=/NOIMPLIB", "-C", "link-arg=/NOEXP"]
