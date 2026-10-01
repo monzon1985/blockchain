@@ -1,0 +1,16 @@
+# Build outputs (also covered by the root .gitignore)
+/target/
+/contracts/out/
+/contracts/cache/
+/contracts/dependencies/
+
+# Coverage and profiling artefacts
+/contracts/lcov.info
+/contracts/coverage/
+/lcov.info
+*.profraw
+*.profdata
+
+# Local key material written by demos (never commit secrets)
+/keys/
+*.key.json

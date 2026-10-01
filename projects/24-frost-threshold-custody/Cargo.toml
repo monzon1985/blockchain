@@ -1,0 +1,88 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/frost-keccak",
+    "crates/custody-protocol",
+    "crates/custody-net",
+    "crates/fixtures-gen",
+    "crates/e2e",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+repository = "https://github.com/monzon1985/blockchain"
+publish = false
+
+[workspace.dependencies]
+# Internal crates
+frost-keccak = { path = "crates/frost-keccak" }
+custody-protocol = { path = "crates/custody-protocol" }
+custody-net = { path = "crates/custody-net" }
+
+# FROST (Zcash Foundation). `internals` is required to construct a `Challenge`
+# from a scalar inside the custom ciphersuite (same approach as frost-secp256k1-tr).
+frost-core = { version = "3.0.0", features = ["serde", "internals"] }
+frost-secp256k1 = "3.0.0"
+
+# Curve + hashing (digest 0.10 / rand_core 0.6 ecosystem, shared with frost-core 3.0)
+k256 = { version = "0.13.4", default-features = false, features = ["arithmetic", "ecdsa", "hash2curve", "expose-field", "std"] }
+sha2 = "0.10.9"
+sha3 = "0.10.8"
+rand_core = { version = "0.6.4", features = ["getrandom"] }
+rand_chacha = "0.3.1"
+zeroize = { version = "1.8", features = ["derive"] }
+
+# Transport security
+ed25519-dalek = { version = "2.2.0", features = ["rand_core", "zeroize"] }
+x25519-dalek = { version = "2.0.1", features = ["static_secrets", "zeroize"] }
+chacha20poly1305 = "0.10.1"
+hkdf = "0.12.4"
+
+# EVM encoding
+alloy-sol-types = { version = "1.7.3", features = ["eip712-serde"] }
+alloy-primitives = "1.7.3"
+alloy = { version = "2.5.0", default-features = false }
+
+# Runtime / serialization / errors
+tokio = { version = "1.53", features = ["rt-multi-thread", "net", "io-util", "time", "macros", "sync"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+hex = { version = "0.4.3", features = ["serde"] }
+thiserror = "2.0"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
+clap = { version = "4.6", features = ["derive"] }
+
+# Testing
+proptest = "1.11"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+
+# `cargo test` (test profile) and `cargo run` (dev profile) use identical
+# settings, so they share one build of every dependency (Cargo does not hash
+# the profile name). Dependencies are optimised because the curve arithmetic
+# dominates the property tests.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.test]
+opt-level = 1
+
+[profile.test.package."*"]
+opt-level = 2

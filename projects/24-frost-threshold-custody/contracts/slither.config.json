@@ -1,0 +1,9 @@
+{
+  "filter_paths": "(dependencies/|test/|script/)",
+  "detectors_to_exclude": "timestamp",
+  "fail_on": "low",
+  "_triage": {
+    "timestamp": "SchnorrVault compares block.timestamp against intent deadlines (IntentExpired) and the daily-limit time lock (IncreaseNotMature), and derives the UTC day for rate limiting. Validator timestamp drift (seconds) is irrelevant at these granularities (deadlines chosen by the signers, a 2-day lock, 1-day windows); this is intended use, not randomness or ordering.",
+    "slither-ir": "Slither 0.11.6 logs 'Impossible to generate IR' for OpenZeppelin 5.7 ReentrancyGuardTransient helpers (inline assembly with transient storage). These are parser limitations inside a dependency; the analysis of SchnorrVault completes and the guard is covered by test_reentrancyIsBlocked."
+  }
+}

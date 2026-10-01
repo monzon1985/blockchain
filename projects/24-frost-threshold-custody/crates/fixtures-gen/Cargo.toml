@@ -1,0 +1,22 @@
+[package]
+name = "fixtures-gen"
+description = "Generates the Rust-signed FROST fixtures consumed by the Foundry differential tests (contracts/test/fixtures/sigs.json)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+custody-protocol.workspace = true
+frost-keccak.workspace = true
+alloy-primitives.workspace = true
+k256.workspace = true
+serde_json.workspace = true
+rand_chacha.workspace = true
+rand_core.workspace = true
+hex.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,72 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 10000
+bytecode_hash = "none"
+cbor_metadata = false
+fs_permissions = [{ access = "read", path = "./test/fixtures" }]
+# snapshots/GasBench.json holds optimised per-call gas and is only ever checked, never
+# rewritten as a side effect: `forge coverage` (optimizer off) or any other run would
+# otherwise overwrite the baseline right before the check. Regenerate it on purpose with
+# `FORGE_SNAPSHOT_EMIT=true forge test --match-contract GasBench`; CI checks it with
+# `FORGE_SNAPSHOT_CHECK=true forge test --match-contract GasBench`.
+gas_snapshot_emit = false
+remappings = [
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+]
+
+[profile.default.fuzz]
+runs = 1024
+
+[profile.default.invariant]
+runs = 256
+depth = 64
+fail_on_revert = true
+
+[profile.ci.fuzz]
+runs = 4096
+seed = "0x2424"
+
+[profile.ci.invariant]
+runs = 512
+depth = 128
+fail_on_revert = true
+
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+quote_style = "double"
+number_underscore = "thousands"
+sort_imports = true
+
+[lint]
+lint_on_build = false
+# Production sources only: tests and scripts use cheatcodes and fixtures freely.
+ignore = ["test/**/*.sol", "script/**/*.sol"]
+# Triaged rules (CI runs `forge lint --deny warnings`; everything else is fixed or
+# suppressed inline next to a one-line justification):
+# - block-timestamp: intent deadlines, the 2-day time locks and the UTC-day windows compare
+#   block.timestamp by design; validator drift of seconds is irrelevant at these
+#   granularities (same triage as Slither's `timestamp` detector in slither.config.json).
+# - reentrancy-events: the only calls that precede an event are the ecrecover precompile
+#   (a staticcall that runs no contract code); in `withdraw` the ETH/ERC-20 transfer is the
+#   last statement, after every state change and event, and `withdraw` is nonReentrant.
+exclude_lints = ["block-timestamp", "reentrancy-events"]
+
+[dependencies]
+forge-std = "1.16.2"
+"@openzeppelin-contracts" = "5.7.0"
+
+[soldeer]
+remappings_generate = false
+remappings_regenerate = false
+recursive_deps = false

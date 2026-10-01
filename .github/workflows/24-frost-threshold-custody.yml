@@ -1,0 +1,176 @@
+name: "24 · FROST Threshold Custody"
+
+on:
+  push:
+    paths:
+      - "projects/24-frost-threshold-custody/**"
+      - ".github/workflows/24-frost-threshold-custody.yml"
+  pull_request:
+    paths:
+      - "projects/24-frost-threshold-custody/**"
+      - ".github/workflows/24-frost-threshold-custody.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/24-frost-threshold-custody
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+  # Deterministic property tests and fuzzing in CI.
+  PROPTEST_RNG_SEED: "24"
+  FOUNDRY_PROFILE: ci
+
+jobs:
+  rust:
+    name: Rust · fmt, clippy, tests, fixture drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.1"
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/24-frost-threshold-custody
+
+      - name: cargo fmt
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test --locked --workspace
+
+      - name: Fixture drift (Rust-generated signatures consumed by Foundry)
+        run: cargo run --locked -p fixtures-gen -- --check
+
+  rust-coverage:
+    name: Rust · line coverage (cargo-llvm-cov, gate 90 %)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.1"
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/24-frost-threshold-custody
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov@0.9.1
+
+      - name: Coverage (production crates; test files, fixtures-gen and e2e excluded)
+        run: >
+          cargo llvm-cov --locked --workspace --summary-only --fail-under-lines 90
+          --ignore-filename-regex '(fixtures-gen|e2e|[\\/]tests[\\/])'
+
+  contracts:
+    name: Solidity · fmt, build, lint, gas, tests, coverage, Slither
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: projects/24-frost-threshold-custody/contracts
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.3
+
+      - name: Install dependencies (Soldeer, from soldeer.lock)
+        run: forge soldeer install
+
+      - name: forge fmt
+        run: forge fmt --check
+
+      - name: forge build
+        run: forge build --sizes
+
+      - name: forge lint (src only; triage in foundry.toml [lint] and inline)
+        run: forge lint --deny warnings
+
+      # foundry.toml sets gas_snapshot_emit = false, so no test or coverage run can
+      # rewrite snapshots/GasBench.json; this step compares the optimised per-call gas
+      # against the committed file before anything else runs.
+      - name: Per-call gas snapshots (snapshots/GasBench.json)
+        run: FORGE_SNAPSHOT_CHECK=true forge test --match-contract GasBench
+
+      - name: Per-test gas snapshot (.gas-snapshot)
+        run: forge snapshot --check --match-contract GasBench
+
+      - name: forge test (unit, fuzz, invariants, Rust differential fixtures)
+        run: forge test
+
+      - name: Coverage (production contracts, default fuzz/invariant depth, gate 90 % lines)
+        env:
+          FOUNDRY_PROFILE: default
+        run: |
+          set -o pipefail
+          forge coverage --report summary --no-match-coverage '(test|script|dependencies)' \
+            | tee "$RUNNER_TEMP/coverage.txt"
+          lines=$(awk -F'|' '/^\| Total/ {gsub(/ /,"",$3); sub(/%.*/,"",$3); print $3}' "$RUNNER_TEMP/coverage.txt")
+          echo "production line coverage: ${lines}%"
+          awk -v v="$lines" 'BEGIN { exit !(v + 0 >= 90) }'
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Slither (triaged in slither.config.json)
+        run: >
+          uvx --from slither-analyzer==0.11.6 --with crytic-compile==0.4.2
+          slither . --config-file slither.config.json
+
+  e2e:
+    name: End-to-end · DKG → sign → settle on anvil → rotate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.1"
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/24-frost-threshold-custody
+          key: e2e
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.3
+
+      - name: Build contracts
+        working-directory: projects/24-frost-threshold-custody/contracts
+        run: |
+          forge soldeer install
+          forge build
+
+      - name: clippy (anvil feature)
+        run: cargo clippy --locked -p e2e --features anvil --all-targets -- -D warnings
+
+      - name: anvil end-to-end test
+        run: cargo test --locked -p e2e --features anvil -- --test-threads=1
+
+      - name: CLI demo
+        run: cargo run --locked -p custody-net --bin frost-custody -- demo --participants 5 --threshold 3

@@ -1,0 +1,7 @@
+GasBench:test_gas_ecdsaMultisig3of5Verify() (gas: 59533)
+GasBench:test_gas_rotateGroupKey() (gas: 121376)
+GasBench:test_gas_schnorrVerify() (gas: 23777)
+GasBench:test_gas_schnorrVerifyStoredKey() (gas: 23689)
+GasBench:test_gas_updateDailyLimit() (gas: 86480)
+GasBench:test_gas_withdrawEth() (gas: 119455)
+GasBench:test_gas_withdrawToken() (gas: 125935)

@@ -1,0 +1,35 @@
+[package]
+name = "custody-net"
+description = "Tokio coordinator and participant services for the FROST custody protocol over authenticated local TCP"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "frost-custody"
+path = "src/bin/frost-custody.rs"
+
+[dependencies]
+custody-protocol.workspace = true
+frost-keccak.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+clap.workspace = true
+rand_core.workspace = true
+hex.workspace = true
+alloy-primitives = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+rand_chacha.workspace = true
+k256.workspace = true
+frost-core.workspace = true
+
+[lints]
+workspace = true

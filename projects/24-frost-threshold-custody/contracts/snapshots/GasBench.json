@@ -1,0 +1,9 @@
+{
+  "baseline_ecdsa_3of5_verify": "19865",
+  "schnorr_verify": "4954",
+  "schnorr_verify_stored_key": "9107",
+  "vault_rotate_group_key": "96390",
+  "vault_update_daily_limit": "65585",
+  "vault_withdraw_erc20": "102945",
+  "vault_withdraw_eth": "96442"
+}
