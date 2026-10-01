@@ -1,0 +1,9 @@
+storage of 0x5fbdb2315678afecb367f032d93f642f64180aa3 at block 3 0xc4f194a810194135ef41afa75763204d0d6ba5628a1f4afff8734672e548ef3f
+  200 slots listed, 150 non-zero
+  [ok]   header fields  exactly the fields of a prague header
+  [ok]   block hash     keccak256(rlp(header))
+  [ok]   account proof  storageRoot 0xa02e6438..65a3 proven under stateRoot 0x7f102a30..43ce
+  [fail] storage root   MISMATCH: trie rebuilt from 200 listed slots (150 non-zero) equals the proven storageRoot
+                          reported 0xa02e643801b37450d7a22bba538437b07e42ad15a198c82b5af50eac6cd465a3
+                          computed 0x276edce0dcb647cec6073365acadfbe57257be55de67f9736f31741e53c3d59f
+verdict: FAILED (1 of 4 checks failed)

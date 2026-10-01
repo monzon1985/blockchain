@@ -1,0 +1,7 @@
+list, 4 items, 17 bytes encoded
+  string, 3 bytes: 0x636174 "cat"
+  list, 2 items, 6 bytes encoded
+    string, 3 bytes: 0x646f67 "dog"
+    string, empty (0, or no value)
+  string, 2 bytes: 0x0400
+  string, 2 bytes: 0x00ff

@@ -1,0 +1,6 @@
+# Coverage data and logs written by script/coverage.sh and CI.
+covdata/
+*.log
+# Locally built binaries.
+/trie
+/trie.exe

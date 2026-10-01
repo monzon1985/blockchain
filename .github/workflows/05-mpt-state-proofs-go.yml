@@ -1,0 +1,222 @@
+name: "5 · Trie Inspector: RLP, MPT and state proofs (Go)"
+
+on:
+  push:
+    paths:
+      - "projects/05-mpt-state-proofs-go/**"
+      - ".github/workflows/05-mpt-state-proofs-go.yml"
+  pull_request:
+    paths:
+      - "projects/05-mpt-state-proofs-go/**"
+      - ".github/workflows/05-mpt-state-proofs-go.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/05-mpt-state-proofs-go
+    shell: bash
+
+env:
+  FOUNDRY_VERSION: v1.8.3
+  CGO_ENABLED: "0"
+  # Logs and coverage profiles are kept so the numbers in the README can be traced to a run.
+  EVIDENCE_RETENTION_DAYS: 30
+
+jobs:
+  fixture:
+    name: Fixture contract (Foundry)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: projects/05-mpt-state-proofs-go/fixtures
+        shell: bash
+    env:
+      FOUNDRY_PROFILE: ci
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Format
+        run: forge fmt --check
+
+      - name: Build
+        run: forge build
+
+      - name: Lint
+        run: forge lint
+
+      - name: Test (unit and fuzz; fixed seed in the ci profile)
+        run: forge test -vv
+
+  gates:
+    name: Go gates (vet, unit + golden, integration on anvil)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: projects/05-mpt-state-proofs-go/go.mod
+          cache-dependency-path: projects/05-mpt-state-proofs-go/go.sum
+
+      - name: Build the fixture contract
+        working-directory: projects/05-mpt-state-proofs-go/fixtures
+        run: forge build
+
+      - name: Module hygiene (go.mod and go.sum tidy, module cache verified)
+        run: |
+          go mod tidy -diff
+          go mod verify
+
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+
+      - name: go vet (both build tags)
+        run: |
+          go vet ./...
+          go vet -tags integration ./...
+
+      - name: Unit, vector, differential, property and CLI golden tests
+        run: go test -count=1 -p 4 -v ./... 2>&1 | tee unit.log | grep -E "^(ok|FAIL|---)|^panic" | grep -vE "^\s+--- PASS"
+
+      - name: Integration tests (anvil, every hardfork from Berlin to Osaka)
+        run: go test -count=1 -tags integration -v ./integration/... 2>&1 | tee integration.log | grep -E "^(ok|FAIL|--- )|^\s+--- (PASS|FAIL)|^panic"
+
+      - name: Local demo (end-to-end smoke test of the README walkthrough)
+        run: go run ./internal/tools/demo 2>&1 | tee demo.log
+
+      - name: Keep the logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: 05-gates-logs
+          path: projects/05-mpt-state-proofs-go/*.log
+          retention-days: ${{ env.EVIDENCE_RETENTION_DAYS }}
+          if-no-files-found: warn
+
+  coverage:
+    name: Coverage (unit + integration merged, minimum 90 %)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: projects/05-mpt-state-proofs-go/go.mod
+          cache-dependency-path: projects/05-mpt-state-proofs-go/go.sum
+
+      - name: Build the fixture contract
+        working-directory: projects/05-mpt-state-proofs-go/fixtures
+        run: forge build
+
+      - name: Merged coverage of the production packages
+        run: COVERAGE_MIN=90 bash script/coverage.sh 2>&1 | tee coverage.log
+
+      - name: Keep the merged profile
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: 05-coverage
+          path: |
+            projects/05-mpt-state-proofs-go/covdata/merged.out
+            projects/05-mpt-state-proofs-go/coverage.log
+          retention-days: ${{ env.EVIDENCE_RETENTION_DAYS }}
+          if-no-files-found: warn
+
+  race:
+    name: Race detector (CI only; needs cgo)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: projects/05-mpt-state-proofs-go/go.mod
+          cache-dependency-path: projects/05-mpt-state-proofs-go/go.sum
+
+      - name: Build the fixture contract
+        working-directory: projects/05-mpt-state-proofs-go/fixtures
+        run: forge build
+
+      - name: Unit tests under the race detector
+        run: go test -race -count=1 ./... 2>&1 | tee race.log | grep -E "^(ok|FAIL|---)|DATA RACE"
+
+      - name: Integration tests under the race detector
+        run: go test -race -count=1 -tags integration ./integration/... 2>&1 | tee race-integration.log | grep -E "^(ok|FAIL|---)|DATA RACE"
+
+      - name: Keep the logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: 05-race-logs
+          path: projects/05-mpt-state-proofs-go/*.log
+          retention-days: ${{ env.EVIDENCE_RETENTION_DAYS }}
+          if-no-files-found: warn
+
+  fuzz:
+    name: Fuzz (native Go fuzzing)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: projects/05-mpt-state-proofs-go/go.mod
+          cache-dependency-path: projects/05-mpt-state-proofs-go/go.sum
+
+      - name: Fuzz RLP round trip and trie order independence (60 s each, differential against go-ethereum)
+        run: |
+          go test ./rlp -run '^$' -fuzz='^FuzzRLPRoundTrip$' -fuzztime=60s 2>&1 | tee fuzz-rlp.log
+          go test ./trie -run '^$' -fuzz='^FuzzTrieOrderIndependence$' -fuzztime=60s 2>&1 | tee fuzz-trie.log
+
+      - name: Fuzz proof verification, hex-prefix and JSON-RPC decoding (30 s each)
+        run: |
+          go test ./trie -run '^$' -fuzz='^FuzzVerifyProof$' -fuzztime=30s 2>&1 | tee fuzz-proof.log
+          go test ./trie -run '^$' -fuzz='^FuzzHexPrefix$' -fuzztime=30s 2>&1 | tee fuzz-hp.log
+          go test ./ethrpc -run '^$' -fuzz='^FuzzDecodeRPC$' -fuzztime=30s 2>&1 | tee fuzz-rpc.log
+
+      - name: Keep the logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: 05-fuzz-logs
+          path: projects/05-mpt-state-proofs-go/*.log
+          retention-days: ${{ env.EVIDENCE_RETENTION_DAYS }}
+          if-no-files-found: warn
+
+      - name: Keep fuzz crashers of a failed run
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: 05-fuzz-crashers
+          path: projects/05-mpt-state-proofs-go/**/testdata/fuzz/**
+          if-no-files-found: ignore

@@ -1,0 +1,12 @@
+account 0x5fbdb2315678afecb367f032d93f642f64180aa3 at block 3 0xc4f194a810194135ef41afa75763204d0d6ba5628a1f4afff8734672e548ef3f
+  nonce 1, balance 0 wei
+  storageRoot 0xa02e643801b37450d7a22bba538437b07e42ad15a198c82b5af50eac6cd465a3
+  codeHash    0xf8955a5a035ad6f94ab90d7a4c45a13e2ce312dae3fb20fffa1a710a64a037cd
+  [ok]   header fields             exactly the fields of a prague header
+  [ok]   block hash                keccak256(rlp(header))
+  [ok]   account proof             account exists under stateRoot 0x7f102a30..43ce (branch > branch > leaf)
+  [ok]   storage 0xa3f0af13..f791  = 0x20b16543 (branch > branch > leaf)
+  [ok]   storage 0xada50131..9e7d  absent (zero): exclusion proof (branch > branch)
+  [ok]   storage 0x00000000..0000  absent (zero): exclusion proof (branch > branch > leaf)
+  [ok]   claims                    nonce, balance, codeHash, storageHash and slot values match the proofs
+verdict: VERIFIED (7 checks)

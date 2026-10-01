@@ -1,0 +1,18 @@
+block 1 0xab6341a6357a5385a67c9387a3e78001c72a1a8bcab7e3a980b466bcae95794b
+  prague header, 3 transactions, 0 logs
+  [ok]   header fields       exactly the fields of a prague header
+  [ok]   block hash          keccak256(rlp(header))
+  [fail] transaction hashes  tx 0: keccak256(raw) = 0xfe6718e0..bcc6, block lists 0xc7039d30..d85f
+  [fail] transactionsRoot    MISMATCH: trie of 3 raw envelopes keyed by rlp(index)
+                               reported 0x4c5d1663d29346ca75334853384c37a75c2f78567d7df534b3ad92268132ea60
+                               computed 0x80b9436befa1a12656f49bbee608db788ef257e1e1b4de3b473ddbdd9e3ab7f5
+  [ok]   receipt identity    3 receipts match the block's transactions (hash, index, type)
+  [ok]   receipt blooms      3 blooms rebuilt from 0 logs
+  [ok]   logsBloom           header bloom = OR of the receipt blooms
+  [ok]   gasUsed             last cumulativeGasUsed = header gasUsed = 316131
+  [ok]   receiptsRoot        trie of 3 receipts (type || rlp([status, cumulativeGas, bloom, logs]))
+  [ok]   withdrawalsRoot     trie of 0 withdrawals
+  [ok]   blobGasUsed         0 blobs x 131072 gas = 0
+  [ok]   requestsHash        no execution-layer requests: sha256 of the empty list
+  [ok]   ommersHash          no ommers: keccak(rlp([]))
+verdict: FAILED (2 of 13 checks failed)

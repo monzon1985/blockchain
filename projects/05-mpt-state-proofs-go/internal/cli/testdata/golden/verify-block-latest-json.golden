@@ -1,0 +1,88 @@
+{
+  "number": 3,
+  "hash": "0xc4f194a810194135ef41afa75763204d0d6ba5628a1f4afff8734672e548ef3f",
+  "era": "prague",
+  "transactions": 2,
+  "txTypes": {
+    "dynamic-fee": 1,
+    "legacy": 1
+  },
+  "logs": 1,
+  "checks": [
+    {
+      "name": "header fields",
+      "status": "ok",
+      "detail": "exactly the fields of a prague header"
+    },
+    {
+      "name": "block hash",
+      "status": "ok",
+      "detail": "keccak256(rlp(header))",
+      "reported": "0xc4f194a810194135ef41afa75763204d0d6ba5628a1f4afff8734672e548ef3f",
+      "computed": "0xc4f194a810194135ef41afa75763204d0d6ba5628a1f4afff8734672e548ef3f"
+    },
+    {
+      "name": "transaction hashes",
+      "status": "ok",
+      "detail": "2 transactions: keccak256(raw envelope) = listed hash (dynamic-fee 1, legacy 1)"
+    },
+    {
+      "name": "transactionsRoot",
+      "status": "ok",
+      "detail": "trie of 2 raw envelopes keyed by rlp(index)",
+      "reported": "0x4b0f483a2331a7f6e88861584a74bbc1cf9544aa20a6568750cb4db044b59cb7",
+      "computed": "0x4b0f483a2331a7f6e88861584a74bbc1cf9544aa20a6568750cb4db044b59cb7"
+    },
+    {
+      "name": "receipt identity",
+      "status": "ok",
+      "detail": "2 receipts match the block's transactions (hash, index, type)"
+    },
+    {
+      "name": "receipt blooms",
+      "status": "ok",
+      "detail": "2 blooms rebuilt from 1 log"
+    },
+    {
+      "name": "logsBloom",
+      "status": "ok",
+      "detail": "header bloom = OR of the receipt blooms"
+    },
+    {
+      "name": "gasUsed",
+      "status": "ok",
+      "detail": "last cumulativeGasUsed = header gasUsed = 249260"
+    },
+    {
+      "name": "receiptsRoot",
+      "status": "ok",
+      "detail": "trie of 2 receipts (type || rlp([status, cumulativeGas, bloom, logs]))",
+      "reported": "0xfdd132944cb8f6212ae47612a9e68b0d83d25738b4ae783af4c5de4fe13ecfae",
+      "computed": "0xfdd132944cb8f6212ae47612a9e68b0d83d25738b4ae783af4c5de4fe13ecfae"
+    },
+    {
+      "name": "withdrawalsRoot",
+      "status": "ok",
+      "detail": "trie of 0 withdrawals",
+      "reported": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "computed": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
+    },
+    {
+      "name": "blobGasUsed",
+      "status": "ok",
+      "detail": "0 blobs x 131072 gas = 0"
+    },
+    {
+      "name": "requestsHash",
+      "status": "ok",
+      "detail": "no execution-layer requests: sha256 of the empty list"
+    },
+    {
+      "name": "ommersHash",
+      "status": "ok",
+      "detail": "no ommers: keccak(rlp([]))",
+      "reported": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+      "computed": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+    }
+  ]
+}

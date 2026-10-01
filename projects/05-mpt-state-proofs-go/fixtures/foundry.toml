@@ -1,0 +1,25 @@
+# Fixture contract for the Go integration tests (deployed on anvil by integration/).
+#
+# evm_version is "london", not the repository default "osaka": the integration tests run the
+# fixture on anvil chains from Berlin to Osaka, and bytecode compiled for a later EVM may use
+# opcodes (PUSH0, MCOPY, CLZ) that older hardforks reject. London is the oldest target solc
+# 0.8.37 supports without a deprecation warning; its only new opcode, BASEFEE, is never used
+# by the fixture, so the same bytecode also runs on the Berlin chain (the Berlin integration
+# run deploys and calls it). This is a documented exception.
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+libs = []
+solc_version = "0.8.37"
+evm_version = "london"
+optimizer = true
+optimizer_runs = 200
+bytecode_hash = "none"
+cbor_metadata = false
+
+[profile.ci]
+fuzz = { runs = 1000, seed = "0x5" }
+
+[fmt]
+line_length = 100

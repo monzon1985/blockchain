@@ -1,0 +1,16 @@
+block 0 0x4a851a0e8ddeaa7820f27388fd42043ba2fda5551f3e64fb5857b265f0dde4cd
+  prague header, 0 transactions, 0 logs
+  [ok]   header fields       exactly the fields of a prague header
+  [ok]   block hash          keccak256(rlp(header))
+  [ok]   transaction hashes  0 transactions: keccak256(raw envelope) = listed hash
+  [ok]   transactionsRoot    trie of 0 raw envelopes keyed by rlp(index)
+  [ok]   receipt identity    0 receipts match the block's transactions (hash, index, type)
+  [ok]   receipt blooms      0 blooms rebuilt from 0 logs
+  [ok]   logsBloom           header bloom = OR of the receipt blooms
+  [ok]   gasUsed             last cumulativeGasUsed = header gasUsed = 0
+  [ok]   receiptsRoot        trie of 0 receipts (type || rlp([status, cumulativeGas, bloom, logs]))
+  [ok]   withdrawalsRoot     trie of 0 withdrawals
+  [ok]   blobGasUsed         0 blobs x 131072 gas = 0
+  [ok]   requestsHash        no execution-layer requests: sha256 of the empty list
+  [ok]   ommersHash          no ommers: keccak(rlp([]))
+verdict: VERIFIED (13 checks)

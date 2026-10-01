@@ -1,0 +1,131 @@
+[
+  {
+    "name": "verify-block-0",
+    "args": [
+      "verify-block",
+      "--rpc",
+      "{rpc}",
+      "0"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "verify-block-1",
+    "args": [
+      "verify-block",
+      "--rpc",
+      "{rpc}",
+      "1"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "verify-block-2",
+    "args": [
+      "verify-block",
+      "--rpc",
+      "{rpc}",
+      "2"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "verify-block-3",
+    "args": [
+      "verify-block",
+      "3",
+      "--rpc",
+      "{rpc}"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "verify-block-latest-json",
+    "args": [
+      "verify-block",
+      "--rpc",
+      "{rpc}",
+      "--json",
+      "latest"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "verify-proof-contract",
+    "args": [
+      "verify-proof",
+      "--rpc",
+      "{rpc}",
+      "--address",
+      "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+      "--slot",
+      "0xa3f0af13bbc24f9a599303045bb90dfcdb939abd7adcca60700cc08fa292f791",
+      "--slot",
+      "0xada5013122d395ba3c54772283fb069b10426056ef8ca54750cb9bb552a59e7d",
+      "--slot",
+      "0",
+      "--block",
+      "3"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "verify-proof-eoa",
+    "args": [
+      "verify-proof",
+      "--rpc",
+      "{rpc}",
+      "--address",
+      "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "--block",
+      "3"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "verify-proof-absent",
+    "args": [
+      "verify-proof",
+      "--rpc",
+      "{rpc}",
+      "--address",
+      "0xdead000000000000000000000000000000000000",
+      "--slot",
+      "1",
+      "--block",
+      "3"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "verify-proof-json",
+    "args": [
+      "verify-proof",
+      "--rpc",
+      "{rpc}",
+      "--json",
+      "--address",
+      "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+      "--slot",
+      "0xa3f0af13bbc24f9a599303045bb90dfcdb939abd7adcca60700cc08fa292f791",
+      "--block",
+      "2"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "storage-root",
+    "args": [
+      "storage-root",
+      "--rpc",
+      "{rpc}",
+      "--address",
+      "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+      "--slots-file",
+      "testdata/slots.txt",
+      "--block",
+      "3"
+    ],
+    "exit": 0
+  }
+]

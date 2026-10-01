@@ -1,0 +1,51 @@
+{
+  "block": 2,
+  "blockHash": "0x74f1142db2143a9de50bd97ced1979d9e29bc8f6750c3a0ef5eacad157fc02d5",
+  "stateRoot": "0x2457fcd32639beef0e251166dbb65b91bc01904a924a23a80a7512cdaf3db2fb",
+  "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+  "account": {
+    "exists": true,
+    "nonce": 1,
+    "balance": "0",
+    "storageRoot": "0x645c8da53fd3592eb62feadcf65f5140a4d153b86dee103df5a29ad672b97422",
+    "codeHash": "0xf8955a5a035ad6f94ab90d7a4c45a13e2ce312dae3fb20fffa1a710a64a037cd",
+    "path": "branch \u003e branch \u003e leaf"
+  },
+  "slots": [
+    {
+      "slot": "0xa3f0af13bbc24f9a599303045bb90dfcdb939abd7adcca60700cc08fa292f791",
+      "value": "0x0000000000000000000000000000000000000000000000000000000020b16543",
+      "exists": true,
+      "path": "branch \u003e branch \u003e leaf"
+    }
+  ],
+  "checks": [
+    {
+      "name": "header fields",
+      "status": "ok",
+      "detail": "exactly the fields of a prague header"
+    },
+    {
+      "name": "block hash",
+      "status": "ok",
+      "detail": "keccak256(rlp(header))",
+      "reported": "0x74f1142db2143a9de50bd97ced1979d9e29bc8f6750c3a0ef5eacad157fc02d5",
+      "computed": "0x74f1142db2143a9de50bd97ced1979d9e29bc8f6750c3a0ef5eacad157fc02d5"
+    },
+    {
+      "name": "account proof",
+      "status": "ok",
+      "detail": "account exists under stateRoot 0x2457fcd3..b2fb (branch \u003e branch \u003e leaf)"
+    },
+    {
+      "name": "storage 0xa3f0af13..f791",
+      "status": "ok",
+      "detail": "= 0x20b16543 (branch \u003e branch \u003e leaf)"
+    },
+    {
+      "name": "claims",
+      "status": "ok",
+      "detail": "nonce, balance, codeHash, storageHash and slot values match the proofs"
+    }
+  ]
+}
