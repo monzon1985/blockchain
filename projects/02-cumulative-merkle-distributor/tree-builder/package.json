@@ -1,0 +1,39 @@
+{
+  "name": "cumulative-merkle-tree-builder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Builds cumulative multi-epoch Merkle trees (StandardMerkleTree-compatible) and differential fixtures for the CumulativeMerkleDistributor.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "build-tree": "node src/cli.ts build",
+    "fixtures": "node scripts/fixtures.ts",
+    "gas-table": "node scripts/gas-table.ts",
+    "demo": "node scripts/demo.ts",
+    "mutation": "node scripts/mutation.ts"
+  },
+  "dependencies": {
+    "viem": "2.57.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@openzeppelin/merkle-tree": "1.0.8",
+    "@types/node": "24.19.0",
+    "@vitest/coverage-v8": "5.0.2",
+    "eslint": "10.11.0",
+    "fast-check": "4.10.2",
+    "prettier": "3.9.9",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.0",
+    "vitest": "5.0.2"
+  }
+}

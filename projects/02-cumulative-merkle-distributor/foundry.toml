@@ -1,0 +1,90 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+evm_version = "osaka"
+optimizer = true
+# Claims are the hot path and run once per user per epoch; deployment is paid once.
+optimizer_runs = 10_000
+via_ir = false
+# Deterministic bytecode on every OS (no metadata hash, no CBOR trailer), so the committed gas snapshot is identical
+# on Windows and on Linux CI.
+bytecode_hash = "none"
+cbor_metadata = false
+# Every top-level call made by a test runs as its own transaction (cold storage, 21,000 base cost, calldata cost,
+# EIP-7623 floor), so GasBench numbers are what a user pays.
+isolate = true
+# The differential suite replays fixtures written by tree-builder (npm run fixtures).
+fs_permissions = [{ access = "read", path = "./test/fixtures" }, { access = "read", path = "./out" }]
+remappings = [
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "solady/=dependencies/solady-0.1.26/src/",
+]
+auto_detect_remappings = false
+# Any compiler warning fails the build (src/, tests, mocks and scripts alike). Inherited by every profile below.
+deny = "warnings"
+
+[profile.default.fuzz]
+runs = 1_000
+max_test_rejects = 65_536
+
+[profile.default.invariant]
+runs = 128
+depth = 64
+fail_on_revert = true
+
+# CI: fixed seed (shared by fuzz and invariant campaigns) and a heavier campaign. The mutation spot-check
+# (tree-builder/scripts/mutation.ts) and the coverage profile use the same seed, so every CI job that fuzzes is
+# deterministic.
+[profile.ci.fuzz]
+runs = 5_000
+seed = "0x02c0ffee"
+max_test_rejects = 65_536
+
+[profile.ci.invariant]
+runs = 256
+depth = 64
+fail_on_revert = true
+
+# Coverage and Slither build into their own directories so they never clobber the default profile's artifacts.
+[profile.coverage]
+out = "out-coverage"
+cache_path = "cache-coverage"
+# Coverage builds are instrumented and unoptimized, so GasBench measures different numbers under this profile: never
+# let them overwrite the committed snapshots/GasBench.json.
+gas_snapshot_emit = false
+
+# Coverage runs the fuzz and invariant suites too: same fixed seed as CI, default run counts.
+[profile.coverage.fuzz]
+seed = "0x02c0ffee"
+
+[profile.slither]
+out = "out-slither"
+cache_path = "cache-slither"
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+quote_style = "double"
+number_underscore = "thousands"
+sort_imports = true
+
+[lint]
+# Production code only; tests, mocks and scripts are not linted. Every exclusion is justified in
+# docs/static-analysis.md.
+ignore = ["test/**", "script/**"]
+
+[soldeer]
+remappings_generate = false
+remappings_regenerate = false
+
+[dependencies]
+forge-std = "1.16.2"
+"@openzeppelin-contracts" = "5.7.0"
+solady = "0.1.26"

@@ -1,0 +1,250 @@
+name: "2 · Cumulative Merkle Distributor"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "projects/02-cumulative-merkle-distributor/**"
+      - ".github/workflows/02-cumulative-merkle-distributor.yml"
+  pull_request:
+    paths:
+      - "projects/02-cumulative-merkle-distributor/**"
+      - ".github/workflows/02-cumulative-merkle-distributor.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to a pull request supersedes the running checks; runs on main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+defaults:
+  run:
+    working-directory: projects/02-cumulative-merkle-distributor
+    shell: bash
+
+env:
+  FOUNDRY_VERSION: v1.8.3
+  # Exact release (the one the project is developed and verified with), not a floating 24.x.
+  NODE_VERSION: "24.11.1"
+  UV_VERSION: "0.12.20"
+  SLITHER_VERSION: "0.11.6"
+  CRYTIC_COMPILE_VERSION: "0.4.2"
+  # Transitive Python dependencies of Slither, pinned (see the file's header).
+  PY_CONSTRAINTS: ci/slither-constraints.txt
+  # Pins every fast-check property's random stream, so the TypeScript suite is deterministic in CI.
+  FC_SEED: "20260201"
+  LOCKFILE: projects/02-cumulative-merkle-distributor/tree-builder/package-lock.json
+
+jobs:
+  foundry:
+    name: Format, build, lint, test, gas, coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: projects/02-cumulative-merkle-distributor/dependencies
+          key: soldeer-02-${{ hashFiles('projects/02-cumulative-merkle-distributor/soldeer.lock') }}
+
+      - name: Cache compiler output (incremental builds)
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            projects/02-cumulative-merkle-distributor/cache
+            projects/02-cumulative-merkle-distributor/out
+          key: forge-02-${{ env.FOUNDRY_VERSION }}-${{ hashFiles('projects/02-cumulative-merkle-distributor/foundry.toml', 'projects/02-cumulative-merkle-distributor/soldeer.lock', 'projects/02-cumulative-merkle-distributor/src/**', 'projects/02-cumulative-merkle-distributor/test/**', 'projects/02-cumulative-merkle-distributor/script/**') }}
+          restore-keys: forge-02-${{ env.FOUNDRY_VERSION }}-
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Format
+        run: forge fmt --check
+
+      - name: Build (any compiler warning fails, deny = "warnings" in foundry.toml)
+        run: forge build
+
+      - name: Lint (no diagnostics, no stale suppressions)
+        run: |
+          forge lint --report-unused-suppressions 2>&1 | tee "$RUNNER_TEMP/lint.txt"
+          if [ -s "$RUNNER_TEMP/lint.txt" ]; then echo "::error::forge lint reported diagnostics"; exit 1; fi
+
+      - name: Test (CI profile, fixed seed, 5,000 fuzz runs, 256 x 64 invariant calls)
+        env:
+          FOUNDRY_PROFILE: ci
+        run: forge test
+
+      - name: Gas snapshot (per-test totals)
+        run: forge snapshot --check --match-contract GasBench
+
+      - name: Gas study values (snapshots/GasBench.json must be reproduced exactly)
+        run: |
+          forge test --match-contract GasBench
+          git diff --exit-code -- snapshots/
+
+      - name: Coverage of src/ (gate 95 % lines; fixed seed; must not touch the gas study)
+        env:
+          FOUNDRY_PROFILE: coverage
+        run: |
+          forge coverage --report summary --report lcov --no-match-coverage '(test|script)' | tee "$RUNNER_TEMP/coverage.txt"
+          awk -F: '
+            /^SF:/ { inSrc = ($2 ~ /^src\//) }
+            inSrc && /^LF:/ { lf += $2 }
+            inSrc && /^LH:/ { lh += $2 }
+            END {
+              if (lf == 0) { print "no src/ lines in lcov.info"; exit 1 }
+              pct = 100 * lh / lf
+              printf "src/ line coverage: %d/%d = %.2f %%\n", lh, lf, pct
+              if (pct < 95) exit 1
+            }' lcov.info
+          # Instrumented, unoptimized coverage builds measure different gas: gas_snapshot_emit = false keeps them out.
+          git diff --exit-code -- snapshots/ .gas-snapshot
+          { echo "### Coverage of src/"; echo '```'; grep -E '^\| (File|src/|Total)' "$RUNNER_TEMP/coverage.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  tree-builder:
+    name: tree-builder (types, lint, properties, fixtures, README gas table)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: projects/02-cumulative-merkle-distributor/tree-builder
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.LOCKFILE }}
+
+      - name: Install (locked)
+        run: npm ci
+
+      - name: Typecheck (strict)
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format
+        run: npm run format:check
+
+      - name: Unit and property tests with coverage thresholds (fixed FC_SEED)
+        run: npm run coverage
+
+      - name: Differential fixtures are up to date
+        run: npm run fixtures -- --check
+
+      - name: README gas tables match snapshots/GasBench.json
+        run: npm run gas-table -- --check
+
+  slither:
+    name: Slither (zero findings, pedantic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: projects/02-cumulative-merkle-distributor/ci/slither-constraints.txt
+
+      - name: Install Slither (transitive dependencies pinned)
+        run: |
+          uv tool install --python 3.12 "slither-analyzer==${SLITHER_VERSION}" \
+            --with "crytic-compile==${CRYTIC_COMPILE_VERSION}" -c "${PY_CONSTRAINTS}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: projects/02-cumulative-merkle-distributor/dependencies
+          key: soldeer-02-${{ hashFiles('projects/02-cumulative-merkle-distributor/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Analyze (any finding fails; every inline exclusion is triaged in docs/static-analysis.md)
+        env:
+          FOUNDRY_PROFILE: slither
+        run: slither . --config-file slither.config.json --fail-pedantic
+
+  local-demo:
+    name: Local anvil demo (end to end, free port)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.LOCKFILE }}
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: projects/02-cumulative-merkle-distributor/dependencies
+          key: soldeer-02-${{ hashFiles('projects/02-cumulative-merkle-distributor/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer and npm, locked)
+        run: |
+          forge soldeer install
+          npm ci --prefix tree-builder
+
+      - name: Deploy with script/Deploy.s.sol, build epochs, veto, accept, claim every way
+        working-directory: projects/02-cumulative-merkle-distributor/tree-builder
+        run: npm run demo
+
+  mutation:
+    name: Mutation spot-check (every injected bug must fail the suite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.LOCKFILE }}
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: projects/02-cumulative-merkle-distributor/dependencies
+          key: soldeer-02-${{ hashFiles('projects/02-cumulative-merkle-distributor/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer and npm, locked)
+        run: |
+          forge soldeer install
+          npm ci --prefix tree-builder
+
+      - name: Inject 25 bugs one at a time (fixed fuzz seed)
+        working-directory: projects/02-cumulative-merkle-distributor/tree-builder
+        run: npm run mutation

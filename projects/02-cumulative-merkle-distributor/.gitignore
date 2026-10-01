@@ -1,0 +1,17 @@
+# Build outputs of the extra Foundry profiles (the default out/ and cache/ are ignored at the repository root).
+out-coverage/
+cache-coverage/
+out-slither/
+cache-slither/
+crytic-export/
+
+# Local broadcasts of script/Deploy.s.sol (anvil runs are ignored at the root; keep every other chain out too).
+broadcast/
+
+# tree-builder outputs (coverage reports, `node src/cli.ts build --out out ...`).
+tree-builder/coverage/
+tree-builder/out/
+
+# Scratch output of the CI gate commands when run locally (the workflow writes them to $RUNNER_TEMP).
+lint.txt
+coverage.txt

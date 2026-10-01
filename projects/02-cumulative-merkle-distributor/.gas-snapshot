@@ -1,0 +1,8 @@
+GasBench:test_Batch_001() (gas: 19207462)
+GasBench:test_Batch_010() (gas: 21709183)
+GasBench:test_Batch_100() (gas: 46872757)
+GasBench:test_CatchUp_FourEpochs() (gas: 2325937)
+GasBench:test_ClaimPaths() (gas: 1567109)
+GasBench:test_Flags_Cumulative() (gas: 11442864)
+GasBench:test_Flags_EpochBitmap() (gas: 9042516)
+GasBench:test_Flags_EpochBool() (gas: 10722177)

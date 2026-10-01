@@ -1,0 +1,25 @@
+{
+  "format": "cumulative-merkle-distributor/claim-authorization-fixture-v1",
+  "signerLabel": "alice",
+  "signer": "0x328809Bc894f92807417D2dAD6b7C998c1aFdac6",
+  "chainId": 31337,
+  "verifyingContract": "0xe4A223c42c76c2bea17B3d04ba55E0d899004DFC",
+  "domainSeparator": "0x9ed4fd4ff1be03b4fca2e74e1e702f1b0cf19bbdb0cd6e121e478309cbda2e8e",
+  "epoch": 3,
+  "root": "0xbeba464b7f3f0f6620d6087f610e250658a6c6bb3d85e18c77405f3758708884",
+  "proof": [
+    "0x81a7aef6df0cc9073c5018c6a0893697bdc7d11cc06474d1a8e2876429924902",
+    "0x048efb258e2b6175fcb8ca43012f6d99e3d567d51544e451ee0211bd1d047cf3",
+    "0x5bc170a7dc4a0944d71ea19bb8f616b09d2a0f4715db6149bc95d4c4823d4cb5"
+  ],
+  "message": {
+    "account": "0x328809Bc894f92807417D2dAD6b7C998c1aFdac6",
+    "token": "0x6e107075c50e05cAAc17c25FBc6c61389Da06961",
+    "cumulativeAmount": "1750000000000000000000",
+    "recipient": "0xf43Bca55E8091977223Fa5b776E23528D205dcA8",
+    "nonce": "0",
+    "deadline": "2000000000"
+  },
+  "digest": "0x88b9d555368955e4def0e83f3397750cd749adc7e003b783f8031f46fb48721a",
+  "signature": "0x5c0a91858125a517b3b771bca61cdb412ec45db2c9563026e18686e01ef64dff6b3719f63ae526846f21febc74e34cb7c77a24c627102c10f94461d2a90c88451b"
+}

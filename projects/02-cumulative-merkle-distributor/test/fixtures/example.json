@@ -1,0 +1,321 @@
+{
+  "format": "cumulative-merkle-distributor/fixture-v1",
+  "name": "example",
+  "tokens": [
+    "0x3521b7CAB2ee34F5925c37e8a829d4a884497Fab",
+    "0x6e107075c50e05cAAc17c25FBc6c61389Da06961",
+    "0xDF23492023b86ba35D1117Cc03029C81b1Babb3C"
+  ],
+  "finalTotals": [
+    "7000000000000000000",
+    "2128000000000000000000",
+    "150000000000000000000"
+  ],
+  "epochs": [
+    {
+      "epoch": 1,
+      "root": "0xfa5d0158f79c5eab58a15bf8b264865c0fd64df47a3f63a433a97640eec7f2ad",
+      "metadataHash": "0xa286792aa88dd944cff1f217337cfd678a9170f32f4666c318e6b76ce848fb15",
+      "leafCount": 4,
+      "claims": [
+        {
+          "account": "0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e",
+          "token": "0x6e107075c50e05cAAc17c25FBc6c61389Da06961",
+          "cumulativeAmount": "250000000000000000000",
+          "leaf": "0xf221edeeb72b579e0d8ba7731b169e496967fb0ec38270628fd97738adc55d4f",
+          "proof": [
+            "0xe6b5811cdc12ac2a3251317509cca244578f60f67f331e4ffaa7f6728155f889",
+            "0x8e7f5945721184761b65a29b0bd959d1ecf8f7f880c03cf81cbefc3aa0990185"
+          ]
+        },
+        {
+          "account": "0x328809Bc894f92807417D2dAD6b7C998c1aFdac6",
+          "token": "0x6e107075c50e05cAAc17c25FBc6c61389Da06961",
+          "cumulativeAmount": "1000000000000000000000",
+          "leaf": "0x7ab8e3029383f42622829be891e80215659027c41b6ef04a0ed15a032ed67cc9",
+          "proof": [
+            "0x0d292dd86088d1f53e88afd9778731f8656efc8b943f7b62c184588e487075c5",
+            "0x048efb258e2b6175fcb8ca43012f6d99e3d567d51544e451ee0211bd1d047cf3"
+          ]
+        },
+        {
+          "account": "0x328809Bc894f92807417D2dAD6b7C998c1aFdac6",
+          "token": "0xDF23492023b86ba35D1117Cc03029C81b1Babb3C",
+          "cumulativeAmount": "10000000000000000000",
+          "leaf": "0xe6b5811cdc12ac2a3251317509cca244578f60f67f331e4ffaa7f6728155f889",
+          "proof": [
+            "0xf221edeeb72b579e0d8ba7731b169e496967fb0ec38270628fd97738adc55d4f",
+            "0x8e7f5945721184761b65a29b0bd959d1ecf8f7f880c03cf81cbefc3aa0990185"
+          ]
+        },
+        {
+          "account": "0xA4d4c1f8a763Ef6a0140D04291eCEef913Ffc272",
+          "token": "0xDF23492023b86ba35D1117Cc03029C81b1Babb3C",
+          "cumulativeAmount": "40000000000000000000",
+          "leaf": "0x0d292dd86088d1f53e88afd9778731f8656efc8b943f7b62c184588e487075c5",
+          "proof": [
+            "0x7ab8e3029383f42622829be891e80215659027c41b6ef04a0ed15a032ed67cc9",
+            "0x048efb258e2b6175fcb8ca43012f6d99e3d567d51544e451ee0211bd1d047cf3"
+          ]
+        }
+      ],
+      "multiproof": {
+        "claims": [
+          {
+            "account": "0xA4d4c1f8a763Ef6a0140D04291eCEef913Ffc272",
+            "token": "0xDF23492023b86ba35D1117Cc03029C81b1Babb3C",
+            "cumulativeAmount": "40000000000000000000"
+          },
+          {
+            "account": "0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e",
+            "token": "0x6e107075c50e05cAAc17c25FBc6c61389Da06961",
+            "cumulativeAmount": "250000000000000000000"
+          }
+        ],
+        "proof": [
+          "0x7ab8e3029383f42622829be891e80215659027c41b6ef04a0ed15a032ed67cc9",
+          "0xe6b5811cdc12ac2a3251317509cca244578f60f67f331e4ffaa7f6728155f889"
+        ],
+        "proofFlags": [
+          false,
+          false,
+          true
+        ]
+      }
+    },
+    {
+      "epoch": 2,
+      "root": "0xde65e70ad9e85dc0567a5b53513762d5088b77da5ae7d28e82d083ad608e6453",
+      "metadataHash": "0x9c8dc4af05ae037918707d878882e6de44cb1eee199467e9bf5110eed7aa1f15",
+      "leafCount": 6,
+      "claims": [
+        {
+          "account": "0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e",
+          "token": "0x6e107075c50e05cAAc17c25FBc6c61389Da06961",
+          "cumulativeAmount": "250000000000000000000",
+          "leaf": "0xf221edeeb72b579e0d8ba7731b169e496967fb0ec38270628fd97738adc55d4f",
+          "proof": [
+            "0xfd1f169ef0378b875767c4d9952b4312834f12258d7b600debf96947645e2080",
+            "0xf70f852069c55d873c0797a1a2c51f18c6dab0aa8c558c597d79e05d60693fdd"
+          ]
+        },
+        {
+          "account": "0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e",
+          "token": "0xDF23492023b86ba35D1117Cc03029C81b1Babb3C",
+          "cumulativeAmount": "60000000000000000000",
+          "leaf": "0x09a65edb3b6b1432ccb4f31b49a9af00b85e9674b4db52558c6e5fed67704f4a",
+          "proof": [
+            "0x2b6965f64d19a2428ad4a0ebdc1844b6aec712e954bae026067d259db82fc29d",
+            "0x2d9ee0a5f95a8ab713da130294452a8d7fa9f65d59f8902027eb62bfde6f88e4",
+            "0x97b5a8c54b33742d451200e04ca5b1432f782a5f391ae78f682c8d97d21941f5"
+          ]
+        },
+        {
+          "account": "0x328809Bc894f92807417D2dAD6b7C998c1aFdac6",
+          "token": "0x6e107075c50e05cAAc17c25FBc6c61389Da06961",
+          "cumulativeAmount": "1500000000000000000000",
+          "leaf": "0xfd1f169ef0378b875767c4d9952b4312834f12258d7b600debf96947645e2080",
+          "proof": [
+            "0xf221edeeb72b579e0d8ba7731b169e496967fb0ec38270628fd97738adc55d4f",
+            "0xf70f852069c55d873c0797a1a2c51f18c6dab0aa8c558c597d79e05d60693fdd"
+          ]
+        },
+        {
+          "account": "0x328809Bc894f92807417D2dAD6b7C998c1aFdac6",
+          "token": "0xDF23492023b86ba35D1117Cc03029C81b1Babb3C",
+          "cumulativeAmount": "10000000000000000000",
+          "leaf": "0xe6b5811cdc12ac2a3251317509cca244578f60f67f331e4ffaa7f6728155f889",
+          "proof": [
+            "0x81a7aef6df0cc9073c5018c6a0893697bdc7d11cc06474d1a8e2876429924902",
+            "0x76f79f7418fcf2dd572b51482892fdfd64f95e360457741641070af9aa89074c",
+            "0x97b5a8c54b33742d451200e04ca5b1432f782a5f391ae78f682c8d97d21941f5"
+          ]
+        },
+        {
+          "account": "0x7E09429585169ABA1759346eb6b94C91f3C7203b",
+          "token": "0x6e107075c50e05cAAc17c25FBc6c61389Da06961",
+          "cumulativeAmount": "125000000000000000000",
+          "leaf": "0x2b6965f64d19a2428ad4a0ebdc1844b6aec712e954bae026067d259db82fc29d",
+          "proof": [
+            "0x09a65edb3b6b1432ccb4f31b49a9af00b85e9674b4db52558c6e5fed67704f4a",
+            "0x2d9ee0a5f95a8ab713da130294452a8d7fa9f65d59f8902027eb62bfde6f88e4",
+            "0x97b5a8c54b33742d451200e04ca5b1432f782a5f391ae78f682c8d97d21941f5"
+          ]
+        },
+        {
+          "account": "0xA4d4c1f8a763Ef6a0140D04291eCEef913Ffc272",
+          "token": "0xDF23492023b86ba35D1117Cc03029C81b1Babb3C",
+          "cumulativeAmount": "80000000000000000000",
+          "leaf": "0x81a7aef6df0cc9073c5018c6a0893697bdc7d11cc06474d1a8e2876429924902",
+          "proof": [
+            "0xe6b5811cdc12ac2a3251317509cca244578f60f67f331e4ffaa7f6728155f889",
+            "0x76f79f7418fcf2dd572b51482892fdfd64f95e360457741641070af9aa89074c",
+            "0x97b5a8c54b33742d451200e04ca5b1432f782a5f391ae78f682c8d97d21941f5"
+          ]
+        }
+      ],
+      "multiproof": {
+        "claims": [
+          {
+            "account": "0xA4d4c1f8a763Ef6a0140D04291eCEef913Ffc272",
+            "token": "0xDF23492023b86ba35D1117Cc03029C81b1Babb3C",
+            "cumulativeAmount": "80000000000000000000"
+          },
+          {
+            "account": "0x328809Bc894f92807417D2dAD6b7C998c1aFdac6",
+            "token": "0xDF23492023b86ba35D1117Cc03029C81b1Babb3C",
+            "cumulativeAmount": "10000000000000000000"
+          },
+          {
+            "account": "0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e",
+            "token": "0x6e107075c50e05cAAc17c25FBc6c61389Da06961",
+            "cumulativeAmount": "250000000000000000000"
+          }
+        ],
+        "proof": [
+          "0xfd1f169ef0378b875767c4d9952b4312834f12258d7b600debf96947645e2080",
+          "0x76f79f7418fcf2dd572b51482892fdfd64f95e360457741641070af9aa89074c"
+        ],
+        "proofFlags": [
+          true,
+          false,
+          false,
+          true
+        ]
+      }
+    },
+    {
+      "epoch": 3,
+      "root": "0xbeba464b7f3f0f6620d6087f610e250658a6c6bb3d85e18c77405f3758708884",
+      "metadataHash": "0x7b19e2d8de8b4e5cad31631776555b3e10165b886814f18b4e495abff90078fe",
+      "leafCount": 8,
+      "claims": [
+        {
+          "account": "0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e",
+          "token": "0x6e107075c50e05cAAc17c25FBc6c61389Da06961",
+          "cumulativeAmount": "250000000000000000000",
+          "leaf": "0xf221edeeb72b579e0d8ba7731b169e496967fb0ec38270628fd97738adc55d4f",
+          "proof": [
+            "0xe6b5811cdc12ac2a3251317509cca244578f60f67f331e4ffaa7f6728155f889",
+            "0x0b2e3d0bddf66731bd8f8925195bae686a9e7390002c24cb829ad5292e09a222",
+            "0x5bc170a7dc4a0944d71ea19bb8f616b09d2a0f4715db6149bc95d4c4823d4cb5"
+          ]
+        },
+        {
+          "account": "0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e",
+          "token": "0xDF23492023b86ba35D1117Cc03029C81b1Babb3C",
+          "cumulativeAmount": "60000000000000000000",
+          "leaf": "0x09a65edb3b6b1432ccb4f31b49a9af00b85e9674b4db52558c6e5fed67704f4a",
+          "proof": [
+            "0x22dd2dd00b3ec71452bc747458e77d5c20efc3e44b0ee029edcac36b67e21f91",
+            "0x55c5b1cc127b83bc6354d4e67073f1ce1ca80345cbb7354db29d2c87d9f1dc31",
+            "0xd5dbc67386672372f3660b0ad589f7aaf9d4d8a187764b7d7bf72b638b3e4d27"
+          ]
+        },
+        {
+          "account": "0x328809Bc894f92807417D2dAD6b7C998c1aFdac6",
+          "token": "0x6e107075c50e05cAAc17c25FBc6c61389Da06961",
+          "cumulativeAmount": "1750000000000000000000",
+          "leaf": "0xd1885d3288df5657aa4f22bb0481fe135d17bf2aa60adb1be55559aad40f713e",
+          "proof": [
+            "0x81a7aef6df0cc9073c5018c6a0893697bdc7d11cc06474d1a8e2876429924902",
+            "0x048efb258e2b6175fcb8ca43012f6d99e3d567d51544e451ee0211bd1d047cf3",
+            "0x5bc170a7dc4a0944d71ea19bb8f616b09d2a0f4715db6149bc95d4c4823d4cb5"
+          ]
+        },
+        {
+          "account": "0x328809Bc894f92807417D2dAD6b7C998c1aFdac6",
+          "token": "0xDF23492023b86ba35D1117Cc03029C81b1Babb3C",
+          "cumulativeAmount": "10000000000000000000",
+          "leaf": "0xe6b5811cdc12ac2a3251317509cca244578f60f67f331e4ffaa7f6728155f889",
+          "proof": [
+            "0xf221edeeb72b579e0d8ba7731b169e496967fb0ec38270628fd97738adc55d4f",
+            "0x0b2e3d0bddf66731bd8f8925195bae686a9e7390002c24cb829ad5292e09a222",
+            "0x5bc170a7dc4a0944d71ea19bb8f616b09d2a0f4715db6149bc95d4c4823d4cb5"
+          ]
+        },
+        {
+          "account": "0x36eF4F31F72D1dE7b495F4944Ae6F84C3754941e",
+          "token": "0x6e107075c50e05cAAc17c25FBc6c61389Da06961",
+          "cumulativeAmount": "3000000000000000000",
+          "leaf": "0x711a23ee002171af55c6ffb1c7df83fc2566419906c086cd0a9b28918c4f3ea4",
+          "proof": [
+            "0x2b6965f64d19a2428ad4a0ebdc1844b6aec712e954bae026067d259db82fc29d",
+            "0x73525793e5475354d0d0df75bac19b6dc7546790be6a5a882e14fd2f12f6c4b3",
+            "0xd5dbc67386672372f3660b0ad589f7aaf9d4d8a187764b7d7bf72b638b3e4d27"
+          ]
+        },
+        {
+          "account": "0x7E09429585169ABA1759346eb6b94C91f3C7203b",
+          "token": "0x6e107075c50e05cAAc17c25FBc6c61389Da06961",
+          "cumulativeAmount": "125000000000000000000",
+          "leaf": "0x2b6965f64d19a2428ad4a0ebdc1844b6aec712e954bae026067d259db82fc29d",
+          "proof": [
+            "0x711a23ee002171af55c6ffb1c7df83fc2566419906c086cd0a9b28918c4f3ea4",
+            "0x73525793e5475354d0d0df75bac19b6dc7546790be6a5a882e14fd2f12f6c4b3",
+            "0xd5dbc67386672372f3660b0ad589f7aaf9d4d8a187764b7d7bf72b638b3e4d27"
+          ]
+        },
+        {
+          "account": "0xA4d4c1f8a763Ef6a0140D04291eCEef913Ffc272",
+          "token": "0x3521b7CAB2ee34F5925c37e8a829d4a884497Fab",
+          "cumulativeAmount": "7000000000000000000",
+          "leaf": "0x22dd2dd00b3ec71452bc747458e77d5c20efc3e44b0ee029edcac36b67e21f91",
+          "proof": [
+            "0x09a65edb3b6b1432ccb4f31b49a9af00b85e9674b4db52558c6e5fed67704f4a",
+            "0x55c5b1cc127b83bc6354d4e67073f1ce1ca80345cbb7354db29d2c87d9f1dc31",
+            "0xd5dbc67386672372f3660b0ad589f7aaf9d4d8a187764b7d7bf72b638b3e4d27"
+          ]
+        },
+        {
+          "account": "0xA4d4c1f8a763Ef6a0140D04291eCEef913Ffc272",
+          "token": "0xDF23492023b86ba35D1117Cc03029C81b1Babb3C",
+          "cumulativeAmount": "80000000000000000000",
+          "leaf": "0x81a7aef6df0cc9073c5018c6a0893697bdc7d11cc06474d1a8e2876429924902",
+          "proof": [
+            "0xd1885d3288df5657aa4f22bb0481fe135d17bf2aa60adb1be55559aad40f713e",
+            "0x048efb258e2b6175fcb8ca43012f6d99e3d567d51544e451ee0211bd1d047cf3",
+            "0x5bc170a7dc4a0944d71ea19bb8f616b09d2a0f4715db6149bc95d4c4823d4cb5"
+          ]
+        }
+      ],
+      "multiproof": {
+        "claims": [
+          {
+            "account": "0xA4d4c1f8a763Ef6a0140D04291eCEef913Ffc272",
+            "token": "0x3521b7CAB2ee34F5925c37e8a829d4a884497Fab",
+            "cumulativeAmount": "7000000000000000000"
+          },
+          {
+            "account": "0xA4d4c1f8a763Ef6a0140D04291eCEef913Ffc272",
+            "token": "0xDF23492023b86ba35D1117Cc03029C81b1Babb3C",
+            "cumulativeAmount": "80000000000000000000"
+          },
+          {
+            "account": "0x328809Bc894f92807417D2dAD6b7C998c1aFdac6",
+            "token": "0xDF23492023b86ba35D1117Cc03029C81b1Babb3C",
+            "cumulativeAmount": "10000000000000000000"
+          },
+          {
+            "account": "0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e",
+            "token": "0x6e107075c50e05cAAc17c25FBc6c61389Da06961",
+            "cumulativeAmount": "250000000000000000000"
+          }
+        ],
+        "proof": [
+          "0x09a65edb3b6b1432ccb4f31b49a9af00b85e9674b4db52558c6e5fed67704f4a",
+          "0xd1885d3288df5657aa4f22bb0481fe135d17bf2aa60adb1be55559aad40f713e",
+          "0x55c5b1cc127b83bc6354d4e67073f1ce1ca80345cbb7354db29d2c87d9f1dc31"
+        ],
+        "proofFlags": [
+          false,
+          false,
+          true,
+          false,
+          true,
+          true
+        ]
+      }
+    }
+  ]
+}
