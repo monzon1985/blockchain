@@ -1,0 +1,17 @@
+{
+  "flash arbitrage PTB (7 commands)": {
+    "computationCost": "1000000",
+    "storageCost": "11263200",
+    "storageRebate": "13738824"
+  },
+  "kiosk purchase PTB, new kiosk": {
+    "computationCost": "1000000",
+    "storageCost": "17951200",
+    "storageRebate": "18651996"
+  },
+  "pool::migrate": {
+    "computationCost": "1000000",
+    "storageCost": "5251600",
+    "storageRebate": "5199084"
+  }
+}

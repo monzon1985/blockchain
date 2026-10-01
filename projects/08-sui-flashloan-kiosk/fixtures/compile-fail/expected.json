@@ -1,0 +1,75 @@
+{
+  "$comment": "One entry per fixture package: the compiler diagnostic code and a message fragment that must both appear in `sui move build` output. Checked by scripts/compile-fail.mjs.",
+  "copy-receipt": {
+    "code": "EC05001",
+    "message": "Invalid 'copy' of owned value without the 'copy' ability"
+  },
+  "destructure-receipt": {
+    "code": "EC04001",
+    "message": "Struct 'flash_kiosk::pool::FlashReceipt' can only be used in deconstruction binding within its defining module"
+  },
+  "discard-receipt-with-underscore": {
+    "code": "EC05001",
+    "message": "The type 'flash_kiosk::pool::FlashReceipt' does not have the ability 'drop'"
+  },
+  "drop-receipt": {
+    "code": "EC06001",
+    "message": "The type 'flash_kiosk::pool::FlashReceipt' does not have the ability 'drop'"
+  },
+  "drop-transfer-request": {
+    "code": "EC06001",
+    "message": "The type 'sui::transfer_policy::TransferRequest<flash_kiosk::collectible::Collectible>' does not have the ability 'drop'"
+  },
+  "forge-cooldown-key": {
+    "code": "EC04001",
+    "message": "Struct 'flash_kiosk::cooldown_rule::LastTransferKey' can only be instantiated within its defining module"
+  },
+  "forge-receipt": {
+    "code": "EC04001",
+    "message": "Struct 'flash_kiosk::pool::FlashReceipt' can only be instantiated within its defining module"
+  },
+  "generic-drop-escape": {
+    "code": "EC05001",
+    "message": "The type 'flash_kiosk::pool::FlashReceipt' does not have the ability 'drop'"
+  },
+  "private-transfer-pool": {
+    "code": "ESC02009",
+    "message": "Invalid private transfer. The function 'sui::transfer::transfer' is restricted to being called in the object's module, 'flash_kiosk::pool'"
+  },
+  "public-transfer-pool": {
+    "code": "EC05001",
+    "message": "The type 'flash_kiosk::pool::Pool<A, B, LP>' does not have the ability 'store'"
+  },
+  "reach-collectible-uid": {
+    "code": "EC04001",
+    "message": "The field 'id' can only be accessed within the module 'flash_kiosk::collectible'"
+  },
+  "reach-policy-cap": {
+    "code": "EC04001",
+    "message": "The field 'cap' can only be accessed within the module 'flash_kiosk::collectible'"
+  },
+  "register-lp-currency": {
+    "code": "ESC02010",
+    "message": "Invalid coin creation. The function 'sui::coin_registry::new_currency' must be called with a type defined in the current module"
+  },
+  "rewrite-receipt-fee": {
+    "code": "EC04001",
+    "message": "The field 'fee' can only be accessed within the module 'flash_kiosk::pool'"
+  },
+  "store-receipt-in-dynamic-field": {
+    "code": "EC05001",
+    "message": "The type 'flash_kiosk::pool::FlashReceipt' does not have the ability 'store'"
+  },
+  "store-receipt-in-object": {
+    "code": "EC05001",
+    "message": "The type 'flash_kiosk::pool::FlashReceipt' does not have the ability 'store'"
+  },
+  "transfer-receipt": {
+    "code": "EC05001",
+    "message": "The type 'flash_kiosk::pool::FlashReceipt' does not have the ability 'key'"
+  },
+  "wrap-receipt-in-droppable-struct": {
+    "code": "EC05001",
+    "message": "The struct was declared with the ability 'drop' so all fields require the ability 'drop'"
+  }
+}

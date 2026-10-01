@@ -1,0 +1,230 @@
+name: "8 · Sui Flash-Loan AMM & Kiosk"
+
+on:
+  push:
+    paths:
+      - "projects/08-sui-flashloan-kiosk/**"
+      - ".github/workflows/08-sui-flashloan-kiosk.yml"
+  pull_request:
+    paths:
+      - "projects/08-sui-flashloan-kiosk/**"
+      - ".github/workflows/08-sui-flashloan-kiosk.yml"
+  # Weekly fresh-seed fuzzing (job `fuzz-fresh`); every push / PR gate is seeded.
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Only superseded pull-request runs are cancelled: every push (main included)
+  # runs to completion, so the README badge never points at a cancelled run.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: projects/08-sui-flashloan-kiosk
+
+# Every action is pinned to a full commit SHA (the comment names the release).
+env:
+  SUI_VERSION: "1.80.1"
+  # SHA-256 of sui-mainnet-v1.80.1-ubuntu-x86_64.tgz, as published in the
+  # release's asset digest (GitHub API, releases/tags/mainnet-v1.80.1).
+  SUI_SHA256: "97f9aed10e0c2fe3204ce4639ac992e1449b17c14f22f30e9f903ead54ac7336"
+  NODE_VERSION: "24.11.1"
+  # Pins every #[random_test] input in the push / PR gates (Standards §4). The
+  # CLI cannot combine --seed with --rand-num-iters, so multi-iteration fuzzing
+  # (fresh inputs by construction) lives in the scheduled `fuzz-fresh` job.
+  MOVE_TEST_SEED: "20260929"
+
+jobs:
+  move:
+    name: Move (build, lint, tests, coverage, compile-fail)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Sui CLI ${{ env.SUI_VERSION }} (checksum-verified release tarball)
+        uses: ./projects/08-sui-flashloan-kiosk/ci/install-sui
+        with:
+          version: ${{ env.SUI_VERSION }}
+          sha256: ${{ env.SUI_SHA256 }}
+
+      - name: Cache Move git dependencies (pinned by Move.lock)
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.move
+          key: move-deps-${{ hashFiles('projects/08-sui-flashloan-kiosk/**/Move.lock') }}
+
+      - name: Toolchain versions
+        run: |
+          sui --version
+          node --version
+
+      # stdout carries the recovery phrase of the throw-away key it generates.
+      - name: Non-interactive Sui client config (active env = testnet, matches Move.lock)
+        run: sui client -y envs > /dev/null
+
+      - name: Move.lock files are portable (no Windows path separators)
+        run: node scripts/normalize-move-lock.mjs --check
+
+      - name: sui move build
+        run: sui move build
+
+      - name: sui move build --lint --warnings-are-errors
+        run: sui move build --lint --warnings-are-errors
+
+      - name: Demo coin package builds cleanly
+        run: sui move build --lint --warnings-are-errors --path demo/coins
+
+      # Deterministic: the seeded property tests (1,000 xorshift cases each) and
+      # the 8 seeded invariant campaigns run here; --seed pins the
+      # #[random_test] cases too.
+      - name: sui move test --coverage (seeded)
+        run: sui move test --coverage --seed "$MOVE_TEST_SEED"
+
+      - name: Coverage gate (>= 90 % of sources/)
+        run: node scripts/check-move-coverage.mjs --min 90
+
+      - name: Compile-fail harness (receipts, pools, stamps, caps and LP coins out of reach)
+        run: node scripts/compile-fail.mjs --concurrency 2
+
+      # The CLI rewrites Move.lock on every build. Canonicalise the subdir
+      # strings first, so this step fails only if a pin (rev or digest) moved.
+      - name: Builds did not re-pin the committed lock files
+        run: |
+          node scripts/normalize-move-lock.mjs
+          git diff --exit-code -- Move.lock demo/coins/Move.lock
+
+  mutation:
+    name: Mutation smoke (16 planted bugs must be caught)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Sui CLI ${{ env.SUI_VERSION }} (checksum-verified release tarball)
+        uses: ./projects/08-sui-flashloan-kiosk/ci/install-sui
+        with:
+          version: ${{ env.SUI_VERSION }}
+          sha256: ${{ env.SUI_SHA256 }}
+
+      - name: Cache Move git dependencies (pinned by Move.lock)
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.move
+          key: move-deps-${{ hashFiles('projects/08-sui-flashloan-kiosk/**/Move.lock') }}
+
+      - name: Non-interactive Sui client config
+        run: sui client -y envs > /dev/null
+
+      - name: Mutation smoke test (seeded with MOVE_TEST_SEED)
+        run: node scripts/mutation-smoke.mjs
+
+  typescript:
+    name: TypeScript (types, lint incl. Move formatting, unit tests, coverage, vectors)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: projects/08-sui-flashloan-kiosk/package-lock.json
+
+      - name: Install npm dependencies (lockfile-pinned)
+        run: npm ci
+
+      - name: Type check (tsc --noEmit, strict, checkJs for scripts/)
+        run: npm run typecheck
+
+      - name: Lint (ESLint strict-type-checked, Prettier incl. the Move plugin)
+        run: npm run lint
+
+      - name: Unit tests (PTB builders, math, scripts, teardown)
+        run: npm test
+
+      - name: Coverage (thresholds in vitest.config.ts)
+        run: npm run coverage
+
+      - name: Differential vectors are up to date (JSON + generated Move tests)
+        run: npm run vectors:check
+
+  e2e:
+    name: Localnet e2e (sui start, publish, PTBs, real upgrade, gas snapshot)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: projects/08-sui-flashloan-kiosk/package-lock.json
+
+      - name: Install Sui CLI ${{ env.SUI_VERSION }} (checksum-verified release tarball)
+        uses: ./projects/08-sui-flashloan-kiosk/ci/install-sui
+        with:
+          version: ${{ env.SUI_VERSION }}
+          sha256: ${{ env.SUI_SHA256 }}
+
+      - name: Cache Move git dependencies (pinned by Move.lock)
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.move
+          key: move-deps-${{ hashFiles('projects/08-sui-flashloan-kiosk/**/Move.lock') }}
+
+      - name: Non-interactive Sui client config (used for bytecode builds)
+        run: sui client -y envs > /dev/null
+
+      - name: Install npm dependencies (lockfile-pinned)
+        run: npm ci
+
+      - name: End-to-end on `sui start --with-faucet --force-regenesis` (free ports)
+        # Fails if gas drifts from gas-snapshot.json; --reporter=verbose prints the table.
+        run: npm run e2e -- --reporter=verbose
+
+  fuzz-fresh:
+    name: Fresh-seed fuzzing (scheduled / manual only)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Install Sui CLI ${{ env.SUI_VERSION }} (checksum-verified release tarball)
+        uses: ./projects/08-sui-flashloan-kiosk/ci/install-sui
+        with:
+          version: ${{ env.SUI_VERSION }}
+          sha256: ${{ env.SUI_SHA256 }}
+
+      - name: Cache Move git dependencies (pinned by Move.lock)
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.move
+          key: move-deps-${{ hashFiles('projects/08-sui-flashloan-kiosk/**/Move.lock') }}
+
+      - name: Non-interactive Sui client config
+        run: sui client -y envs > /dev/null
+
+      # Fresh inputs on every run. A failure prints the failing iteration's seed
+      # ("Rerun with `test <name> --seed <seed>`"), which replays it exactly.
+      - name: Math properties, 10,000 fresh inputs each
+        run: sui move test --rand-num-iters 10000 math_tests::fuzz_
+
+      - name: Stateful invariant campaign, 1,000 fresh campaigns
+        run: sui move test --rand-num-iters 1000 invariant_tests::fuzz_campaign

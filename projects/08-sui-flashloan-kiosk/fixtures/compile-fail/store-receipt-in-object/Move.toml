@@ -1,0 +1,9 @@
+# Compile-fail fixture: Park the receipt inside an owned object to repay 'later'.
+# Built by scripts/compile-fail.mjs, which asserts that `sui move build` fails
+# with the diagnostic listed in ../expected.json.
+[package]
+name = "attacker"
+edition = "2024"
+
+[dependencies]
+flash_kiosk = { local = "../../.." }

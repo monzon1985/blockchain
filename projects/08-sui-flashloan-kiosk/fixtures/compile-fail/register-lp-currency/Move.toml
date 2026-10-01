@@ -1,0 +1,9 @@
+# Compile-fail fixture: Register a pool's LP coin from outside the pool module, to make it regulated.
+# Built by scripts/compile-fail.mjs, which asserts that `sui move build` fails
+# with the diagnostic listed in ../expected.json.
+[package]
+name = "attacker"
+edition = "2024"
+
+[dependencies]
+flash_kiosk = { local = "../../.." }

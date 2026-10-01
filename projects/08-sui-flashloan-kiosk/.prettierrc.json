@@ -1,0 +1,18 @@
+{
+  "printWidth": 110,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "semi": true,
+  "plugins": ["@mysten/prettier-plugin-move"],
+  "overrides": [
+    {
+      "files": "*.move",
+      "options": {
+        "printWidth": 100,
+        "tabWidth": 4,
+        "autoGroupImports": "module",
+        "useModuleLabel": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+# Positive control for scripts/compile-fail.mjs: the same package layout and the
+# same dependency as every compile-fail fixture, using the receipt correctly.
+# If this stops compiling, the harness fails instead of counting a broken setup
+# as a successful "compile failure".
+[package]
+name = "attacker"
+edition = "2024"
+
+[dependencies]
+flash_kiosk = { local = "../../.." }

@@ -1,0 +1,10 @@
+# Demo package for the localnet end-to-end suite (sdk/e2e): two trade coins and
+# one LP marker type per pool (each pool registers its own LP coin,
+# `flash_kiosk::pool::LpCoin<marker>`). Deliberately a separate package: in
+# production, coins and markers come from whoever creates the pool.
+[package]
+name = "demo_coins"
+edition = "2024"
+license = "MIT"
+
+[dependencies]

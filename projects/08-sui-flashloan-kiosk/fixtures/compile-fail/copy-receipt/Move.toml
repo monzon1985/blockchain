@@ -1,0 +1,9 @@
+# Compile-fail fixture: Copy the receipt, repay once, keep the copy.
+# Built by scripts/compile-fail.mjs, which asserts that `sui move build` fails
+# with the diagnostic listed in ../expected.json.
+[package]
+name = "attacker"
+edition = "2024"
+
+[dependencies]
+flash_kiosk = { local = "../../.." }

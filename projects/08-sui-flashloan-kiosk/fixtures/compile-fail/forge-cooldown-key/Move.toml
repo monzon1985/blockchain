@@ -1,0 +1,9 @@
+# Compile-fail fixture: Reset an item's cooldown stamp by building the rule's dynamic-field key.
+# Built by scripts/compile-fail.mjs, which asserts that `sui move build` fails
+# with the diagnostic listed in ../expected.json.
+[package]
+name = "attacker"
+edition = "2024"
+
+[dependencies]
+flash_kiosk = { local = "../../.." }

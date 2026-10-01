@@ -1,0 +1,15 @@
+# Project-local ignores (the repository root .gitignore already covers build/,
+# node_modules/, coverage/, target/, **/.sui/, ...).
+
+# `sui move test --coverage` / `--trace` artefacts
+.coverage_map.mvcov
+.trace
+traces/
+# Ephemeral publication files written by `sui client test-publish`
+Pub.*.toml
+# Fixture packages are staged into a temp dir by scripts/compile-fail.mjs; a
+# manual `sui move build` inside one must not leave a lock file behind.
+fixtures/**/Move.lock
+*.log
+# Default output of `vitest --reporter=json` without --outputFile
+.vitest/

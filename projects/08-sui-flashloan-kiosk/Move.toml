@@ -1,0 +1,8 @@
+[package]
+name = "flash_kiosk"
+edition = "2024"
+license = "MIT"
+
+# `std` and `sui` are implicit system dependencies; the exact framework commit is
+# pinned in Move.lock (committed).
+[dependencies]
