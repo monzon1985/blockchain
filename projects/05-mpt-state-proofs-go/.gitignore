@@ -2,5 +2,4 @@
 covdata/
 *.log
 # Locally built binaries.
-/trie
 /trie.exe
