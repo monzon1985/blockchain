@@ -1,0 +1,80 @@
+# Foundry configuration for project 16 (x402 agent payments).
+# Toolchain pinned per docs/ENGINEERING_STANDARDS.md: solc 0.8.37, EVM osaka, deps via Soldeer.
+
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 10000
+bytecode_hash = "none"
+cbor_metadata = false
+remappings = [
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+]
+# Warnings raised inside third-party code (e.g. solc 0.8.37 "at will become a keyword" in OZ) are not ours to fix.
+ignored_warnings_from = ["dependencies"]
+# The deploy script writes the address book consumed by the TypeScript stack.
+fs_permissions = [{ access = "read-write", path = "./deployments" }]
+# Every top-level call made by a test runs as its own transaction with a fresh (cold) access set. The gas suite
+# relies on it: each `vm.snapshotGasLastFrame` then measures a call as if it were a standalone transaction, not one
+# warmed up by the calls before it in the same test. Foundry 1.8 already defaults to this; it is pinned here so the
+# committed snapshots do not depend on a tool default. Profiles inherit it from `default`.
+isolate = true
+
+[profile.default.fuzz]
+runs = 1000
+max_test_rejects = 65536
+
+[profile.default.invariant]
+runs = 128
+depth = 64
+fail_on_revert = false
+
+# CI profile: fixed seed so fuzz/invariant campaigns are reproducible run to run.
+[profile.ci]
+[profile.ci.fuzz]
+runs = 5000
+seed = "0x5eed16"
+
+[profile.ci.invariant]
+runs = 256
+depth = 128
+fail_on_revert = false
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+multiline_func_header = "attributes_first"
+quote_style = "double"
+number_underscore = "thousands"
+sort_imports = true
+
+[lint]
+lint_on_build = false
+# Triage of the remaining `forge lint` findings (see ../docs/STATIC_ANALYSIS.md for the per-site table).
+# - block-timestamp: every comparison is a deliberate time window (EIP-3009 validity, session expiry, escrow
+#   deadline, rolling budget). Validators can skew timestamps by seconds; windows are minutes to days.
+# - reentrancy-events: the flagged events follow calls to contracts fixed at construction (the settlement asset,
+#   the sealed SettlementLog, a freshly deployed clone) under ReentrancyGuardTransient; the event needs the
+#   receipt id returned by that call.
+# - require-revert-in-loop: registration and install loops must be atomic; one bad entry rejects the whole call.
+# - missing-events-access-control: false positive. `isRecorder` changes emit RecorderSet, `_policies` changes emit
+#   PolicyInstalled / PolicyUninstalled in the same function.
+exclude_lints = ["block-timestamp", "reentrancy-events", "require-revert-in-loop", "missing-events-access-control"]
+
+[soldeer]
+remappings_generate = false
+remappings_regenerate = false
+recursive_deps = false
+
+[dependencies]
+"@openzeppelin-contracts" = "5.7.0"
+forge-std = "1.16.2"

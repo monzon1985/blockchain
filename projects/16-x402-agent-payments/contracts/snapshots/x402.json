@@ -1,0 +1,14 @@
+{
+  "baseline_transferWithAuthorization": "69088",
+  "budgetPay_firstEver": "209315",
+  "budgetPay_steady_1expired": "194982",
+  "budgetPay_steady_4live_0expired": "194813",
+  "budgetPay_steady_5expired": "203257",
+  "escrow_deliver": "149918",
+  "escrow_open": "191104",
+  "escrow_refund": "43227",
+  "factory_createAccount": "321021",
+  "identity_register": "186659",
+  "reputation_giveFeedback": "249771",
+  "settleExact": "153502"
+}

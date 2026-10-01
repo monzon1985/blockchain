@@ -1,0 +1,7 @@
+# Project-local ignores (the repository root .gitignore already covers out/, cache/, node_modules/, ...).
+contracts/broadcast/
+contracts/deployments/
+contracts/snapshots/*.tmp
+coverage/
+receipts/
+*.log

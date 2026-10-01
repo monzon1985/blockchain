@@ -1,0 +1,165 @@
+name: "16 · x402 Agent Payments"
+
+on:
+  push:
+    paths:
+      - "projects/16-x402-agent-payments/**"
+      - ".github/workflows/16-x402-agent-payments.yml"
+  pull_request:
+    paths:
+      - "projects/16-x402-agent-payments/**"
+      - ".github/workflows/16-x402-agent-payments.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/16-x402-agent-payments
+
+env:
+  FOUNDRY_VERSION: v1.8.3
+  NODE_VERSION: "24"
+  PYTHON_VERSION: "3.12"
+  UV_VERSION: "0.12.20"
+  SLITHER_VERSION: "0.11.6"
+  CRYTIC_COMPILE_VERSION: "0.4.2"
+
+jobs:
+  contracts:
+    name: Contracts (fmt, build, tests, invariants, gas, lint, coverage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # Fixed fuzz seed 0x5eed16 (also seeds the invariant campaigns), 5,000 fuzz runs, 256 x 128 invariant runs.
+      FOUNDRY_PROFILE: ci
+    defaults:
+      run:
+        working-directory: projects/16-x402-agent-payments/contracts
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Toolchain version
+        run: forge --version
+
+      - name: Install dependencies (Soldeer, lockfile-pinned)
+        run: forge soldeer install
+
+      - name: Formatting
+        run: forge fmt --check
+
+      - name: Build
+        run: forge build
+
+      # FORGE_SNAPSHOT_CHECK makes the gas suite compare its per-call measurements with the committed
+      # snapshots/x402.json instead of rewriting it (a plain `forge test` rewrites the file, which would turn any later
+      # check into a comparison with itself). The gas suite runs in isolation mode, pinned in foundry.toml.
+      - name: Unit, fuzz, invariant and gas tests (per-call gas snapshots in snapshots/x402.json checked)
+        env:
+          FORGE_SNAPSHOT_CHECK: "true"
+        run: forge test
+
+      - name: Gas snapshot (.gas-snapshot) is up to date
+        run: forge snapshot --match-path "test/gas/*" --check
+
+      - name: forge lint (remaining findings triaged in foundry.toml and inline)
+        run: forge lint src script --deny warnings
+
+      - name: Coverage (production code, >= 90 % lines)
+        # bash -eo pipefail: a failing `forge coverage` fails the step even though its output is piped into tee.
+        shell: bash
+        env:
+          # Coverage instruments every test; the default profile's campaign sizes keep this step short.
+          FOUNDRY_PROFILE: default
+        # The gas suite is left out: it covers nothing the unit tests do not, and under instrumentation it would
+        # rewrite snapshots/x402.json with inflated numbers.
+        run: |
+          forge coverage --report summary --report lcov --no-match-coverage "(test|script|dependencies)/" --no-match-path "test/gas/*" | tee coverage.txt
+          pct=$(grep -E '^\| Total' coverage.txt | awk -F'|' '{print $3}' | grep -oE '[0-9]+\.[0-9]+' | head -1)
+          echo "Line coverage: ${pct}%"
+          awk -v p="$pct" 'BEGIN { exit (p >= 90.0) ? 0 : 1 }'
+
+  slither:
+    name: Slither
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: projects/16-x402-agent-payments/contracts
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install Slither
+        run: |
+          uv tool install --python "$PYTHON_VERSION" "slither-analyzer==$SLITHER_VERSION" --with "crytic-compile==$CRYTIC_COMPILE_VERSION"
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+
+      - name: Install dependencies (Soldeer)
+        run: forge soldeer install
+
+      - name: Slither (fails on any untriaged finding of severity >= low)
+        run: slither . --config-file slither.config.json
+
+  typescript:
+    name: TypeScript (ABIs, types, lint, unit + e2e on anvil with coverage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: projects/16-x402-agent-payments/package-lock.json
+
+      - name: Toolchain versions
+        run: |
+          forge --version
+          anvil --version
+          node --version
+
+      - name: Build contracts (the e2e suite deploys them with forge script)
+        working-directory: projects/16-x402-agent-payments/contracts
+        run: |
+          forge soldeer install
+          forge build
+
+      - name: Install npm dependencies (lockfile-pinned)
+        run: npm ci
+
+      - name: Generated ABIs match the contracts
+        run: npm run abis:check
+
+      - name: Type check (tsc --noEmit, strict)
+        run: npm run typecheck
+
+      - name: Lint (ESLint strict-type-checked + Prettier)
+        run: npm run lint
+
+      # One run of both vitest projects: the unit suite, and the e2e suite (anvil on a random port, forge script
+      # deploy, in-process servers). Coverage thresholds are enforced in vitest.config.ts. Running `npm test` and
+      # `npm run e2e` as separate steps as well would only repeat the slowest part of the job.
+      - name: Unit + end-to-end tests with coverage (thresholds in vitest.config.ts)
+        run: npm run coverage
