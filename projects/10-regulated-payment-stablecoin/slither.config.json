@@ -1,0 +1,10 @@
+{
+  "filter_paths": "dependencies|test|script|node_modules",
+  "exclude_dependencies": true,
+  "exclude_informational": false,
+  "exclude_low": false,
+  "detectors_to_exclude": "timestamp,assembly",
+  "compile_force_framework": "foundry",
+  "foundry_compile_all": false,
+  "fail_on": "medium"
+}

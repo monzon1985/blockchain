@@ -1,0 +1,243 @@
+name: "10 · Regulated Payment Stablecoin (GENIUS-style controls)"
+
+on:
+  push:
+    paths:
+      - "projects/10-regulated-payment-stablecoin/**"
+      - ".github/workflows/10-regulated-payment-stablecoin.yml"
+  pull_request:
+    paths:
+      - "projects/10-regulated-payment-stablecoin/**"
+      - ".github/workflows/10-regulated-payment-stablecoin.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: 10-regulated-payment-stablecoin-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/10-regulated-payment-stablecoin
+    shell: bash
+
+env:
+  FOUNDRY_VERSION: v1.8.3
+  NODE_VERSION: "24"
+  UV_VERSION: "0.12.20"
+  PYTHON_VERSION: "3.12"
+  SLITHER_VERSION: "0.11.6"
+  CRYTIC_COMPILE_VERSION: "0.4.2"
+  MEDUSA_VERSION: v1.5.1
+  # sha256 of medusa-linux-x64.tar.gz in the crytic/medusa v1.5.1 release (the digest GitHub publishes for the asset).
+  MEDUSA_SHA256: ddfe1517ae9028ef9fc331b00f5a6a9d5406f3fcd11a715d60c6b6fb3e4546d3
+
+jobs:
+  foundry:
+    name: Build, lint, layout, test, gas, coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@v4
+        with:
+          path: |
+            projects/10-regulated-payment-stablecoin/dependencies
+            ~/.svm
+          key: soldeer-10-${{ hashFiles('projects/10-regulated-payment-stablecoin/soldeer.lock', 'projects/10-regulated-payment-stablecoin/foundry.toml') }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Node tooling tests (coverage gate, layout gate, mutation harness, invariant statistics)
+        run: |
+          npm ci
+          npm test
+
+      - name: Format
+        run: forge fmt --check
+
+      - name: Build
+        run: forge build
+
+      - name: Lint (warnings are errors; triage in docs/STATIC_ANALYSIS.md)
+        run: forge lint --deny warnings
+
+      - name: Storage layout is upgrade-compatible with the v1 baseline
+        run: node scripts/check-storage-layout.mjs
+
+      - name: Same check from `forge inspect <contract> storageLayout` output
+        run: node scripts/check-storage-layout.mjs --inspect
+
+      - name: Test (CI profile, fixed seed)
+        env:
+          FOUNDRY_PROFILE: ci
+        run: forge test
+
+      - name: Gas snapshot
+        run: forge snapshot --check --match-contract GasBench
+
+      - name: Coverage
+        run: forge coverage --report lcov --no-match-coverage '(test|script)'
+
+      - name: Coverage gate (>= 90 % lines and branches, every src file present)
+        run: node scripts/check-coverage.mjs lcov.info --min-lines 90 --min-branches 90
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 10-regulated-payment-stablecoin-lcov
+          path: projects/10-regulated-payment-stablecoin/lcov.info
+          if-no-files-found: error
+
+  slither:
+    name: Slither
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@v4
+        with:
+          path: |
+            projects/10-regulated-payment-stablecoin/dependencies
+            ~/.svm
+          key: soldeer-10-${{ hashFiles('projects/10-regulated-payment-stablecoin/soldeer.lock', 'projects/10-regulated-payment-stablecoin/foundry.toml') }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Slither
+        run: |
+          uv tool install "slither-analyzer==${SLITHER_VERSION}" --with "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Slither (fails on any medium+ finding; triage in docs/STATIC_ANALYSIS.md)
+        run: slither . --config-file slither.config.json --fail-medium
+
+  medusa:
+    name: Medusa (300 s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@v4
+        with:
+          path: |
+            projects/10-regulated-payment-stablecoin/dependencies
+            ~/.svm
+          key: soldeer-10-${{ hashFiles('projects/10-regulated-payment-stablecoin/soldeer.lock', 'projects/10-regulated-payment-stablecoin/foundry.toml') }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install crytic-compile
+        run: |
+          uv tool install "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Medusa (official release, checksum verified)
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL -o medusa.tar.gz \
+            "https://github.com/crytic/medusa/releases/download/${MEDUSA_VERSION}/medusa-linux-x64.tar.gz"
+          echo "${MEDUSA_SHA256}  medusa.tar.gz" | sha256sum -c -
+          mkdir -p medusa-bin "$HOME/.local/bin"
+          tar -xzf medusa.tar.gz -C medusa-bin
+          install -m 0755 "$(find medusa-bin -type f -name medusa | head -n 1)" "$HOME/.local/bin/medusa"
+          "$HOME/.local/bin/medusa" --version
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Medusa campaign (5 properties + assert postconditions in the actions)
+        run: medusa fuzz --config medusa.json --timeout 300
+
+  demo:
+    name: Keystore-based deployment demo on anvil
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@v4
+        with:
+          path: |
+            projects/10-regulated-payment-stablecoin/dependencies
+            ~/.svm
+          key: soldeer-10-${{ hashFiles('projects/10-regulated-payment-stablecoin/soldeer.lock', 'projects/10-regulated-payment-stablecoin/foundry.toml') }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Deploy, verify the role graph, mint, pay, seize, upgrade, re-verify
+        run: bash scripts/demo.sh
+
+  mutation:
+    name: Mutation smoke test (9 seeded bugs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@v4
+        with:
+          path: |
+            projects/10-regulated-payment-stablecoin/dependencies
+            ~/.svm
+          key: soldeer-10-${{ hashFiles('projects/10-regulated-payment-stablecoin/soldeer.lock', 'projects/10-regulated-payment-stablecoin/foundry.toml') }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Every seeded bug must be caught by all of its named tests (CI profile, mutants in a temp copy)
+        env:
+          FOUNDRY_PROFILE: ci
+        run: node scripts/mutation-smoke.mjs

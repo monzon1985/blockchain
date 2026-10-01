@@ -1,0 +1,14 @@
+# Project-level ignores (the repository root already ignores out/, cache/, dependencies/, node_modules/,
+# lcov.info and broadcast/*/31337/).
+
+# Medusa / crytic-compile artefacts
+crytic-export/
+corpus/
+.medusa-artifact-hash
+
+# Local anvil demo output (keystores, logs, deployment JSON) and script broadcasts
+demo-out/
+broadcast/
+
+# Slither output
+slither_results.json

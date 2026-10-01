@@ -1,0 +1,63 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 200
+ignored_warnings_from = ["dependencies"]
+# Storage layouts in the artifacts feed scripts/check-storage-layout.mjs (same data as `forge inspect ... storageLayout`).
+extra_output = ["storageLayout"]
+# Scripts and the invariant statistics write under demo-out/ (git-ignored); nothing else is touched.
+fs_permissions = [{ access = "read-write", path = "./demo-out" }]
+
+[profile.default.fuzz]
+runs = 512
+max_test_rejects = 131072
+
+[profile.default.invariant]
+runs = 64
+depth = 128
+fail_on_revert = true
+show_metrics = true
+
+# CI: more runs and a fixed seed. Fuzz tests replay identical inputs; Foundry 1.8.3 still varies this project's invariant
+# call sequences between runs (README, Testing > Determinism), so CI checks the properties, not a fixed sequence.
+[profile.ci.fuzz]
+runs = 2048
+seed = "0x10"
+max_test_rejects = 131072
+
+[profile.ci.invariant]
+runs = 128
+depth = 128
+fail_on_revert = true
+show_metrics = true
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+quote_style = "double"
+number_underscore = "thousands"
+
+[lint]
+# Every excluded rule is justified in docs/STATIC_ANALYSIS.md. Tests, mocks and scripts are not linted.
+ignore = ["test/**/*.sol", "script/**/*.sol"]
+exclude_lints = ["reentrancy-events", "block-timestamp"]
+
+[soldeer]
+remappings_generate = false
+remappings_regenerate = false
+remappings_version = false
+remappings_location = "txt"
+recursive_deps = false
+
+[dependencies]
+"@openzeppelin-contracts" = "5.7.0"
+"@openzeppelin-contracts-upgradeable" = "5.7.0"
+forge-std = "1.16.2"

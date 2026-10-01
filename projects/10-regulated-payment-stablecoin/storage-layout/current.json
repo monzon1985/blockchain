@@ -1,0 +1,289 @@
+{
+  "implementations": {
+    "TestPaymentDollarV1": [],
+    "TestPaymentDollarV2": []
+  },
+  "namespaces": {
+    "tpd.storage.Compliance": [
+      {
+        "path": "blocklisted",
+        "slot": "0",
+        "offset": 0,
+        "type": "mapping(address => bool)",
+        "bytes": "32"
+      },
+      {
+        "path": "frozen",
+        "slot": "1",
+        "offset": 0,
+        "type": "mapping(address => bool)",
+        "bytes": "32"
+      }
+    ],
+    "tpd.storage.Reserves": [
+      {
+        "path": "attestor",
+        "slot": "0",
+        "offset": 0,
+        "type": "address",
+        "bytes": "20"
+      },
+      {
+        "path": "asOf",
+        "slot": "0",
+        "offset": 20,
+        "type": "uint64",
+        "bytes": "8"
+      },
+      {
+        "path": "reserves",
+        "slot": "1",
+        "offset": 0,
+        "type": "uint256",
+        "bytes": "32"
+      },
+      {
+        "path": "supplyAtAttestation",
+        "slot": "2",
+        "offset": 0,
+        "type": "uint256",
+        "bytes": "32"
+      },
+      {
+        "path": "reportHash",
+        "slot": "3",
+        "offset": 0,
+        "type": "bytes32",
+        "bytes": "32"
+      }
+    ],
+    "tpd.storage.Minting": [
+      {
+        "path": "isMinter",
+        "slot": "0",
+        "offset": 0,
+        "type": "mapping(address => bool)",
+        "bytes": "32"
+      },
+      {
+        "path": "allowance",
+        "slot": "1",
+        "offset": 0,
+        "type": "mapping(address => uint256)",
+        "bytes": "32"
+      },
+      {
+        "path": "minterWindow",
+        "slot": "2",
+        "offset": 0,
+        "type": "mapping(address => struct RateLimiter.SlidingWindow)",
+        "bytes": "32"
+      },
+      {
+        "path": "minterLimitCeiling",
+        "slot": "3",
+        "offset": 0,
+        "type": "uint208",
+        "bytes": "26"
+      },
+      {
+        "path": "bridgeMintWindow._limit",
+        "slot": "4",
+        "offset": 0,
+        "type": "uint208",
+        "bytes": "26"
+      },
+      {
+        "path": "bridgeMintWindow._window",
+        "slot": "4",
+        "offset": 26,
+        "type": "uint48",
+        "bytes": "6"
+      },
+      {
+        "path": "bridgeMintWindow._items",
+        "slot": "5",
+        "offset": 0,
+        "type": "mapping(bytes32 => struct Checkpoints.Trace208)",
+        "bytes": "32"
+      },
+      {
+        "path": "bridgeBurnWindow._limit",
+        "slot": "6",
+        "offset": 0,
+        "type": "uint208",
+        "bytes": "26"
+      },
+      {
+        "path": "bridgeBurnWindow._window",
+        "slot": "6",
+        "offset": 26,
+        "type": "uint48",
+        "bytes": "6"
+      },
+      {
+        "path": "bridgeBurnWindow._items",
+        "slot": "7",
+        "offset": 0,
+        "type": "mapping(bytes32 => struct Checkpoints.Trace208)",
+        "bytes": "32"
+      }
+    ],
+    "tpd.storage.TransferCaps": [
+      {
+        "path": "flagged",
+        "slot": "0",
+        "offset": 0,
+        "type": "mapping(address => bool)",
+        "bytes": "32"
+      },
+      {
+        "path": "outflow._limit",
+        "slot": "1",
+        "offset": 0,
+        "type": "uint208",
+        "bytes": "26"
+      },
+      {
+        "path": "outflow._window",
+        "slot": "1",
+        "offset": 26,
+        "type": "uint48",
+        "bytes": "6"
+      },
+      {
+        "path": "outflow._items",
+        "slot": "2",
+        "offset": 0,
+        "type": "mapping(bytes32 => struct Checkpoints.Trace208)",
+        "bytes": "32"
+      }
+    ],
+    "openzeppelin.storage.ERC20": [
+      {
+        "path": "_balances",
+        "slot": "0",
+        "offset": 0,
+        "type": "mapping(address => uint256)",
+        "bytes": "32"
+      },
+      {
+        "path": "_allowances",
+        "slot": "1",
+        "offset": 0,
+        "type": "mapping(address => mapping(address => uint256))",
+        "bytes": "32"
+      },
+      {
+        "path": "_totalSupply",
+        "slot": "2",
+        "offset": 0,
+        "type": "uint256",
+        "bytes": "32"
+      },
+      {
+        "path": "_name",
+        "slot": "3",
+        "offset": 0,
+        "type": "string",
+        "bytes": "32"
+      },
+      {
+        "path": "_symbol",
+        "slot": "4",
+        "offset": 0,
+        "type": "string",
+        "bytes": "32"
+      }
+    ],
+    "openzeppelin.storage.EIP712": [
+      {
+        "path": "_hashedName",
+        "slot": "0",
+        "offset": 0,
+        "type": "bytes32",
+        "bytes": "32"
+      },
+      {
+        "path": "_hashedVersion",
+        "slot": "1",
+        "offset": 0,
+        "type": "bytes32",
+        "bytes": "32"
+      },
+      {
+        "path": "_name",
+        "slot": "2",
+        "offset": 0,
+        "type": "string",
+        "bytes": "32"
+      },
+      {
+        "path": "_version",
+        "slot": "3",
+        "offset": 0,
+        "type": "string",
+        "bytes": "32"
+      }
+    ],
+    "openzeppelin.storage.Nonces": [
+      {
+        "path": "_nonces",
+        "slot": "0",
+        "offset": 0,
+        "type": "mapping(address => uint256)",
+        "bytes": "32"
+      }
+    ],
+    "openzeppelin.storage.Pausable": [
+      {
+        "path": "_paused",
+        "slot": "0",
+        "offset": 0,
+        "type": "bool",
+        "bytes": "1"
+      }
+    ],
+    "openzeppelin.storage.AccessManaged": [
+      {
+        "path": "_authority",
+        "slot": "0",
+        "offset": 0,
+        "type": "address",
+        "bytes": "20"
+      },
+      {
+        "path": "_consumingSchedule",
+        "slot": "0",
+        "offset": 20,
+        "type": "bool",
+        "bytes": "1"
+      }
+    ],
+    "openzeppelin.storage.ERC3009": [
+      {
+        "path": "_usedNonces",
+        "slot": "0",
+        "offset": 0,
+        "type": "mapping(address => mapping(bytes32 => bool))",
+        "bytes": "32"
+      }
+    ],
+    "openzeppelin.storage.Initializable": [
+      {
+        "path": "_initialized",
+        "slot": "0",
+        "offset": 0,
+        "type": "uint64",
+        "bytes": "8"
+      },
+      {
+        "path": "_initializing",
+        "slot": "0",
+        "offset": 8,
+        "type": "bool",
+        "bytes": "1"
+      }
+    ]
+  }
+}

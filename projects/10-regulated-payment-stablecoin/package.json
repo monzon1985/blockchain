@@ -1,0 +1,18 @@
+{
+  "name": "regulated-payment-stablecoin-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tooling for the Test Payment Dollar demo: coverage gate, storage-layout gate, mutation smoke test and invariant statistics. Node built-ins only.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test \"scripts/test/*.test.mjs\"",
+    "coverage:check": "node scripts/check-coverage.mjs lcov.info --min-lines 90 --min-branches 90",
+    "layout:check": "node scripts/check-storage-layout.mjs",
+    "mutation": "node scripts/mutation-smoke.mjs",
+    "invariant:stats": "node scripts/invariant-stats.mjs"
+  }
+}
