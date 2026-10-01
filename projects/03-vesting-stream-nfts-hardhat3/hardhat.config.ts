@@ -59,6 +59,14 @@ export default defineConfig({
           fuzz: { runs: 5_000, seed: FUZZ_SEED },
           invariant: { runs: 256, depth: 128, failOnRevert: true },
         },
+        // Mutation campaign (`scripts/mutation.ts`): the default profile plus a finite per-call gas limit. The default
+        // limit is effectively unbounded, so a mutant that hands the gas-guzzling hook all remaining gas (M12) would
+        // make every invariant call loop for a very long time. 100M gas is ~25x the most expensive test call.
+        mutation: {
+          gasLimit: 100_000_000n,
+          fuzz: { runs: 256, seed: FUZZ_SEED },
+          invariant: { runs: 64, depth: 64, failOnRevert: true },
+        },
       },
     },
   },

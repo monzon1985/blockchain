@@ -11,7 +11,7 @@
  * killed run is restored on the next start. A mutant that does not compile is reported as invalid and fails the run.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync } from "node:fs";
 import { copyFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -189,17 +189,26 @@ const HARDHAT_CLI = path.join(ROOT, "node_modules", "hardhat", "dist", "src", "c
  */
 const COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
 
+/** Output of the current Hardhat invocation. A file, not a pipe: a lingering child cannot keep spawnSync waiting. */
+const RUN_LOG = path.join(ROOT, "cache", "mutation-run.log");
+
 /** Runs `hardhat <args>` in the project root; returns whether it passed, whether it timed out, and its output tail. */
 function run(args: string[]): { ok: boolean; timedOut: boolean; tail: string } {
-  const result = spawnSync(process.execPath, [HARDHAT_CLI, ...args], {
-    cwd: ROOT,
-    encoding: "utf8",
-    maxBuffer: 256 * 1024 * 1024,
-    timeout: COMMAND_TIMEOUT_MS,
-    killSignal: "SIGKILL",
-  });
+  mkdirSync(path.dirname(RUN_LOG), { recursive: true });
+  const fd = openSync(RUN_LOG, "w");
+  let result: ReturnType<typeof spawnSync>;
+  try {
+    result = spawnSync(process.execPath, [HARDHAT_CLI, ...args], {
+      cwd: ROOT,
+      stdio: ["ignore", fd, fd],
+      timeout: COMMAND_TIMEOUT_MS,
+      killSignal: "SIGKILL",
+    });
+  } finally {
+    closeSync(fd);
+  }
   const timedOut = result.error !== undefined && (result.error as NodeJS.ErrnoException).code === "ETIMEDOUT";
-  const output = `${result.stdout}${result.stderr}`;
+  const output = readFileSync(RUN_LOG, "utf8");
   return { ok: result.status === 0, timedOut, tail: output.split(/\r?\n/).slice(-15).join("\n") };
 }
 
@@ -263,7 +272,7 @@ for (const m of mutants) {
     );
     let outcome: "killed" | "survived" | "invalid" = "survived";
     let by = "-";
-    const solidity = () => run(["test", "solidity"]);
+    const solidity = () => run(["test", "solidity", "--test-profile", "mutation"]);
     const nodejs = () => run(["test", "nodejs"]);
     if (!run(["build"]).ok) {
       outcome = "invalid";
