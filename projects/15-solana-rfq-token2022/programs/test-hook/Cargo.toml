@@ -1,0 +1,37 @@
+[package]
+name = "test-hook"
+description = "In-repo allowlist transfer-hook program used to exercise Token-2022 transfer-hook mints (ExtraAccountMetaList with account-data seeds and a writable counter)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "test_hook"
+
+[features]
+no-entrypoint = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+solana-account-info.workspace = true
+solana-program-entrypoint.workspace = true
+solana-program-error.workspace = true
+solana-pubkey = { workspace = true, features = ["curve25519"] }
+solana-cpi.workspace = true
+solana-instruction.workspace = true
+solana-msg.workspace = true
+solana-sysvar.workspace = true
+solana-program-option.workspace = true
+solana-system-interface-v2 = { package = "solana-system-interface", version = "2", features = ["bincode"] }
+spl-transfer-hook-interface.workspace = true
+spl-tlv-account-resolution.workspace = true
+spl-token-2022-interface.workspace = true
+spl-discriminator.workspace = true
+
+[lints]
+workspace = true

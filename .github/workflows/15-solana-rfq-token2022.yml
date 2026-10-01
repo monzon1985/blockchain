@@ -1,0 +1,165 @@
+name: "15 · Solana RFQ Token-2022"
+
+on:
+  push:
+    paths:
+      - "projects/15-solana-rfq-token2022/**"
+      - ".github/workflows/15-solana-rfq-token2022.yml"
+  pull_request:
+    paths:
+      - "projects/15-solana-rfq-token2022/**"
+      - ".github/workflows/15-solana-rfq-token2022.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/15-solana-rfq-token2022
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: "4"
+  RUST_BACKTRACE: "1"
+  # Pinned toolchains. Rust 1.98.1 is the repository standard; LiteSVM 0.17's
+  # Agave 4.3 runtime crates need >= 1.97.1. The SBF programs are compiled by
+  # the platform-tools rustc that ships with Agave 4.3 (cargo-build-sbf).
+  RUST_TOOLCHAIN: "1.98.1"
+  AGAVE_VERSION: "v4.3.0"
+  ANCHOR_VERSION: "1.2.0"
+  # Deterministic property tests in CI.
+  PROPTEST_RNG_SEED: "15"
+
+jobs:
+  native:
+    name: Native gates (fmt, clippy, host tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust ${{ env.RUST_TOOLCHAIN }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt, clippy
+
+      - name: Install build prerequisites (OpenSSL for the Agave precompiles)
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            projects/15-solana-rfq-token2022 -> target
+            projects/15-solana-rfq-token2022/tests/cu-bench -> target
+          cache-bin: "false"
+
+      - name: cargo fmt (workspace + cu-bench)
+        run: |
+          cargo fmt --all --check
+          cargo fmt --manifest-path tests/cu-bench/Cargo.toml --check
+
+      - name: cargo clippy (every crate and target, both feature sets, cu-bench)
+        run: |
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          cargo clippy --locked --workspace --all-targets \
+            --features rfq/naive-v1,rfq-pinocchio/naive-v1 -- -D warnings
+          cargo clippy --locked --manifest-path tests/cu-bench/Cargo.toml --all-targets -- -D warnings
+
+      - name: Host unit + property tests (rfq-core, rfq-client, rfq, rfq-pinocchio, test-hook)
+        run: cargo test --locked -p rfq-core -p rfq-client -p rfq -p rfq-pinocchio -p test-hook
+
+  onchain:
+    name: SBF builds + LiteSVM / Mollusk suites + coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust ${{ env.RUST_TOOLCHAIN }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: llvm-tools-preview
+
+      - name: Install build prerequisites (OpenSSL for the Agave precompiles, udev for the Anchor CLI)
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev libudev-dev
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            projects/15-solana-rfq-token2022 -> target
+            projects/15-solana-rfq-token2022/tests/cu-bench -> target
+          cache-bin: "false"
+
+      - name: Cache the Agave CLI / platform-tools and the Anchor CLI
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/solana
+            ~/.cache/solana
+            ~/.cargo/bin/anchor
+          key: sbf-tools-${{ runner.os }}-agave-${{ env.AGAVE_VERSION }}-anchor-${{ env.ANCHOR_VERSION }}-rust-${{ env.RUST_TOOLCHAIN }}
+          restore-keys: |
+            sbf-tools-${{ runner.os }}-agave-${{ env.AGAVE_VERSION }}-anchor-${{ env.ANCHOR_VERSION }}-
+
+      - name: Install the Agave (Solana) CLI ${{ env.AGAVE_VERSION }} / platform-tools
+        run: |
+          bin="$HOME/.local/share/solana/install/active_release/bin"
+          if ! "$bin/solana" --version 2>/dev/null | grep -q "${AGAVE_VERSION#v}"; then
+            sh -c "$(curl -sSfL "https://release.anza.xyz/${AGAVE_VERSION}/install")"
+          fi
+          echo "$bin" >> "$GITHUB_PATH"
+
+      - name: Install the Anchor CLI ${{ env.ANCHOR_VERSION }} (pinned tag, cached)
+        run: |
+          if ! anchor --version 2>/dev/null | grep -q "anchor-cli ${ANCHOR_VERSION}"; then
+            cargo install --locked --force \
+              --git https://github.com/solana-foundation/anchor --tag "v${ANCHOR_VERSION}" anchor-cli
+          fi
+
+      - name: Versions
+        run: |
+          rustc --version
+          solana --version
+          cargo build-sbf --version
+          anchor --version
+
+      - name: A throwaway wallet (anchor reads the provider wallet path)
+        run: solana-keygen new --no-bip39-passphrase --force -o "$HOME/.config/solana/id.json"
+
+      - name: anchor build (production program + IDL)
+        run: anchor build -p rfq
+
+      - name: cargo build-sbf (production and opt-in naive-v1 exploit builds)
+        run: |
+          cargo build-sbf --manifest-path programs/rfq/Cargo.toml -- --locked
+          cargo build-sbf --manifest-path programs/rfq-pinocchio/Cargo.toml -- --locked
+          cargo build-sbf --manifest-path programs/test-hook/Cargo.toml -- --locked
+          cargo build-sbf --manifest-path programs/rfq/Cargo.toml \
+            --features naive-v1 --sbf-out-dir target/deploy/naive -- --locked
+          cargo build-sbf --manifest-path programs/rfq-pinocchio/Cargo.toml \
+            --features naive-v1 --sbf-out-dir target/deploy/naive -- --locked
+          ls -l target/deploy target/deploy/naive
+
+      - name: LiteSVM integration tests (both programs)
+        run: cargo test --locked -p integration-tests
+
+      - name: Mollusk CU benchmark + equivalence (pinned CU table, ±5%)
+        working-directory: projects/15-solana-rfq-token2022/tests/cu-bench
+        run: cargo test --locked -- --nocapture
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov@0.9.1
+
+      - name: Line coverage of the host crates (unit, property and LiteSVM tests)
+        run: >
+          cargo llvm-cov --locked -p rfq-core -p rfq-client -p integration-tests
+          --summary-only --ignore-filename-regex 'integration-tests'
+          --fail-under-lines 90

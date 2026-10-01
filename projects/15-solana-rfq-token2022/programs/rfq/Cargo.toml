@@ -1,0 +1,41 @@
+[package]
+name = "rfq"
+description = "Anchor 1.2 RFQ settlement program: maker registry, PDA vaults, ed25519-introspected quotes, nonce bitmaps, partial fills, Token-2022 transfer-fee and transfer-hook support."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "rfq"
+
+[features]
+default = []
+# Opt-in exploit build: compiles the deliberately vulnerable `settle_naive_v1`
+# instruction AND switches the program id to `RFQNaiveV1Exp1oitDemo111…`, so the
+# vulnerable artefact can never be deployed at (or mistaken for) the production
+# address. The default build — what `anchor build` produces — does not contain
+# `settle_naive_v1` at all.
+naive-v1 = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang.workspace = true
+anchor-spl.workspace = true
+spl-transfer-hook-interface.workspace = true
+solana-instructions-sysvar.workspace = true
+solana-sha256-hasher.workspace = true
+rfq-core.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 5bff295d6bd89b8aa10f74c089bd4cebcd71a5577cf55c9966d39f7096fcd722 # shrinks to maker_amount = 1, taker_amount = 1, bps = 0, tfee = TransferFee { epoch: 0, maximum_fee: 18446744073709551615, basis_points: 10000 }

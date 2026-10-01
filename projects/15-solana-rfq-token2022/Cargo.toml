@@ -1,0 +1,100 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/rfq-client",
+    "crates/rfq-core",
+    "programs/rfq",
+    "programs/rfq-pinocchio",
+    "programs/test-hook",
+    "tests/integration-tests",
+]
+# `tests/cu-bench` is its own workspace with its own lockfile: mollusk-svm 0.15.1
+# only compiles against the Agave 4.2 runtime crates, while litesvm 0.17 requires
+# Agave 4.3. Cargo allows a single semver-compatible version of each crate per
+# lockfile, so the two harnesses cannot share one.
+exclude = ["tests/cu-bench"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+# Minimum for the core, client and programs (their dependency graphs peak at
+# 1.89). It must stay <= 1.95: `cargo build-sbf` compiles the programs and
+# rfq-core with the platform-tools rustc 1.95, and cargo refuses packages whose
+# rust-version is newer. `tests/integration-tests` declares 1.97.1 (Agave 4.3
+# runtime crates); CI and the README pin the toolchain to 1.98.1.
+rust-version = "1.89"
+repository = "https://github.com/monzon1985/blockchain"
+publish = false
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "warn"
+
+[workspace.dependencies]
+rfq-core = { path = "crates/rfq-core" }
+
+# Anchor 1.2 and the SPL interface crates it is built against.
+anchor-lang = { version = "=1.2.0", features = ["init-if-needed"] }
+anchor-spl = { version = "=1.2.0", default-features = false, features = ["token", "token_2022", "token_2022_extensions"] }
+spl-token-2022-interface = "2.1"
+spl-transfer-hook-interface = "2.1"
+spl-tlv-account-resolution = "0.11"
+spl-type-length-value = "0.9"
+spl-discriminator = "0.5"
+spl-pod = "0.7"
+
+# Pinocchio (zero-copy, no allocator).
+pinocchio = { version = "=0.11.2", default-features = false, features = ["cpi"] }
+solana-sha256-hasher = "3.1"
+
+# Solana SDK component crates (native programs and host tooling).
+solana-account-info = "3.1"
+solana-program-entrypoint = "3.1"
+solana-program-error = "3.0"
+solana-cpi = "3.1"
+solana-msg = "3.1"
+solana-pubkey = "3.0"
+solana-instruction = "3"
+solana-system-interface = "3.2"
+solana-sysvar = "3"
+solana-rent = "3"
+solana-instructions-sysvar = "3"
+solana-sdk-ids = "3.1"
+
+# Host-side test / client stack (Agave 4.3 era).
+litesvm = "=0.17.0"
+solana-address = "2.7"
+solana-account = "4.3"
+solana-keypair = "3.1"
+solana-signer = "3.0"
+solana-signature = "3.5"
+solana-message = "4.2"
+solana-transaction = "4.1"
+solana-hash = "4.6"
+solana-address-lookup-table-interface = "3.1"
+solana-compute-budget-interface = "3.1"
+solana-ed25519-program = "3.0"
+solana-clock = "3.2"
+solana-program-option = "3"
+solana-program-pack = "3.1"
+
+proptest = "1.9"
+sha2 = "0.10"
+thiserror = "2"
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+incremental = false
+
+[profile.release.build-override]
+opt-level = 3
+incremental = false
+codegen-units = 1

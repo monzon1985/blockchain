@@ -1,0 +1,45 @@
+[package]
+name = "integration-tests"
+description = "LiteSVM integration tests for the RFQ programs: full settle flows, Token-2022 fee and hook mints, the ed25519-introspection exploit, and account-validation negative cases."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+# LiteSVM 0.17 links the Agave 4.3 runtime crates, which need rustc >= 1.97.1
+# (the rest of the workspace builds with 1.89+, the SBF crates with the
+# platform-tools rustc 1.95). CI pins 1.98.1.
+rust-version = "1.97.1"
+publish = false
+
+[lib]
+doctest = false
+
+[dependencies]
+rfq-core.workspace = true
+rfq-client = { path = "../../crates/rfq-client" }
+litesvm = { workspace = true, features = ["precompiles"] }
+solana-account.workspace = true
+solana-address = { workspace = true, features = ["curve25519", "decode"] }
+solana-instruction.workspace = true
+solana-keypair.workspace = true
+solana-signer.workspace = true
+solana-message = { workspace = true, features = ["wincode"] }
+solana-transaction = { workspace = true, features = ["wincode"] }
+solana-hash.workspace = true
+solana-clock.workspace = true
+solana-slot-hashes = "3.2"
+solana-program-pack.workspace = true
+solana-program-option.workspace = true
+solana-loader-v3-interface = "8"
+solana-transaction-error = "3"
+solana-instruction-error = "2.5"
+solana-sdk-ids.workspace = true
+spl-token-2022-interface = { workspace = true, features = ["serde"] }
+spl-tlv-account-resolution.workspace = true
+spl-transfer-hook-interface.workspace = true
+spl-associated-token-account-interface = "2"
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

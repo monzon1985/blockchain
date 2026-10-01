@@ -1,0 +1,39 @@
+[package]
+name = "rfq-core"
+description = "no_std, allocation-free core of the RFQ settlement protocol: quote encoding, fee math, nonce bitmaps, ed25519 / instructions-sysvar introspection, Token-2022 extension parsing and transfer-hook account resolution."
+version.workspace = true
+edition.workspace = true
+license = "MIT AND Apache-2.0" # src/hook.rs is derived from Apache-2.0 SPL code (see its header)
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+
+[dev-dependencies]
+proptest.workspace = true
+sha2.workspace = true
+# Canonical implementations used as differential-test oracles.
+spl-token-2022-interface.workspace = true
+spl-transfer-hook-interface.workspace = true
+spl-tlv-account-resolution.workspace = true
+spl-type-length-value.workspace = true
+spl-discriminator.workspace = true
+solana-pubkey = { workspace = true, features = ["curve25519"] }
+solana-instruction.workspace = true
+solana-instructions-sysvar.workspace = true
+solana-ed25519-program.workspace = true
+solana-sdk-ids.workspace = true
+solana-program-error.workspace = true
+solana-account-info.workspace = true
+solana-program-option.workspace = true
+solana-program-pack.workspace = true
+solana-keypair.workspace = true
+solana-signer.workspace = true
+ed25519-dalek = "2.2"
+
+[lints]
+workspace = true

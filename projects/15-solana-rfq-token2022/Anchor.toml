@@ -1,0 +1,31 @@
+[toolchain]
+anchor_version = "1.2.0"
+
+[features]
+# IDL account resolution is off: the `settle` / `close_quote_fill` nonce-page
+# seeds call `nonce::page_index(args.quote.nonce)`, which Anchor's PDA-resolution
+# codegen cannot express (with `resolution = true` the IDL build fails with
+# E0425 "cannot find value `args`"). The IDL still lists every account; clients
+# derive the PDAs with `rfq-client::pda`.
+resolution = false
+skip-lint = false
+
+[programs.localnet]
+rfq = "RFQU3KiXMzdvdjrxx369DDnBx7jhGaJkCdPDvmrcJCk"
+
+# Only the Anchor program is an Anchor workspace member. The Pinocchio settle
+# program and the test transfer-hook are plain SBF crates, built with
+# `cargo build-sbf` (see the CI workflow), because Anchor's IDL generation only
+# applies to `#[program]` crates.
+[workspace]
+members = ["programs/rfq"]
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "Localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "cargo test -p integration-tests -- --nocapture"

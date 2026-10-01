@@ -1,0 +1,38 @@
+[package]
+name = "rfq-pinocchio"
+description = "Zero-copy, allocator-free re-implementation of the RFQ settle hot path with Pinocchio, sharing the Anchor program's byte-identical account layouts, instruction ABI and error codes (settle-only; not deployable on its own)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "rfq_pinocchio"
+
+[features]
+default = []
+# Opt-in exploit build (see programs/rfq/Cargo.toml): adds `settle_naive_v1`
+# and switches the program id to `RFPNaiveV1Exp1oitDemo111…`.
+naive-v1 = []
+no-entrypoint = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+pinocchio.workspace = true
+pinocchio-system = "0.6"
+solana-sha256-hasher.workspace = true
+rfq-core.workspace = true
+
+# `Address::{find,create}_program_address` are syscalls on SBF; on the host they
+# need solana-address's `curve25519` backend. Enabling it only off-chain lets the
+# crate build, lint and test natively (`cargo clippy --workspace`) without
+# pulling curve25519-dalek into the SBF artefact.
+[target.'cfg(not(target_os = "solana"))'.dependencies]
+solana-address = { workspace = true, features = ["curve25519"] }
+
+[lints]
+workspace = true
