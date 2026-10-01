@@ -1,0 +1,4 @@
+{
+  "filter_paths": "dependencies|test",
+  "foundry_compile_all": false
+}

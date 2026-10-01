@@ -1,0 +1,17 @@
+# Databases created by local runs of the indexer (indexer.db is the --db default).
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Coverage data written by script/coverage.sh (COVERAGE_DIR: .coverage by default, CI uses covdata).
+.coverage/
+covdata/
+coverage.txt
+
+# Logs written by CI steps and local runs.
+*.log
+
+# The binary built by `go build -o indexer ./cmd/indexer` (README, Getting started).
+/indexer
+/indexer.exe
