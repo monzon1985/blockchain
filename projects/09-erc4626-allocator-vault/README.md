@@ -293,7 +293,7 @@ Details in
 | `ZeroShares` revert on deposit, **no** zero-asset revert on redeem | Revert on both | A zero-share deposit only ever hurts the depositor. Reverting a zero-asset redeem would make `maxRedeem` over-report what is executable, which ERC-4626 forbids |
 | Rate limiter is an **immutable** growth cap, anchored only while it does not bind | Governance-set; re-anchor on every accrual | One less parameter a compromised curator could loosen. Re-anchoring at the ceiling on every accrual compounded the cap (1.2839x a year with daily accruals at 25 %) |
 | Solady `fullMulDiv` for all math | OpenZeppelin `Math.mulDiv` | Cheaper; differential-tested against OpenZeppelin in every rounding test |
-| `optimizer_runs = 1_000` | `10_000` | 22,764 B runtime (1,812 B under EIP-170). At `10_000` the vault is 25,732 B, 1,156 B over the limit: it would not deploy |
+| `optimizer_runs = 1_000` | `10_000` | 22,765 B runtime (1,811 B under EIP-170). At `10_000` the vault is 25,733 B, 1,157 B over the limit: it would not deploy |
 
 ## Testing
 
@@ -324,8 +324,8 @@ bash script/local-demo.sh              # end to end on anvil (free port), outcom
 | Gas | `test/gas` | 17 | Snapshot below |
 | **Total** | | **364** | 168 of them property-based (fuzzed) |
 
-- **Coverage** of `src/`: **100.00 % (479/479)** lines, **100.00 % (598/598)** statements, **100.00 % (95/95)** branches and
-  **100.00 % (86/86)** functions.
+- **Coverage** of `src/`: **100.00 % (474/474)** lines, **100.00 % (588/588)** statements, **100.00 % (93/93)** branches and
+  **100.00 % (87/87)** functions.
 - **Fuzz settings**: 256 runs locally, 1,024 in CI with fixed seed `0x09` (also used by the CI coverage and attack
   report steps, so a failure anywhere reproduces locally). Inputs are constrained with `bound()`; `vm.assume` appears
   inside the a16z suite (including keeping its time-and-fees configuration inside the documented asset bound and away
