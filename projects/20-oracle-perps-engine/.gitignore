@@ -1,0 +1,26 @@
+# Medusa / crytic-compile artefacts
+contracts/crytic-export/
+contracts/corpus/
+contracts/medusa-corpus/
+contracts/.medusa-artifact-hash
+# Foundry coverage reports
+contracts/lcov.info
+contracts/report/
+contracts/coverage.txt
+# go generate intermediate (bindings.go is committed and checked in CI)
+keeper/internal/bindings/combined.json
+# Python tooling caches
+sim/.pytest_cache/
+sim/.ruff_cache/
+# Go binaries from `go build -o bin/ ./cmd/...` or a plain `go build ./cmd/<name>` (the root `*.exe` and `/bin/`
+# rules cover neither Linux/macOS binaries nor a nested bin/)
+/keeper/bin/
+/keeper/signer
+/keeper/keeper
+# `forge script` broadcast logs (the root `broadcast/*/31337/` rule is anchored to the repository root)
+/contracts/broadcast/
+# Files created by the README "Running the pieces by hand" sequence: encrypted demo keystores and their password
+# file, the anvil log and the address files written by the signers and the keeper
+/keeper/ks/
+/keeper/anvil.log
+/keeper/*.addr

@@ -1,0 +1,235 @@
+name: "20 · Oracle perps engine"
+
+on:
+  push:
+    paths:
+      - "projects/20-oracle-perps-engine/**"
+      - ".github/workflows/20-oracle-perps-engine.yml"
+  pull_request:
+    paths:
+      - "projects/20-oracle-perps-engine/**"
+      - ".github/workflows/20-oracle-perps-engine.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # An explicit `bash` runs every step with `-eo pipefail`, so `cmd | tee file` fails when `cmd` fails.
+    shell: bash
+    working-directory: projects/20-oracle-perps-engine
+
+env:
+  FOUNDRY_VERSION: v1.8.3
+  MEDUSA_VERSION: v1.5.1
+  SLITHER_VERSION: 0.11.6
+  CRYTIC_COMPILE_VERSION: 0.4.2
+  GO_VERSION: 1.27.1
+  UV_VERSION: 0.12.20
+
+jobs:
+  contracts:
+    name: Contracts (fmt, build + lint, tests, gas, coverage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: projects/20-oracle-perps-engine/contracts/dependencies
+          key: soldeer-20-${{ hashFiles('projects/20-oracle-perps-engine/contracts/soldeer.lock') }}
+      - name: Install dependencies (Soldeer)
+        working-directory: projects/20-oracle-perps-engine/contracts
+        run: forge soldeer install
+      - name: Format
+        working-directory: projects/20-oracle-perps-engine/contracts
+        run: forge fmt --check
+      - name: Build and lint (any compiler warning or src/ lint finding fails; lint_on_build covers src/ only)
+        working-directory: projects/20-oracle-perps-engine/contracts
+        run: forge build --deny warnings
+      - name: Contract sizes (production contracts must fit EIP-170 / EIP-3860)
+        working-directory: projects/20-oracle-perps-engine/contracts
+        run: forge build src --sizes
+      - name: Tests (CI profile - 5,000 fuzz runs, 256 x 100 invariant calls, fixed seed; GasBench.json is checked, not rewritten)
+        working-directory: projects/20-oracle-perps-engine/contracts
+        env:
+          FOUNDRY_PROFILE: ci
+          FORGE_SNAPSHOT_CHECK: "true"
+        run: forge test
+      - name: Gas snapshot
+        working-directory: projects/20-oracle-perps-engine/contracts
+        env:
+          FORGE_SNAPSHOT_CHECK: "true"
+        run: forge snapshot --check --match-contract GasBench
+      - name: Coverage (>= 90% of production lines; GasBench excluded, its unoptimised numbers are meaningless)
+        working-directory: projects/20-oracle-perps-engine/contracts
+        run: |
+          forge coverage --report summary --report lcov --no-match-coverage "(test|script|dependencies)" \
+            --no-match-contract GasBench | tee coverage.txt
+          total=$(grep -E '^\| Total' coverage.txt | awk -F'|' '{print $3}' | grep -oE '[0-9]+\.[0-9]+' | head -1)
+          echo "Line coverage: ${total}%"
+          echo "### Line coverage: ${total}%" >> "$GITHUB_STEP_SUMMARY"
+          awk -v t="$total" 'BEGIN { exit (t >= 90.0) ? 0 : 1 }'
+
+  slither:
+    name: Slither
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+      - name: Install Slither
+        run: |
+          uv tool install "slither-analyzer==${SLITHER_VERSION}" --with "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          uv tool dir --bin >> "$GITHUB_PATH"
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: projects/20-oracle-perps-engine/contracts/dependencies
+          key: soldeer-20-${{ hashFiles('projects/20-oracle-perps-engine/contracts/soldeer.lock') }}
+      - name: Install dependencies (Soldeer)
+        working-directory: projects/20-oracle-perps-engine/contracts
+        run: forge soldeer install
+      - name: Slither (fails on any untriaged low+ finding)
+        working-directory: projects/20-oracle-perps-engine/contracts
+        run: slither . --config-file slither.config.json
+
+  medusa:
+    name: Medusa (stateful property fuzzing)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+      - name: Install crytic-compile
+        run: |
+          uv tool install "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          uv tool dir --bin >> "$GITHUB_PATH"
+      - name: Install Medusa
+        run: |
+          curl -sSfL -o /tmp/medusa.tar.gz \
+            "https://github.com/crytic/medusa/releases/download/${MEDUSA_VERSION}/medusa-linux-x64.tar.gz"
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf /tmp/medusa.tar.gz -C "$HOME/.local/bin"
+          chmod +x "$HOME/.local/bin/medusa"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: projects/20-oracle-perps-engine/contracts/dependencies
+          key: soldeer-20-${{ hashFiles('projects/20-oracle-perps-engine/contracts/soldeer.lock') }}
+      - name: Install dependencies (Soldeer)
+        working-directory: projects/20-oracle-perps-engine/contracts
+        run: forge soldeer install
+      - name: Medusa
+        working-directory: projects/20-oracle-perps-engine/contracts
+        run: |
+          medusa --version
+          medusa fuzz --config medusa.json --timeout 600
+
+  sim:
+    name: Python path generator
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+      - name: Sync (locked)
+        working-directory: projects/20-oracle-perps-engine/sim
+        run: uv sync --locked
+      - name: Lint
+        working-directory: projects/20-oracle-perps-engine/sim
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Tests
+        working-directory: projects/20-oracle-perps-engine/sim
+        run: uv run pytest
+      - name: Fixtures are reproducible (regenerated on Linux, compared with the committed ones)
+        working-directory: projects/20-oracle-perps-engine/sim
+        run: uv run python -m perps_sim.gen_paths --check
+
+  keeper:
+    name: Go keeper and signers
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: projects/20-oracle-perps-engine/keeper/go.sum
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: projects/20-oracle-perps-engine/contracts/dependencies
+          key: soldeer-20-${{ hashFiles('projects/20-oracle-perps-engine/contracts/soldeer.lock') }}
+      - name: Build contracts (artifacts feed go generate)
+        working-directory: projects/20-oracle-perps-engine/contracts
+        run: |
+          forge soldeer install
+          forge build
+      - name: Generate bindings and check they are committed
+        working-directory: projects/20-oracle-perps-engine/keeper
+        run: |
+          go generate ./...
+          git diff --exit-code -- internal/bindings/bindings.go
+      - name: gofmt
+        working-directory: projects/20-oracle-perps-engine/keeper
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - name: go vet
+        working-directory: projects/20-oracle-perps-engine/keeper
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go vet ./...
+          go vet -tags integration ./...
+      - name: Unit tests
+        working-directory: projects/20-oracle-perps-engine/keeper
+        env:
+          CGO_ENABLED: "0"
+        run: go test -count=1 -p 4 ./...
+      - name: Native fuzzing (30 s per target)
+        working-directory: projects/20-oracle-perps-engine/keeper
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go test -run='^$' -fuzz='^FuzzParse$' -fuzztime=30s ./internal/pricepath
+          go test -run='^$' -fuzz='^FuzzReportJSON$' -fuzztime=30s ./internal/report
+      - name: Unit tests with the race detector (CI only)
+        working-directory: projects/20-oracle-perps-engine/keeper
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race -count=1 -p 4 ./...
+      - name: Integration (anvil mining 1 s blocks + 3 signer processes + keeper process)
+        working-directory: projects/20-oracle-perps-engine/keeper
+        env:
+          CGO_ENABLED: "0"
+        run: go test -count=1 -tags integration -timeout 15m -v ./integration/...

@@ -1,0 +1,16 @@
+{
+  "market.autoDeleverage": "311484",
+  "market.liquidate": "349051",
+  "oracle.verifyReports (2 signatures)": "32513",
+  "oracle.verifyReports (3 signatures)": "45142",
+  "orderBook.cancelOrder": "74577",
+  "orderBook.createOrder (market increase)": "185041",
+  "orderBook.executeOrder (fill fails, order cancelled)": "385090",
+  "orderBook.executeOrder (full close)": "326074",
+  "orderBook.executeOrder (increase, settles fees)": "300874",
+  "orderBook.executeOrder (open position)": "354954",
+  "orderBook.executeOrder (take-profit)": "324300",
+  "vault.executeRequest (deposit)": "278476",
+  "vault.executeRequest (redeem)": "281278",
+  "vault.requestDeposit": "160015"
+}

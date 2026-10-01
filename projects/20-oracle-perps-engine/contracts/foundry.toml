@@ -1,0 +1,73 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 200
+# Metadata hashes would make the bytecode embedded in the Go bindings depend on file paths and line endings.
+bytecode_hash = "none"
+cbor_metadata = false
+fs_permissions = [{ access = "read", path = "./test/fixtures" }]
+# `vm.snapshotGas*` values are compared with snapshots/GasBench.json instead of rewriting it, so a local run with
+# different settings (e.g. the unoptimised `forge coverage` build) fails loudly rather than leaving wrong numbers to
+# be committed. Regenerate deliberately with `FORGE_SNAPSHOT_CHECK=false forge test --mc GasBench`.
+gas_snapshot_check = true
+remappings = [
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "solady/=dependencies/solady-0.1.26/src/",
+]
+
+[profile.default.fuzz]
+runs = 1000
+seed = "0x5eed"
+
+[profile.default.invariant]
+runs = 128
+depth = 64
+fail_on_revert = true
+
+[profile.ci.fuzz]
+runs = 5000
+seed = "0x5eed"
+
+[profile.ci.invariant]
+runs = 256
+depth = 100
+fail_on_revert = true
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+number_underscore = "thousands"
+quote_style = "double"
+sort_imports = true
+
+# Triage of every excluded lint is in docs/STATIC_ANALYSIS.md.
+[lint]
+severity = ["high", "medium", "low"]
+ignore = ["test/**/*.sol", "script/**/*.sol"]
+exclude_lints = [
+    "block-timestamp",
+    "missing-events-arithmetic",
+    "require-revert-in-loop",
+    "reentrancy-events",
+    "reentrancy-no-eth",
+    "unused-return",
+    "unsafe-typecast",
+]
+
+[soldeer]
+remappings_generate = false
+remappings_regenerate = false
+
+[dependencies]
+"@openzeppelin-contracts" = "5.7.0"
+forge-std = "1.16.2"
+solady = "0.1.26"

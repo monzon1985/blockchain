@@ -1,0 +1,46 @@
+{
+  "description": "Deployment configuration that contracts/script/PerpsDeployment.sol and its Go mirror keeper/internal/deploy must both produce. Checked by DeploymentParityTest (Foundry) and TestDeploymentMatchesFixture (Go).",
+  "governanceDelay": 86400,
+  "roles": [
+    { "executionDelay": 86400, "id": 0, "name": "ADMIN" },
+    { "executionDelay": 0, "id": 1, "name": "KEEPER" },
+    { "executionDelay": 86400, "id": 2, "name": "RISK_ADMIN" },
+    { "executionDelay": 86400, "id": 3, "name": "ORACLE_ADMIN" },
+    { "executionDelay": 0, "id": 4, "name": "GUARDIAN" }
+  ],
+  "functionRoles": [
+    { "role": 1, "signature": "executeOrder(uint256,(address,uint256,uint64,bytes)[])", "target": "OrderBook" },
+    { "role": 1, "signature": "executeRequest(uint256,(address,uint256,uint64,bytes)[])", "target": "LPVault" },
+    { "role": 1, "signature": "liquidate(address,bool,(address,uint256,uint64,bytes)[])", "target": "PerpsMarket" },
+    { "role": 1, "signature": "autoDeleverage(address,bool,(address,uint256,uint64,bytes)[])", "target": "PerpsMarket" },
+    {
+      "role": 2,
+      "signature": "setRiskParams((uint128,uint128,uint64,uint64,uint64,uint64,uint16,uint16,uint16,uint16,uint32,uint128,uint128,uint128,uint64,uint64,uint64,uint128,uint128))",
+      "target": "PerpsMarket"
+    },
+    { "role": 4, "signature": "setPaused(bool)", "target": "PerpsMarket" },
+    { "role": 3, "signature": "setSigners(address[],uint8)", "target": "OracleVerifier" },
+    { "role": 3, "signature": "setReportLimits(uint32,uint16)", "target": "OracleVerifier" }
+  ],
+  "riskParams": {
+    "maxLongOpenInterest": 50000000000000000000000000,
+    "maxShortOpenInterest": 50000000000000000000000000,
+    "reserveFactor": 800000000000000000,
+    "maxPnlFactor": 500000000000000000,
+    "adlThresholdFactor": 450000000000000000,
+    "adlTargetFactor": 400000000000000000,
+    "positionFeeBps": 5,
+    "initialMarginBps": 500,
+    "maintenanceMarginBps": 100,
+    "liquidationFeeBps": 20,
+    "orderTimeout": 120,
+    "minCollateral": 10000000000000000000,
+    "positiveImpactFactor": 250000000,
+    "negativeImpactFactor": 500000000,
+    "borrowFactor": 15854895991,
+    "maxFundingVelocity": 4018775,
+    "maxFundingRate": 277777777777,
+    "skewScale": 10000000000000000000000000,
+    "minExecutionFee": 100000000000000000
+  }
+}

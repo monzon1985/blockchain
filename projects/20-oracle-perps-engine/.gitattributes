@@ -1,0 +1,5 @@
+# Generated files, fixtures and snapshots are compared byte-for-byte in CI; keep LF everywhere.
+* text=auto eol=lf
+*.json text eol=lf
+*.go text eol=lf
+*.sol text eol=lf
