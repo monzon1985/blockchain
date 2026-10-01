@@ -1,0 +1,200 @@
+name: "18 · Tokenized T-Bill Fund (ERC-3643 / ERC-7540)"
+
+on:
+  push:
+    paths:
+      - "projects/18-rwa-tbill-fund/**"
+      - ".github/workflows/18-rwa-tbill-fund.yml"
+  pull_request:
+    paths:
+      - "projects/18-rwa-tbill-fund/**"
+      - ".github/workflows/18-rwa-tbill-fund.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: 18-rwa-tbill-fund-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/18-rwa-tbill-fund
+
+env:
+  FOUNDRY_VERSION: v1.8.3
+  NODE_VERSION: "24"
+  SLITHER_VERSION: "0.11.6"
+  CRYTIC_COMPILE_VERSION: "0.4.2"
+  MEDUSA_VERSION: v1.5.1
+  # sha256 of medusa-linux-x64.tar.gz in the crytic/medusa v1.5.1 release (same pin as workflow 13).
+  MEDUSA_SHA256: ddfe1517ae9028ef9fc331b00f5a6a9d5406f3fcd11a715d60c6b6fb3e4546d3
+
+jobs:
+  foundry:
+    name: Build, lint, test, gas, coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: projects/18-rwa-tbill-fund/dependencies
+          key: soldeer-18-${{ hashFiles('projects/18-rwa-tbill-fund/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Format
+        run: forge fmt --check
+
+      - name: Build
+        run: forge build
+
+      - name: Lint (warnings are errors; triage in docs/STATIC_ANALYSIS.md)
+        run: forge lint --deny warnings
+
+      - name: Test (fixed fuzz / invariant seed)
+        env:
+          FOUNDRY_PROFILE: ci
+        run: forge test
+
+      - name: Gas snapshot
+        run: forge snapshot --check --match-contract GasBench
+
+      - name: Coverage
+        run: forge coverage --report lcov --no-match-coverage '(test|script)'
+
+      - name: Coverage gate (>= 90 % lines and branches)
+        run: node scripts/check-coverage.mjs lcov.info --min-branches 90 --min-lines 90
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 18-rwa-tbill-fund-lcov
+          path: projects/18-rwa-tbill-fund/lcov.info
+          if-no-files-found: error
+
+  tooling:
+    name: Node tooling and local anvil demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: projects/18-rwa-tbill-fund/package-lock.json
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Node tests (dividend builder, coverage gate)
+        run: npm test
+
+      - name: Dividend fixtures are up to date
+        run: |
+          npm run --silent dividends:fixture
+          git diff --exit-code -- test/fixtures/
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: projects/18-rwa-tbill-fund/dependencies
+          key: soldeer-18-${{ hashFiles('projects/18-rwa-tbill-fund/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Local end-to-end demo on anvil (every step asserts its outcome)
+        run: bash scripts/demo.sh
+
+  slither:
+    name: Slither
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Slither (crytic-compile pinned)
+        run: |
+          uv tool install "slither-analyzer==${SLITHER_VERSION}" --with "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: projects/18-rwa-tbill-fund/dependencies
+          key: soldeer-18-${{ hashFiles('projects/18-rwa-tbill-fund/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Slither (fails on any low+ finding; triage in docs/STATIC_ANALYSIS.md)
+        run: slither . --config-file slither.config.json
+
+  medusa:
+    name: Medusa (300 s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install crytic-compile
+        run: |
+          uv tool install "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Medusa (official release, checksum verified)
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL -o medusa.tar.gz \
+            "https://github.com/crytic/medusa/releases/download/${MEDUSA_VERSION}/medusa-linux-x64.tar.gz"
+          echo "${MEDUSA_SHA256}  medusa.tar.gz" | sha256sum -c -
+          mkdir -p medusa-bin "$HOME/.local/bin" && tar -xzf medusa.tar.gz -C medusa-bin
+          install -m 0755 "$(find medusa-bin -type f -name medusa | head -n 1)" "$HOME/.local/bin/medusa"
+          "$HOME/.local/bin/medusa" --version
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: projects/18-rwa-tbill-fund/dependencies
+          key: soldeer-18-${{ hashFiles('projects/18-rwa-tbill-fund/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Medusa campaign (assertion mode + properties)
+        run: medusa fuzz --config medusa.json --timeout 300

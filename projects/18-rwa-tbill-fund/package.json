@@ -1,0 +1,20 @@
+{
+  "name": "rwa-tbill-fund-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Off-chain tooling for the tokenized T-bill fund demo: record-date Merkle dividend builder and coverage gate.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test \"scripts/test/*.test.mjs\"",
+    "dividends:build": "node scripts/build-dividend-tree.mjs",
+    "dividends:fixture": "node scripts/build-dividend-tree.mjs test/fixtures/dividend-holders.json test/fixtures/dividend-tree.json && node scripts/build-dividend-tree.mjs test/fixtures/dividend-holders-1.json test/fixtures/dividend-tree-1.json && node scripts/build-dividend-tree.mjs test/fixtures/dividend-holders-3.json test/fixtures/dividend-tree-3.json && node scripts/build-dividend-tree.mjs test/fixtures/dividend-holders-5.json test/fixtures/dividend-tree-5.json && node scripts/build-dividend-tree.mjs test/fixtures/dividend-holders-7.json test/fixtures/dividend-tree-7.json",
+    "coverage:check": "node scripts/check-coverage.mjs lcov.info --min-branches 90 --min-lines 90"
+  },
+  "dependencies": {
+    "@openzeppelin/merkle-tree": "1.0.8"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "root": "0x4b5f10b66572b2d740776b3645c675ed815b3e606fc177d3bb5bfa8ccc1aa7ef",
+  "recordDate": 1767571200,
+  "requestedAmount": "999999999",
+  "allocatedAmount": "999999998",
+  "undistributedDust": "1",
+  "leafEncoding": [
+    "address",
+    "uint256"
+  ],
+  "count": 3,
+  "claims": [
+    {
+      "account": "0x04969191733c09bAEde301235fbE25f9Af3E8cbB",
+      "amount": "333333333",
+      "proof": [
+        "0x8bbb6ae30a27a2de86e8289c7a75a4a82e1d3e2b86b902e45fd275e316c7987c",
+        "0xb41234f990195396dfbe2a00351c28bfc7406da7ce2b5bc169f60e6cd2462300"
+      ]
+    },
+    {
+      "account": "0x44fBf64155546f03b67D5d21D9d771F7568B3866",
+      "amount": "166666666",
+      "proof": [
+        "0x78051c9ff54ba58c440286e3d6f186f491a3c10b3ec151f9dda1fdbad1293c8a"
+      ]
+    },
+    {
+      "account": "0xAA33d80Cabb9579653caa30C13E32e20258B8B67",
+      "amount": "499999999",
+      "proof": [
+        "0xa42a8a54a7796c6a0a65263ba42a502ce5b639d680dbe3cdbaef41b7c5f94af7",
+        "0xb41234f990195396dfbe2a00351c28bfc7406da7ce2b5bc169f60e6cd2462300"
+      ]
+    }
+  ]
+}

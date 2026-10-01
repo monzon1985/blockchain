@@ -1,0 +1,19 @@
+{
+  "root": "0x1fdb10d0bda1e312360ddf5e9b0e4f80a43f5d931a468d77417476efac35d918",
+  "recordDate": 1767571200,
+  "requestedAmount": "1000000",
+  "allocatedAmount": "1000000",
+  "undistributedDust": "0",
+  "leafEncoding": [
+    "address",
+    "uint256"
+  ],
+  "count": 1,
+  "claims": [
+    {
+      "account": "0xAA33d80Cabb9579653caa30C13E32e20258B8B67",
+      "amount": "1000000",
+      "proof": []
+    }
+  ]
+}

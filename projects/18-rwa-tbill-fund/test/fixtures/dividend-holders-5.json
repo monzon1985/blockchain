@@ -1,0 +1,11 @@
+{
+  "recordDate": 1767571200,
+  "totalAmount": "12345678901",
+  "holders": [
+    { "account": "0xAA33d80Cabb9579653caa30C13E32e20258B8B67", "balance": "1000000000000" },
+    { "account": "0x04969191733c09bAEde301235fbE25f9Af3E8cbB", "balance": "333333333333" },
+    { "account": "0x44fBf64155546f03b67D5d21D9d771F7568B3866", "balance": "77777777777" },
+    { "account": "0xf8b012Fe7bB0fe16B0D9df6A6fe997f3BB539AEE", "balance": "5000000" },
+    { "account": "0x1aEAd52208AC36fC560A32daD56F5D4C2b64AaAf", "balance": "123456789012" }
+  ]
+}

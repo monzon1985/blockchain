@@ -1,0 +1,56 @@
+{
+  "root": "0xdfb7ba1e121b3c216a60d7f127ad5fb6ceb7d4ee7e220510455abf511d6b4701",
+  "recordDate": 1767571200,
+  "requestedAmount": "12345678901",
+  "allocatedAmount": "12345678899",
+  "undistributedDust": "2",
+  "leafEncoding": [
+    "address",
+    "uint256"
+  ],
+  "count": 5,
+  "claims": [
+    {
+      "account": "0x04969191733c09bAEde301235fbE25f9Af3E8cbB",
+      "amount": "2681675337",
+      "proof": [
+        "0xd4166d5c934d187cd2577db85915c7216acaec443ed232dca314e110596de55c",
+        "0x21f076f451a5873a9590a0ad0254e477ec57ba4097ad17eb4d8d44f8d9343308"
+      ]
+    },
+    {
+      "account": "0x1aEAd52208AC36fC560A32daD56F5D4C2b64AaAf",
+      "amount": "993213079",
+      "proof": [
+        "0xea5f4f57f34ae044f3c7596dc5ae8468dbed6f39d9e778ca8139f77f26969068",
+        "0x38ad06f040b74156f5b437c364bfa1bc16f7265bfea87af45947cefe1d53384d"
+      ]
+    },
+    {
+      "account": "0x44fBf64155546f03b67D5d21D9d771F7568B3866",
+      "amount": "625724245",
+      "proof": [
+        "0x9cfe0bab070b661b54b0fc83004a9d95515b9442b75e8212b7a4ee8d59cccc15",
+        "0x21f076f451a5873a9590a0ad0254e477ec57ba4097ad17eb4d8d44f8d9343308"
+      ]
+    },
+    {
+      "account": "0xAA33d80Cabb9579653caa30C13E32e20258B8B67",
+      "amount": "8045026013",
+      "proof": [
+        "0x584c5b6d291e09bb3db3424bd54579fd9d23a6d102de79cc2503269c16d1e7be",
+        "0xdb45ba56d18647c6f9602d68652c58cbb71b60588723444a97e9900cb4dcb91d",
+        "0x38ad06f040b74156f5b437c364bfa1bc16f7265bfea87af45947cefe1d53384d"
+      ]
+    },
+    {
+      "account": "0xf8b012Fe7bB0fe16B0D9df6A6fe997f3BB539AEE",
+      "amount": "40225",
+      "proof": [
+        "0x764a5f24ffc9f0a8969251f85f8e0d3b447dc37d4826a91dafcfb1d24c7dfadb",
+        "0xdb45ba56d18647c6f9602d68652c58cbb71b60588723444a97e9900cb4dcb91d",
+        "0x38ad06f040b74156f5b437c364bfa1bc16f7265bfea87af45947cefe1d53384d"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "filter_paths": "dependencies|test|script|node_modules",
+  "exclude_dependencies": true,
+  "exclude_informational": false,
+  "exclude_low": false,
+  "detectors_to_exclude": "reentrancy-events,timestamp,calls-loop,costly-loop,incorrect-equality",
+  "compile_force_framework": "foundry",
+  "foundry_compile_all": false,
+  "fail_on": "low"
+}
