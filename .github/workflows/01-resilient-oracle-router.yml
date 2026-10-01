@@ -1,0 +1,247 @@
+name: "1 · Resilient Oracle Router"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "projects/01-resilient-oracle-router/**"
+      - ".github/workflows/01-resilient-oracle-router.yml"
+  pull_request:
+    paths:
+      - "projects/01-resilient-oracle-router/**"
+      - ".github/workflows/01-resilient-oracle-router.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to a pull request supersedes the running checks; runs on main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+defaults:
+  run:
+    working-directory: projects/01-resilient-oracle-router
+    shell: bash
+
+env:
+  FOUNDRY_VERSION: v1.8.3
+  NODE_VERSION: "24"
+  UV_VERSION: "0.12.20"
+  MEDUSA_VERSION: v1.5.1
+  # SHA-256 of medusa-linux-x64.tar.gz in the official v1.5.1 release (the digest GitHub publishes for the asset).
+  MEDUSA_SHA256: ddfe1517ae9028ef9fc331b00f5a6a9d5406f3fcd11a715d60c6b6fb3e4546d3
+  SLITHER_VERSION: "0.11.6"
+  CRYTIC_COMPILE_VERSION: "0.4.2"
+  # Transitive Python dependencies of the analyzers, pinned (see the file's header).
+  PY_CONSTRAINTS: ci/slither-constraints.txt
+
+jobs:
+  foundry:
+    name: Format, build, lint, test, gas, coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: projects/01-resilient-oracle-router/dependencies
+          key: soldeer-01-${{ hashFiles('projects/01-resilient-oracle-router/soldeer.lock') }}
+
+      - name: Cache compiler output (incremental builds)
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            projects/01-resilient-oracle-router/cache
+            projects/01-resilient-oracle-router/out
+          key: forge-01-${{ env.FOUNDRY_VERSION }}-${{ hashFiles('projects/01-resilient-oracle-router/foundry.toml', 'projects/01-resilient-oracle-router/soldeer.lock', 'projects/01-resilient-oracle-router/src/**', 'projects/01-resilient-oracle-router/test/**', 'projects/01-resilient-oracle-router/script/**') }}
+          restore-keys: forge-01-${{ env.FOUNDRY_VERSION }}-
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Format
+        run: forge fmt --check
+
+      - name: Build
+        run: forge build
+
+      - name: Lint
+        run: forge lint
+
+      - name: Test (CI profile, fixed seed, 10,000 fuzz runs, 256 x 100 invariant runs)
+        env:
+          FOUNDRY_PROFILE: ci
+        run: forge test
+
+      - name: Gas snapshot
+        run: forge snapshot --check --match-contract GasBench
+
+      - name: Coverage of src/ (gate 95 % lines)
+        run: |
+          forge coverage --report lcov --no-match-coverage '(test|script)'
+          node scripts/check-coverage.mjs lcov.info --min-lines 95 | tee coverage.txt
+          { echo "### Coverage of src/"; echo '```'; cat coverage.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Script self-tests (coverage gate, mutation spot-check helpers)
+        run: node --test scripts/check-coverage.test.mjs scripts/mutation-spot-check.test.mjs
+
+  medusa:
+    name: Medusa property campaign (300 s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: projects/01-resilient-oracle-router/ci/slither-constraints.txt
+
+      - name: Install crytic-compile
+        run: |
+          uv tool install --python 3.12 "crytic-compile==${CRYTIC_COMPILE_VERSION}" -c "${PY_CONSTRAINTS}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Medusa
+        id: medusa-cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.medusa-bin
+          key: medusa-${{ env.MEDUSA_VERSION }}-${{ env.MEDUSA_SHA256 }}
+
+      - name: Download Medusa (official release, checksum verified)
+        if: steps.medusa-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL -o medusa.tar.gz \
+            "https://github.com/crytic/medusa/releases/download/${MEDUSA_VERSION}/medusa-linux-x64.tar.gz"
+          echo "${MEDUSA_SHA256}  medusa.tar.gz" | sha256sum -c -
+          mkdir -p medusa-bin "$HOME/.medusa-bin" && tar -xzf medusa.tar.gz -C medusa-bin
+          install -m 0755 "$(find medusa-bin -type f -name medusa | head -n 1)" "$HOME/.medusa-bin/medusa"
+
+      - name: Install Medusa
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 "$HOME/.medusa-bin/medusa" "$HOME/.local/bin/medusa"
+          medusa --version
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: projects/01-resilient-oracle-router/dependencies
+          key: soldeer-01-${{ hashFiles('projects/01-resilient-oracle-router/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Fuzz the ten shared properties
+        run: medusa fuzz --config medusa.json --timeout 300
+
+  slither:
+    name: Slither (zero findings, pedantic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: projects/01-resilient-oracle-router/ci/slither-constraints.txt
+
+      - name: Install Slither (transitive dependencies pinned)
+        run: |
+          uv tool install --python 3.12 "slither-analyzer==${SLITHER_VERSION}" \
+            --with "crytic-compile==${CRYTIC_COMPILE_VERSION}" -c "${PY_CONSTRAINTS}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: projects/01-resilient-oracle-router/dependencies
+          key: soldeer-01-${{ hashFiles('projects/01-resilient-oracle-router/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Analyze (medium and above fail, as locally)
+        run: slither . --config-file slither.config.json --fail-medium
+
+      - name: Analyze (any finding fails; every exclusion is triaged in docs/static-analysis.md)
+        run: slither . --config-file slither.config.json --fail-pedantic
+
+  local-demo:
+    name: Local anvil demo (end to end)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: projects/01-resilient-oracle-router/dependencies
+          key: soldeer-01-${{ hashFiles('projects/01-resilient-oracle-router/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Deploy through the production script and walk every failure mode (free port chosen at runtime)
+        run: bash script/local-demo.sh
+
+  mutation:
+    name: Mutation spot-check (${{ matrix.kind }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [code, docs]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: projects/01-resilient-oracle-router/dependencies
+          key: soldeer-01-${{ hashFiles('projects/01-resilient-oracle-router/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Every injected bug and every README drift must fail the suite
+        run: node scripts/mutation-spot-check.mjs --kind ${{ matrix.kind }}

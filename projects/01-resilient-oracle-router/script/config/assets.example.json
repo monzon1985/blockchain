@@ -1,0 +1,41 @@
+{
+  "gracePeriod": 3600,
+  "assets": [
+    {
+      "asset": "0x00000000000000000000000000000000000000A1",
+      "mode": "strict",
+      "maxDeviationBps": 300,
+      "twapWindow": 3600,
+      "primary": {
+        "feed": "0x00000000000000000000000000000000000000F1",
+        "heartbeat": 3600,
+        "minAnswer": "10000000000",
+        "maxAnswer": "10000000000000"
+      },
+      "secondary": {
+        "feed": "0x00000000000000000000000000000000000000F2",
+        "heartbeat": 86400,
+        "minAnswer": "100000000000000000000",
+        "maxAnswer": "100000000000000000000000"
+      }
+    },
+    {
+      "asset": "0x00000000000000000000000000000000000000A2",
+      "mode": "soft",
+      "maxDeviationBps": 0,
+      "twapWindow": 1800,
+      "primary": {
+        "feed": "0x00000000000000000000000000000000000000F3",
+        "heartbeat": 86400,
+        "minAnswer": "1",
+        "maxAnswer": "1000000000000000000000000"
+      },
+      "secondary": {
+        "feed": "0x0000000000000000000000000000000000000000",
+        "heartbeat": 0,
+        "minAnswer": "0",
+        "maxAnswer": "0"
+      }
+    }
+  ]
+}

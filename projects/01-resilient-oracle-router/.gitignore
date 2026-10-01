@@ -1,0 +1,11 @@
+# Local demo output (script/local-demo.sh): scratch config and anvil broadcasts
+demo-out/
+broadcast/*/31337/
+# Medusa / crytic-compile artifacts
+crytic-export/
+.medusa-artifact-hash
+medusa-corpus/
+# Slither
+slither_results.json
+# Coverage gate output written by CI
+coverage.txt

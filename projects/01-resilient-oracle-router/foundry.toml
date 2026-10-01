@@ -1,0 +1,78 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 10_000
+bytecode_hash = "none"
+cbor_metadata = false
+auto_detect_remappings = false
+ignored_warnings_from = ["dependencies"]
+deny = "warnings"
+# The reachability walk (test/invariant) checks all ten properties after each of its 600 steps: about 1.9 billion gas,
+# above the 2^30 default.
+gas_limit = 4_000_000_000
+# - README.md: test/matrix/FailureMatrix.t.sol parses the failure-mode tables and executes every cell.
+# - script/config: deployment configs read by script/DeployOracleRouter.s.sol (and its test).
+# - demo-out: scratch output of the local anvil demo (git-ignored).
+fs_permissions = [
+    { access = "read", path = "./README.md" },
+    { access = "read", path = "./script/config" },
+    { access = "read-write", path = "./demo-out" },
+]
+remappings = [
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+]
+
+[profile.default.fuzz]
+runs = 1_000
+seed = "0x01"
+
+[profile.default.invariant]
+runs = 64
+depth = 100
+fail_on_revert = true
+
+# CI: same fixed seed, deeper campaigns.
+[profile.ci.fuzz]
+runs = 10_000
+seed = "0x01"
+
+[profile.ci.invariant]
+runs = 256
+depth = 100
+fail_on_revert = true
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+quote_style = "double"
+number_underscore = "thousands"
+sort_imports = true
+
+# forge lint triage (every other lint stays enabled; per-line exceptions carry their justification in the source):
+# - block-timestamp: staleness, heartbeat, grace-period and TWAP checks are time comparisons by definition. A
+#   validator's few seconds of drift cannot turn a stale answer (heartbeats are minutes to hours) into a fresh one.
+# - reentrancy-events: every external call that precedes an event is either a STATICCALL (feed reads, `decimals()`)
+#   that cannot re-enter or modify state, or the governing AccessManager's `consumeScheduledOp` inside `restricted`.
+# - require-revert-in-loop / calls-loop: the only loop is the constructor's initial-asset loop, which must revert
+#   atomically on any invalid asset; its only external call is the configuration-time `decimals()` read.
+[lint]
+exclude_lints = ["block-timestamp", "reentrancy-events", "require-revert-in-loop", "calls-loop"]
+ignore = ["test/**", "script/**"]
+
+[soldeer]
+remappings_generate = false
+remappings_regenerate = false
+recursive_deps = false
+
+[dependencies]
+forge-std = "1.16.2"
+"@openzeppelin-contracts" = "5.7.0"
