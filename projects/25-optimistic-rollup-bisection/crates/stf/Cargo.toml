@@ -1,0 +1,21 @@
+[package]
+name = "rollup-stf"
+description = "L2 state-transition function: tape format, the VM program, a native reference implementation and dispute traces."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+rollup-vm.workspace = true
+alloy-primitives.workspace = true
+k256.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

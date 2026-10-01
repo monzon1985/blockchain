@@ -1,0 +1,13 @@
+[package]
+name = "rollup-economics"
+description = "Bond sizing and delay-attack model for the dispute protocol, with a BoLD-style bounded-delay variant."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

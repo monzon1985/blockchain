@@ -1,0 +1,50 @@
+[package]
+name = "rollup-node"
+description = "Rollup services: L1 derivation, sequencer/batcher (with HTTP API), proposer and challenger."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "sequencer"
+path = "src/bin/sequencer.rs"
+
+[[bin]]
+name = "proposer"
+path = "src/bin/proposer.rs"
+
+[[bin]]
+name = "challenger"
+path = "src/bin/challenger.rs"
+
+[[bin]]
+name = "rollup-cli"
+path = "src/bin/rollup-cli.rs"
+
+[dependencies]
+rollup-vm.workspace = true
+rollup-stf.workspace = true
+rollup-l1.workspace = true
+alloy.workspace = true
+anyhow.workspace = true
+axum.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+rand.workspace = true
+
+[features]
+# Runs tests/binaries_e2e.rs, which spawns `anvil` and the real binaries (opt-in, like the e2e crate).
+anvil = []
+
+[lints]
+workspace = true

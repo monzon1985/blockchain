@@ -1,0 +1,224 @@
+name: "25 · Optimistic Rollup with Bisection Fault Proofs"
+
+on:
+  push:
+    paths:
+      - "projects/25-optimistic-rollup-bisection/**"
+      - ".github/workflows/25-optimistic-rollup-bisection.yml"
+  pull_request:
+    paths:
+      - "projects/25-optimistic-rollup-bisection/**"
+      - ".github/workflows/25-optimistic-rollup-bisection.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/25-optimistic-rollup-bisection
+    shell: bash
+
+env:
+  FOUNDRY_VERSION: v1.8.3
+  RUST_TOOLCHAIN: "1.98.1"
+  SLITHER_VERSION: "0.11.6"
+  CRYTIC_COMPILE_VERSION: "0.4.2"
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+  # Deterministic property tests in CI.
+  PROPTEST_RNG_SEED: "25"
+  # Measured Rust line coverage minus a small margin (see README, Testing); a drop below it fails CI.
+  RUST_MIN_LINE_COVERAGE: "92"
+
+jobs:
+  contracts:
+    name: Solidity · fmt, build, lint, tests, gas, coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: projects/25-optimistic-rollup-bisection/contracts
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Format
+        run: forge fmt --check
+
+      - name: Build
+        run: forge build
+
+      - name: Lint (warnings are errors)
+        run: forge lint -D warnings
+
+      - name: "Test (CI profile: fixed fuzz seed, 1,000 fuzz runs, 128 x 128 invariant campaigns)"
+        env:
+          FOUNDRY_PROFILE: ci
+        run: forge test
+
+      - name: Gas snapshot (unit tests; fuzz and invariant gas depends on the seed)
+        run: forge snapshot --check --no-match-test "testFuzz_|invariant_"
+
+      - name: Gas report (per-function figures quoted in the README)
+        run: |
+          forge test --gas-report --no-match-test "invariant_" | tee gas-report.txt
+          { echo '### Solidity gas report'; echo; echo '```'; cat gas-report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Coverage
+        run: |
+          forge coverage --report summary --no-match-coverage "(test|script|dependencies)" | tee coverage.txt
+          { echo '### Solidity coverage'; echo; echo '```'; cat coverage.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  slither:
+    name: Solidity · Slither
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: projects/25-optimistic-rollup-bisection/contracts
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install Slither
+        run: uv tool install --python 3.12 "slither-analyzer==${SLITHER_VERSION}" --with "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Slither (inline-triaged; see docs/THREAT_MODEL.md, "Static analysis triage")
+        run: slither . --config-file slither.config.json
+
+  rust:
+    name: Rust · fmt, clippy, tests, differential
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/25-optimistic-rollup-bisection
+          # Keep a cold build's progress even if the job fails or times out; only main writes the shared cache.
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build contracts (differential tests load contracts/out)
+        working-directory: projects/25-optimistic-rollup-bisection/contracts
+        run: forge soldeer install && forge build
+
+      - name: cargo fmt
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+      - name: cargo clippy (anvil-gated end-to-end tests)
+        run: cargo clippy --locked -p e2e -p rollup-node --features e2e/anvil,rollup-node/anvil --all-targets -- -D warnings
+
+      - name: cargo test (unit, proptest, Rust-vs-Solidity differential in revm)
+        run: cargo test --locked --workspace
+
+      - name: One-step proof gas per opcode (revm; figures quoted in the README)
+        run: |
+          cargo test --locked -q -p rollup-diff --test differential worst_case_batch_step_gas -- --nocapture | tee revm-gas.txt
+          { echo '### One-step proof gas, worst-case batch (revm)'; echo; echo '```'; grep -E 'gas|steps' revm-gas.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Economics tables (docs/ECONOMICS.md)
+        run: cargo run --locked -q -p rollup-economics >> "$GITHUB_STEP_SUMMARY"
+
+  e2e:
+    name: Rust · end-to-end on anvil (in-process services and real binaries)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/25-optimistic-rollup-bisection
+          key: e2e
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build contracts (the scenarios deploy contracts/out)
+        working-directory: projects/25-optimistic-rollup-bisection/contracts
+        run: forge soldeer install && forge build
+
+      - name: Scenarios with the services as in-process tasks
+        run: cargo test --locked -p e2e --features anvil -- --test-threads=1
+
+      - name: README fraud demo with the real binaries
+        run: cargo test --locked -p rollup-node --features anvil --test binaries_e2e
+
+  rust-coverage:
+    name: Rust · line coverage (cargo-llvm-cov)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/25-optimistic-rollup-bisection
+          key: coverage
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov@0.9.1
+
+      - name: Build contracts
+        working-directory: projects/25-optimistic-rollup-bisection/contracts
+        run: forge soldeer install && forge build
+
+      - name: Coverage (every test incl. the anvil end-to-end runs; binaries' main functions and the e2e harness not counted; fails below the floor)
+        run: |
+          set -o pipefail
+          cargo llvm-cov --locked --workspace --features e2e/anvil,rollup-node/anvil \
+            --ignore-filename-regex '(src[/\\]bin[/\\]|src[/\\]main\.rs|e2e[/\\])' \
+            --summary-only --fail-under-lines "${RUST_MIN_LINE_COVERAGE}" -- --test-threads=1 | tee rust-coverage.txt
+          { echo '### Rust coverage'; echo; echo '```'; cat rust-coverage.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

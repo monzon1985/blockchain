@@ -1,0 +1,20 @@
+[package]
+name = "rollup-vm"
+description = "Deterministic stack VM with Merkleized per-step state commitments and one-step proof generation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+alloy-primitives.workspace = true
+alloy-sol-types.workspace = true
+k256.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

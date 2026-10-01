@@ -1,0 +1,24 @@
+[package]
+name = "rollup-diff"
+description = "Runs the compiled Solidity OneStepVM inside revm so it can be differential-tested against the Rust VM."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+rollup-vm.workspace = true
+rollup-l1.workspace = true
+alloy-primitives.workspace = true
+alloy-sol-types.workspace = true
+revm.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+rollup-stf.workspace = true
+k256.workspace = true
+proptest.workspace = true
+
+[lints]
+workspace = true
