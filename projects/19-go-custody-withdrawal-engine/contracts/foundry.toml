@@ -1,0 +1,45 @@
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 10000
+# Reproducible bytecode: the Go bindings in ../internal/bindings embed it and CI
+# regenerates them with `go generate` + `git diff --exit-code`. Metadata hashes
+# would tie the bytes to absolute build details, so they are disabled.
+bytecode_hash = "none"
+cbor_metadata = false
+
+[profile.default.fuzz]
+runs = 1024
+
+[profile.default.invariant]
+runs = 256
+depth = 64
+fail_on_revert = true
+
+[profile.ci.fuzz]
+runs = 4096
+seed = "0x19"
+
+[profile.ci.invariant]
+runs = 256
+depth = 128
+fail_on_revert = true
+
+[fmt]
+line_length = 100
+
+[soldeer]
+remappings_generate = true
+remappings_regenerate = false
+remappings_version = false
+remappings_location = "txt"
+recursive_deps = false
+
+[dependencies]
+"@openzeppelin-contracts" = "5.7.0"
+forge-std = "1.16.2"

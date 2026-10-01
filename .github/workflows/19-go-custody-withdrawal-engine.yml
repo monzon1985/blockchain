@@ -1,0 +1,256 @@
+name: "19 · Custody withdrawal engine (Go)"
+
+on:
+  push:
+    paths:
+      - "projects/19-go-custody-withdrawal-engine/**"
+      - ".github/workflows/19-go-custody-withdrawal-engine.yml"
+  pull_request:
+    paths:
+      - "projects/19-go-custody-withdrawal-engine/**"
+      - ".github/workflows/19-go-custody-withdrawal-engine.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/19-go-custody-withdrawal-engine
+    shell: bash
+
+env:
+  FOUNDRY_VERSION: v1.8.3
+  SLITHER_VERSION: "0.11.6"
+  # The race detector instruments with checkptr by default; modernc.org/sqlite's transpiled C
+  # does pointer arithmetic checkptr rejects, so it is disabled. Race detection stays on.
+  RACE_FLAGS: -race -gcflags=all=-d=checkptr=0
+
+jobs:
+  contracts:
+    name: Contracts (Foundry, Slither)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: projects/19-go-custody-withdrawal-engine/contracts
+        shell: bash
+    env:
+      FOUNDRY_PROFILE: ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Install dependencies (Soldeer)
+        run: forge soldeer install
+
+      - name: Format
+        run: forge fmt --check
+
+      - name: Build
+        run: forge build
+
+      - name: Lint
+        run: forge lint
+
+      - name: Test (unit, fuzz, invariant; fixed seed in the ci profile)
+        run: forge test -vv
+
+      - name: Gas snapshots (per-frame JSON and .gas-snapshot)
+        run: |
+          FORGE_SNAPSHOT_CHECK=true forge test --match-contract Gas
+          forge snapshot --check --match-contract Gas
+          git diff --exit-code -- snapshots .gas-snapshot
+
+      - name: Coverage (100 % of lines, statements, branches and functions in src/)
+        run: |
+          FORGE_SNAPSHOT_EMIT=false forge coverage --report summary --no-match-coverage "(test|dependencies)" | tee coverage.txt
+          total=$(grep -E '^\| Total' coverage.txt)
+          test "$(grep -o '100.00%' <<<"$total" | wc -l)" -eq 4 || { echo "contract coverage is below 100 %: $total"; exit 1; }
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Slither
+        run: uvx --python 3.12 --from "slither-analyzer==${SLITHER_VERSION}" slither . --config-file slither.config.json
+
+  go:
+    name: Go (generate, vet, tests with coverage, simulation, storage faults, race, fuzz)
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: projects/19-go-custody-withdrawal-engine/go.mod
+          cache-dependency-path: projects/19-go-custody-withdrawal-engine/go.sum
+
+      - name: Build contracts (inputs of go generate)
+        working-directory: projects/19-go-custody-withdrawal-engine/contracts
+        run: |
+          forge soldeer install
+          forge build
+
+      - name: Bindings are up to date
+        run: |
+          go generate ./...
+          git diff --exit-code -- internal/bindings
+
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+
+      - name: go vet
+        run: |
+          CGO_ENABLED=0 go vet ./...
+          CGO_ENABLED=0 go vet -tags integration ./...
+
+      # One run of the whole suite, instrumented; the integration job contributes the other
+      # half and the coverage job merges both and enforces the minimum.
+      - name: Tests with coverage (unit, property, scenarios, concurrent loops, simulation, storage faults)
+        run: COVERAGE_DIR=covdata bash script/coverage.sh unit 2>&1 | tee go-test.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 19-covdata-unit
+          path: projects/19-go-custody-withdrawal-engine/covdata/unit
+          if-no-files-found: error
+
+      - name: Deep simulation (300 random crash/fault schedules)
+        run: CUSTODY_SIM_SEEDS=300 CGO_ENABLED=0 go test -count=1 -run TestSimulation -timeout 45m -v ./internal/app/ 2>&1 | tee sim.log | tail -5
+
+      - name: Storage fault injection (every database operation fails once)
+        run: CUSTODY_FAULT_STRIDE=1 CGO_ENABLED=0 go test -count=1 -run TestStorageFaultInjection -timeout 40m -v ./internal/app/ 2>&1 | tee faults.log | grep -E "workload:|^(--- |ok|FAIL|PASS)"
+
+      # Covers every internal package; the loops run concurrently only in
+      # TestServeUnderConcurrentLoad and TestReconciliationUnderConcurrentWrites (internal/app),
+      # the ledger checker test with concurrent posts, and the audit shipper; the rest of the
+      # suite drives the loops one after another.
+      - name: Race detector (internal packages, -short)
+        run: CGO_ENABLED=1 go test $RACE_FLAGS -short -count=1 -timeout 30m ./internal/... 2>&1 | tee race.log | grep -E "^(--- FAIL|ok|FAIL|PASS)|DATA RACE"
+
+      - name: Fuzz (30 s per target)
+        run: |
+          CGO_ENABLED=0 go test -run '^$' -fuzz '^FuzzValidate$' -fuzztime 30s ./internal/ledger
+          CGO_ENABLED=0 go test -run '^$' -fuzz '^FuzzBump$' -fuzztime 30s ./internal/fees
+          CGO_ENABLED=0 go test -run '^$' -fuzz '^FuzzDecodeTransfer$' -fuzztime 30s ./internal/chain
+          CGO_ENABLED=0 go test -run '^$' -fuzz '^FuzzForwarderAddress$' -fuzztime 30s ./internal/deposit
+
+      - name: Keep logs and fuzz crashers of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 19-go-failure
+          path: |
+            projects/19-go-custody-withdrawal-engine/*.log
+            projects/19-go-custody-withdrawal-engine/**/testdata/fuzz/**
+          if-no-files-found: ignore
+
+  mutation:
+    name: Mutation check (each fixed bug, re-introduced, must fail its tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: projects/19-go-custody-withdrawal-engine/go.mod
+          cache-dependency-path: projects/19-go-custody-withdrawal-engine/go.sum
+
+      - name: Mutants
+        run: CGO_ENABLED=0 go run ./internal/tools/mutationcheck 2>&1 | tee mutation.log
+
+      - name: Keep the log of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 19-mutation-failure
+          path: projects/19-go-custody-withdrawal-engine/mutation.log
+          if-no-files-found: ignore
+
+  integration:
+    name: Integration (anvil), chaos (crash at every failpoint), race, devnet
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: projects/19-go-custody-withdrawal-engine/go.mod
+          cache-dependency-path: projects/19-go-custody-withdrawal-engine/go.sum
+
+      - name: Build contracts
+        working-directory: projects/19-go-custody-withdrawal-engine/contracts
+        run: |
+          forge soldeer install
+          forge build
+
+      - name: Integration and chaos tests (with coverage)
+        run: COVERAGE_DIR=covdata bash script/coverage.sh integration 2>&1 | tee integration.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 19-covdata-integration
+          path: projects/19-go-custody-withdrawal-engine/covdata/integration
+          if-no-files-found: error
+
+      # The in-process engine tests and `custodyd serve` (TestAnvilServeGracefulShutdown) under
+      # the race detector, and the chaos runs against a custodyd binary built with -race
+      # (CUSTODY_RACE=1); a race report in a child process fails its test.
+      - name: Integration and chaos under the race detector
+        run: CUSTODY_RACE=1 CGO_ENABLED=1 go test $RACE_FLAGS -count=1 -tags integration -timeout 30m -v ./integration/... 2>&1 | tee integration-race.log | grep -E "^(--- |ok|FAIL|PASS)|^\s+--- |DATA RACE"
+
+      - name: Devnet demo (end-to-end smoke test)
+        run: bash script/devnet.sh 2>&1 | tee devnet.log
+
+      - name: Keep logs of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 19-integration-failure
+          path: |
+            projects/19-go-custody-withdrawal-engine/*.log
+            projects/19-go-custody-withdrawal-engine/.devnet/*.log
+          if-no-files-found: ignore
+
+  coverage:
+    name: Go coverage (unit + integration, minimum 90 %)
+    needs: [go, integration]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: projects/19-go-custody-withdrawal-engine/go.mod
+          cache-dependency-path: projects/19-go-custody-withdrawal-engine/go.sum
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: 19-covdata-unit
+          path: projects/19-go-custody-withdrawal-engine/covdata/unit
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: 19-covdata-integration
+          path: projects/19-go-custody-withdrawal-engine/covdata/integration
+
+      - name: Merge and enforce
+        run: COVERAGE_DIR=covdata COVERAGE_MIN=90 bash script/coverage.sh merge

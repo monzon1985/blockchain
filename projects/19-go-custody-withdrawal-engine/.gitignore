@@ -1,0 +1,22 @@
+# Local runs of custodyd and the devnet demo
+/.devnet/
+/bin/
+*.db
+*.db-wal
+*.db-shm
+audit.jsonl
+addr.txt
+
+# Go coverage and fuzzing artifacts
+cover.out
+coverage.out
+*.coverprofile
+
+# Coverage data and CI logs (script/coverage.sh, the workflow)
+/.coverage/
+/covdata/
+/*.log
+
+# forge coverage summary written by the CI coverage step
+/contracts/coverage.txt
+/contracts/lcov.info

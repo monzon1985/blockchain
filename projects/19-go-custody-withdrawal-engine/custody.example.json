@@ -1,0 +1,53 @@
+{
+  "chain": {
+    "rpc_url": "http://127.0.0.1:8545",
+    "chain_id": 31337,
+    "confirmations": 12,
+    "poll_interval": "1s"
+  },
+  "database": { "path": "data/custody.db" },
+  "http": { "listen": "127.0.0.1:8080", "addr_file": "" },
+  "audit": { "path": "data/audit.jsonl", "ship_interval": "1s" },
+  "hot_wallet": { "keystore": "secrets/hot.json", "password_file": "secrets/hot.pass" },
+  "fees": {
+    "history_blocks": 10,
+    "reward_percentile": 50,
+    "min_tip_wei": "1000000000",
+    "max_fee_wei": "500000000000",
+    "bump_after_blocks": 3,
+    "bump_bps": 1250,
+    "gas_limit_bps": 12500
+  },
+  "nonces": { "gap_grace_blocks": 2 },
+  "native_asset": "ETH",
+  "assets": [
+    {
+      "symbol": "tUSD",
+      "token": "0x0000000000000000000000000000000000000000",
+      "max_per_tx": "250000000000",
+      "velocity_24h": "1000000000000",
+      "approval_threshold": "50000000000"
+    }
+  ],
+  "policy": {
+    "allowlist_cooldown": "24h",
+    "approvals_required": 2,
+    "approvers": [
+      { "id": "ops-alice", "token_sha256": "0000000000000000000000000000000000000000000000000000000000000001" },
+      { "id": "ops-bob", "token_sha256": "0000000000000000000000000000000000000000000000000000000000000002" },
+      { "id": "ops-carol", "token_sha256": "0000000000000000000000000000000000000000000000000000000000000003" }
+    ]
+  },
+  "clients": [
+    { "id": "api-gateway", "token_sha256": "0000000000000000000000000000000000000000000000000000000000000004" }
+  ],
+  "deposits": {
+    "factory": "0x0000000000000000000000000000000000000000",
+    "scan_interval": "2s",
+    "max_block_range": 2000,
+    "sweep_interval": "30s",
+    "sweep_batch_size": 50,
+    "sweep_min_amount": "0"
+  },
+  "reconcile": { "every_rounds": 10 }
+}
