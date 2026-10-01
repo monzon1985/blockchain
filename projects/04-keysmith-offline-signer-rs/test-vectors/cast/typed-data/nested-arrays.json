@@ -1,0 +1,114 @@
+{
+  "types": {
+    "EIP712Domain": [
+      {
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "name": "version",
+        "type": "string"
+      },
+      {
+        "name": "chainId",
+        "type": "uint256"
+      },
+      {
+        "name": "verifyingContract",
+        "type": "address"
+      }
+    ],
+    "Leg": [
+      {
+        "name": "venue",
+        "type": "address"
+      },
+      {
+        "name": "amount",
+        "type": "int128"
+      },
+      {
+        "name": "memo",
+        "type": "bytes"
+      }
+    ],
+    "Order": [
+      {
+        "name": "maker",
+        "type": "address"
+      },
+      {
+        "name": "legs",
+        "type": "Leg[]"
+      },
+      {
+        "name": "matrix",
+        "type": "uint16[2][]"
+      },
+      {
+        "name": "tags",
+        "type": "bytes32[2]"
+      },
+      {
+        "name": "flag",
+        "type": "bool"
+      },
+      {
+        "name": "tiny",
+        "type": "bytes1"
+      },
+      {
+        "name": "label",
+        "type": "string"
+      },
+      {
+        "name": "delta",
+        "type": "int256"
+      }
+    ]
+  },
+  "primaryType": "Order",
+  "domain": {
+    "name": "Keysmith Nested",
+    "version": "2",
+    "chainId": "0x2105",
+    "verifyingContract": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+  },
+  "message": {
+    "maker": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+    "legs": [
+      {
+        "venue": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "amount": -42,
+        "memo": "0x"
+      },
+      {
+        "venue": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "amount": "170141183460469231731687303715884105727",
+        "memo": "0xdeadbeefcafe"
+      }
+    ],
+    "matrix": [
+      [
+        1,
+        2
+      ],
+      [
+        65535,
+        0
+      ],
+      [
+        7,
+        8
+      ]
+    ],
+    "tags": [
+      "0x0000000000000000000000000000000000000000000000000000000000000001",
+      "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    ],
+    "flag": true,
+    "tiny": "0x7f",
+    "label": "Keysmith \u2713",
+    "delta": "-1"
+  }
+}

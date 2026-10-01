@@ -1,0 +1,3 @@
+[alias]
+# `cargo xtask <task>`: repository automation (air-gap dependency check, golden-vector regeneration).
+xtask = "run --quiet --package xtask --"

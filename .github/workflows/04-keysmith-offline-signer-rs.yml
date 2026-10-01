@@ -1,0 +1,125 @@
+name: "4 · Keysmith Air-Gapped Signer"
+
+on:
+  push:
+    paths:
+      - "projects/04-keysmith-offline-signer-rs/**"
+      - ".github/workflows/04-keysmith-offline-signer-rs.yml"
+  pull_request:
+    paths:
+      - "projects/04-keysmith-offline-signer-rs/**"
+      - ".github/workflows/04-keysmith-offline-signer-rs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/04-keysmith-offline-signer-rs
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+  # Deterministic property tests in CI (fixed seed; proptest reads it through its default config).
+  PROPTEST_RNG_SEED: "4"
+  # insta must compare against committed snapshots, never write new ones.
+  INSTA_UPDATE: "no"
+
+jobs:
+  rust:
+    name: Rust · fmt, clippy, tests, air-gap, no_std
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.1"
+          components: rustfmt, clippy
+          targets: thumbv7em-none-eabihf
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/04-keysmith-offline-signer-rs
+
+      - name: cargo fmt
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+      - name: cargo clippy (anvil-e2e feature)
+        run: cargo clippy --locked -p keysmith-cli --features anvil-e2e --all-targets -- -D warnings
+
+      - name: cargo test (unit, official vectors, cast golden, alloy differential, properties, CLI, relay)
+        run: cargo test --locked --workspace
+
+      - name: Air-gap check (signer dependency graph + source scan + positive control)
+        run: cargo xtask check-airgap
+
+      - name: no_std build of keysmith-core (bare-metal target, no std available)
+        run: cargo build --locked -p keysmith-core --no-default-features --target thumbv7em-none-eabihf
+
+      - name: Deeper differential and property campaign (5,000 cases per property, fixed seed)
+        env:
+          PROPTEST_CASES: "5000"
+        run: cargo test --locked -p keysmith-core --test differential_alloy --test properties
+
+  foundry:
+    name: Foundry · cast golden-vector drift, anvil end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.1"
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/04-keysmith-offline-signer-rs
+          key: foundry
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.3
+
+      - name: Golden vectors are current (re-run cast 1.8.3 and compare with the committed file)
+        run: cargo xtask regen-golden --check
+
+      - name: anvil --hardfork osaka end-to-end (every tx type, EIP-7702, ecrecover, cast keystores)
+        run: cargo test --locked -p keysmith-cli --features anvil-e2e -- --test-threads=1
+
+  coverage:
+    name: Coverage · cargo-llvm-cov (gate 90 % lines)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.1"
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/04-keysmith-offline-signer-rs
+          key: coverage
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov@0.9.1
+
+      - name: Line coverage of keysmith-core, keysmith-cli and keysmith-relay (tests and xtask excluded)
+        run: >
+          cargo llvm-cov --locked --workspace --summary-only --fail-under-lines 90
+          --ignore-filename-regex '(xtask|[\\/]tests[\\/])'

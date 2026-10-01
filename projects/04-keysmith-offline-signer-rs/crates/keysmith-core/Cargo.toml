@@ -1,0 +1,42 @@
+[package]
+name = "keysmith-core"
+description = "no_std + alloc core of Keysmith: hand-written RLP, BIP-39/32/44, typed-transaction envelopes, EIP-7702/712/191 and Web3 Secret Storage v3"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[features]
+default = ["std"]
+# `std` only adds `std::error::Error`-flavoured conveniences; every algorithm works with `alloc`.
+std = ["thiserror/std", "serde_json/std", "serde/std"]
+
+[dependencies]
+k256.workspace = true
+sha3.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+pbkdf2.workspace = true
+scrypt.workspace = true
+aes.workspace = true
+ctr.workspace = true
+ripemd.workspace = true
+subtle.workspace = true
+unicode-normalization.workspace = true
+zeroize.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+insta.workspace = true
+serde_json = { workspace = true, features = ["std"] }
+alloy.workspace = true
+rand.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

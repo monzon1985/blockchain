@@ -1,0 +1,21 @@
+---
+source: crates/keysmith-cli/tests/cli.rs
+expression: text
+---
+type            EIP-1559 (0x02)
+hash            0x672fb48ec1b8a1d6da9168728f455196f23c41b6876559c3ff94d32987a37ba9
+signer          0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+chain id        1
+nonce           0
+to              contract creation -> 0x5FbDB2315678afecb367f032d93F642f64180aa3
+value           0 wei (0 ETH)
+input           15 bytes
+gas limit       100000
+max fee         2000000000 wei/gas (2 gwei)
+max priority    1000000000 wei/gas (1 gwei)
+effective price 2000000000 wei/gas (2 gwei)
+max cost        200000000000000 wei (0.0002 ETH)
+intrinsic gas   53230 = base 21000 + calldata 228 + create 32000 + initcode 2 + access list 0 + authorizations 0
+calldata floor  21570 (EIP-7623); minimum gas limit 53230
+signature       yParity 0, r 0x351f331e8e8748c0e2a2fbd36770fcb6a51118512ea5c46d8e80e8f0d5604c86, s 0x2f70a580ab23b504d829f286e03df5eaac45c9ed2e8bdf1394a9e1dbc7d6c43b, low-s yes
+finding         [warning] fee-cap-below-base-fee: fee cap 2000000000 wei/gas is below the base fee 7000000000 wei/gas: not includable until the base fee drops

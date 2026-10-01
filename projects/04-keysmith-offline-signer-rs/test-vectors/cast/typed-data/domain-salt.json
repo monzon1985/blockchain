@@ -1,0 +1,38 @@
+{
+  "types": {
+    "EIP712Domain": [
+      {
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "name": "chainId",
+        "type": "uint256"
+      },
+      {
+        "name": "salt",
+        "type": "bytes32"
+      }
+    ],
+    "Ping": [
+      {
+        "name": "seq",
+        "type": "uint64"
+      },
+      {
+        "name": "empty",
+        "type": "uint8[]"
+      }
+    ]
+  },
+  "primaryType": "Ping",
+  "domain": {
+    "name": "Salted",
+    "chainId": "137",
+    "salt": "0x5eed00000000000000000000000000000000000000000000000000000000beef"
+  },
+  "message": {
+    "seq": "18446744073709551615",
+    "empty": []
+  }
+}

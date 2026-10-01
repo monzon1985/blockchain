@@ -1,0 +1,20 @@
+---
+source: crates/keysmith-cli/tests/cli.rs
+expression: text
+---
+type            legacy (untyped)
+hash            0xf44749ec477b476ad0e09aabee1997c72cd40c725d8749a68e7e09224c6a67b2
+signer          0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+chain id        1
+nonce           3
+to              contract creation -> 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+value           0 wei (0 ETH)
+input           15 bytes
+gas limit       100000
+gas price       20000000000 wei/gas (20 gwei)
+effective price 20000000000 wei/gas (20 gwei)
+max cost        2000000000000000 wei (0.002 ETH)
+intrinsic gas   53230 = base 21000 + calldata 228 + create 32000 + initcode 2 + access list 0 + authorizations 0
+calldata floor  21570 (EIP-7623); minimum gas limit 53230
+signature       yParity 0, r 0xbdee463778b04fbefacbcf728ac042526233abab32a8f3fa3594afe40faf7487, s 0x4415f32eb2c3def010d216bf1f1b363210d965f62ea72c40e91ffcbd43497fa6, low-s yes
+findings        none

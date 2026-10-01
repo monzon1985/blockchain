@@ -1,0 +1,11 @@
+# Build output (also ignored at the repository root).
+/target/
+
+# insta: snapshots awaiting review are never committed; accepted ones (*.snap) are.
+*.snap.new
+*.pending-snap
+
+# Coverage artefacts (cargo-llvm-cov).
+*.profraw
+*.profdata
+lcov.info

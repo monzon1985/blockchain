@@ -1,0 +1,26 @@
+---
+source: crates/keysmith-cli/tests/cli.rs
+expression: help
+---
+keysmith: the offline half of the air-gapped signer (derive, sign, decode). Contains no networking code.
+
+Usage: keysmith <COMMAND>
+
+Commands:
+  mnemonic         Generate or validate BIP-39 mnemonics
+  derive           Derive BIP-44 addresses (and optionally the account xpub) from a mnemonic
+  address          Print the address of a key source
+  keystore         Web3 Secret Storage v3 keystores (interoperable with `cast wallet`)
+  sign             Sign an unsigned transaction envelope (keysmith/unsigned-tx@1)
+  sign-auth        Sign an EIP-7702 authorization tuple
+  sign-message     Sign a message with EIP-191 `personal_sign`
+  verify-message   Verify an EIP-191 `personal_sign` signature
+  sign-typed-data  Sign EIP-712 typed data (eth_signTypedData_v4 JSON)
+  hash-typed-data  Print the EIP-712 encodeType, domain separator, struct hash and digest
+  permit           Sign an ERC-2612 permit
+  decode           Decode a raw signed transaction: type, signer, fees, intrinsic gas, findings
+  help             Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version

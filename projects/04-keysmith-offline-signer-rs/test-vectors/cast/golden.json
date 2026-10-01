@@ -1,0 +1,947 @@
+{
+  "addresses": [
+    {
+      "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "passphrase": "",
+      "path": "m/44'/60'/0'/0/0"
+    },
+    {
+      "address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "passphrase": "",
+      "path": "m/44'/60'/0'/0/1"
+    },
+    {
+      "address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+      "passphrase": "",
+      "path": "m/44'/60'/0'/0/2"
+    },
+    {
+      "address": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+      "passphrase": "",
+      "path": "m/44'/60'/0'/0/3"
+    },
+    {
+      "address": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+      "passphrase": "",
+      "path": "m/44'/60'/0'/0/4"
+    },
+    {
+      "address": "0xD4ab4eEe2d2fEc105393264fE9248F4C9eeE14b8",
+      "passphrase": "keysmith",
+      "path": "m/44'/60'/0'/0/0"
+    },
+    {
+      "address": "0x931D948F347c2EB3a863b8AdF53d12b536960C44",
+      "passphrase": "",
+      "path": "m/44'/60'/1'/0/7"
+    },
+    {
+      "address": "0x72d8E13ACd0b62f28399EcC5099d46c2c143C8ED",
+      "passphrase": "",
+      "path": "m/44'/60'/0'/1/2147483647"
+    }
+  ],
+  "authorizations": [
+    {
+      "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "cast": {
+        "command": [
+          "wallet",
+          "sign-auth",
+          "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          "--nonce",
+          "5",
+          "--chain",
+          "1",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "rlp": "0xf85a01945fbdb2315678afecb367f032d93f642f64180aa30501a06e0089c7283c53da6377df27399347d3578ff4276431e323f1d897a39e40f22ba01608b9af83e8953b993de8a64a9274eb7183f687048a0e0155cc267d93d73abe"
+      },
+      "chainId": "1",
+      "name": "chain-1",
+      "nonce": "5",
+      "signerIndex": 0
+    },
+    {
+      "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+      "cast": {
+        "command": [
+          "wallet",
+          "sign-auth",
+          "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+          "--nonce",
+          "42",
+          "--chain",
+          "31337",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "rlp": "0xf85c827a6994e7f1725e7734ce288f8367e1bb143e90bb3f05122a01a0cdfcef2feffea71228780efe38bd037cc3361f988ded5f3afd37f700e2f9a9b5a05163c1d8f23694d22c975ef0bae03456fab5ef0503f3ff390cfadac6a7e80afc"
+      },
+      "chainId": "31337",
+      "name": "anvil-chain",
+      "nonce": "42",
+      "signerIndex": 1
+    },
+    {
+      "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "cast": {
+        "command": [
+          "wallet",
+          "sign-auth",
+          "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          "--nonce",
+          "0",
+          "--chain",
+          "0",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "rlp": "0xf85a80945fbdb2315678afecb367f032d93f642f64180aa38001a03e87ec430e4016e7e0bced028b692687f327244498862595d08bf1cde481affca03632216bd5441303cf3b5c26ac02a2fc3a19210961a872ee3011a3cb45bce3ef"
+      },
+      "chainId": "0",
+      "name": "any-chain-zero",
+      "nonce": "0",
+      "signerIndex": 2
+    },
+    {
+      "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "cast": {
+        "command": [
+          "wallet",
+          "sign-auth",
+          "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          "--nonce",
+          "18446744073709551614",
+          "--chain",
+          "8453",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "rlp": "0xf864822105945fbdb2315678afecb367f032d93f642f64180aa388fffffffffffffffe80a069f148f6ef85cf7edbcee48919826308149c92d3e797a2b3afab67c548b0cdc4a044f69cf185f2d34f40058f69f8a07301557363aa4996ad8d633603c56d1c0ae2"
+      },
+      "chainId": "8453",
+      "name": "large-nonce",
+      "nonce": "18446744073709551614",
+      "signerIndex": 0
+    }
+  ],
+  "generator": "cargo xtask regen-golden",
+  "keystores": [
+    {
+      "address": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+      "cast": {
+        "command": [
+          "wallet",
+          "import",
+          "cast-import",
+          "--keystore-dir",
+          "<tmp>",
+          "--private-key",
+          "<anvil test key>",
+          "--unsafe-password",
+          "keysmith-golden-password"
+        ]
+      },
+      "file": "keystores/cast-import.json",
+      "password": "keysmith-golden-password",
+      "signerIndex": 3
+    }
+  ],
+  "messages": [
+    {
+      "cast": {
+        "command": [
+          "wallet",
+          "sign",
+          "hello world",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "signature": "0xa461f509887bd19e312c0c58467ce8ff8e300d3c1a90b608a760c5b80318eaf15fe57c96f9175d6cd4daad4663763baa7e78836e067d0163e9a2ccf2ff753f5b1b"
+      },
+      "message": {
+        "utf8": "hello world"
+      },
+      "name": "hello-world",
+      "signerIndex": 0
+    },
+    {
+      "cast": {
+        "command": [
+          "wallet",
+          "sign",
+          "",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "signature": "0xc18322a726b4f865da04323fe77b713df8286e67ae6f50fe10aa54519fddaa236c14dadd6b82cedfd527bf3c20dac250a004e3a614095f85c106068f46b3ad431c"
+      },
+      "message": {
+        "utf8": ""
+      },
+      "name": "empty",
+      "signerIndex": 1
+    },
+    {
+      "cast": {
+        "command": [
+          "wallet",
+          "sign",
+          "Keysmith ✓ ünïcödé",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "signature": "0xb92be9ee36932b5b19d524b5fa569c95d193d8ab9bf2a4a12e940bf2b95083735a146406fcbec3a239fcc734d4f1549d0b3049d78eb5a0a0326316bd8af9bdee1b"
+      },
+      "message": {
+        "utf8": "Keysmith ✓ ünïcödé"
+      },
+      "name": "unicode",
+      "signerIndex": 2
+    },
+    {
+      "cast": {
+        "command": [
+          "wallet",
+          "sign",
+          "Keysmith signs exactly the bytes you reviewed. Keysmith signs exactly the bytes you reviewed. Keysmith signs exactly the bytes you reviewed. Keysmith signs exactly the bytes you reviewed. Keysmith signs exactly the bytes you reviewed. Keysmith signs exactly the bytes you reviewed. ",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "signature": "0x496a2210f2cafa87f0c2855ecfe800619f96dcd7c67d447e2e135682903f63af2d288dea7c486b4c7362c44c2c0fef019379f81f38e584e37703c5643f91d2751b"
+      },
+      "message": {
+        "utf8": "Keysmith signs exactly the bytes you reviewed. Keysmith signs exactly the bytes you reviewed. Keysmith signs exactly the bytes you reviewed. Keysmith signs exactly the bytes you reviewed. Keysmith signs exactly the bytes you reviewed. Keysmith signs exactly the bytes you reviewed. "
+      },
+      "name": "long-text",
+      "signerIndex": 0
+    },
+    {
+      "cast": {
+        "command": [
+          "wallet",
+          "sign",
+          "0xdeadbeef",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "signature": "0xa114c834af73872c6c9efe918d85b0b1b34a486d10f9011e2630e28417c828c060dbd65cda67e73d52ebb7c555260621dbc1b0b4036acb61086bba091ac3f1641b"
+      },
+      "message": {
+        "hex": "0xdeadbeef"
+      },
+      "name": "raw-bytes-hex",
+      "signerIndex": 0
+    }
+  ],
+  "mnemonic": "test test test test test test test test test test test junk",
+  "note": "Keys are anvil's public test keys derived from `mnemonic` (m/44'/60'/0'/0/signerIndex). Never fund them.",
+  "rlp": [
+    {
+      "cast": {
+        "encoded": "0x80"
+      },
+      "name": "empty-string",
+      "value": "0x"
+    },
+    {
+      "cast": {
+        "encoded": "0x00"
+      },
+      "name": "zero-byte",
+      "value": "0x00"
+    },
+    {
+      "cast": {
+        "encoded": "0x7f"
+      },
+      "name": "byte-7f",
+      "value": "0x7f"
+    },
+    {
+      "cast": {
+        "encoded": "0x8180"
+      },
+      "name": "byte-80",
+      "value": "0x80"
+    },
+    {
+      "cast": {
+        "encoded": "0xb7ababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
+      },
+      "name": "string-55",
+      "value": "0xababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
+    },
+    {
+      "cast": {
+        "encoded": "0xb838abababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
+      },
+      "name": "string-56",
+      "value": "0xabababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
+    },
+    {
+      "cast": {
+        "encoded": "0xb90400cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+      },
+      "name": "string-1024",
+      "value": "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    {
+      "cast": {
+        "encoded": "0xc0"
+      },
+      "name": "empty-list",
+      "value": []
+    },
+    {
+      "cast": {
+        "encoded": "0xc7c0c1c0c3c0c1c0"
+      },
+      "name": "set-theoretic-three",
+      "value": [
+        [],
+        [
+          []
+        ],
+        [
+          [],
+          [
+            []
+          ]
+        ]
+      ]
+    },
+    {
+      "cast": {
+        "encoded": "0xf838b601010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010180"
+      },
+      "name": "list-payload-56",
+      "value": [
+        "0x010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101",
+        "0x"
+      ]
+    },
+    {
+      "cast": {
+        "encoded": "0xca01c68084deadbeef8180"
+      },
+      "name": "mixed",
+      "value": [
+        "0x01",
+        [
+          "0x",
+          "0xdeadbeef"
+        ],
+        "0x80"
+      ]
+    }
+  ],
+  "tool": "cast Version: 1.8.3",
+  "transactions": [
+    {
+      "cast": {
+        "command": [
+          "mktx",
+          "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "--nonce",
+          "0",
+          "--gas-limit",
+          "21000",
+          "--chain",
+          "1",
+          "--value",
+          "1",
+          "--legacy",
+          "--gas-price",
+          "1000000000",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "hash": "0x536129e5bd563374f67d3131b7edb31cd9b95eaa89526b23f3de05ca11592dc5",
+        "raw": "0xf86380843b9aca008252089470997970c51812dc3a010c7d01b50e0d17dc79c8018026a0075140841914371ba529a6ca9617f95c98790da7c7c7893951f3b713a454e824a01c197390f7b2f9a8d6a6ca8ed64620a641d332cb873672c8b74c14868f91e84e",
+        "signer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+      },
+      "envelope": {
+        "format": "keysmith/unsigned-tx@1",
+        "selfAuthorizations": [],
+        "tx": {
+          "chainId": "1",
+          "gasLimit": "21000",
+          "gasPrice": "1000000000",
+          "input": "0x",
+          "nonce": "0",
+          "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "type": "legacy",
+          "value": "1"
+        }
+      },
+      "name": "legacy-eip155-transfer",
+      "signerIndex": 0,
+      "sponsoredAuthorizations": []
+    },
+    {
+      "cast": {
+        "command": [
+          "mktx",
+          "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          "0xa9059cbb00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c80000000000000000000000000000000000000000000000000de0b6b3a7640000",
+          "--nonce",
+          "7",
+          "--gas-limit",
+          "60000",
+          "--chain",
+          "31337",
+          "--value",
+          "0",
+          "--legacy",
+          "--gas-price",
+          "875000000",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "hash": "0x6ca02f1fe93451927cc40727185a14436cc764c6ead8d9b1a2d9fae6298c366c",
+        "raw": "0xf8aa0784342770c082ea60945fbdb2315678afecb367f032d93f642f64180aa380b844a9059cbb00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c80000000000000000000000000000000000000000000000000de0b6b3a764000082f4f6a0e76f11c9a95d3287a975306f2fff7ccfc51ab7c6d0750f50fc59d69b016141d6a018a927fcee26b26e3f724fa9eaecfbe3d1021a430122915da6dd496bdafca7dd",
+        "signer": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+      },
+      "envelope": {
+        "format": "keysmith/unsigned-tx@1",
+        "selfAuthorizations": [],
+        "tx": {
+          "chainId": "31337",
+          "gasLimit": "60000",
+          "gasPrice": "875000000",
+          "input": "0xa9059cbb00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c80000000000000000000000000000000000000000000000000de0b6b3a7640000",
+          "nonce": "7",
+          "to": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          "type": "legacy",
+          "value": "0"
+        }
+      },
+      "name": "legacy-eip155-anvil-chain-calldata",
+      "signerIndex": 1,
+      "sponsoredAuthorizations": []
+    },
+    {
+      "cast": {
+        "command": [
+          "mktx",
+          "--nonce",
+          "3",
+          "--gas-limit",
+          "100000",
+          "--chain",
+          "1",
+          "--value",
+          "0",
+          "--legacy",
+          "--gas-price",
+          "20000000000",
+          "--private-key",
+          "<anvil test key>",
+          "--create",
+          "0x6005600a5f3960055ff35f355f5500"
+        ],
+        "hash": "0xf44749ec477b476ad0e09aabee1997c72cd40c725d8749a68e7e09224c6a67b2",
+        "raw": "0xf860038504a817c800830186a080808f6005600a5f3960055ff35f355f550025a0bdee463778b04fbefacbcf728ac042526233abab32a8f3fa3594afe40faf7487a04415f32eb2c3def010d216bf1f1b363210d965f62ea72c40e91ffcbd43497fa6",
+        "signer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+      },
+      "envelope": {
+        "format": "keysmith/unsigned-tx@1",
+        "selfAuthorizations": [],
+        "tx": {
+          "chainId": "1",
+          "gasLimit": "100000",
+          "gasPrice": "20000000000",
+          "input": "0x6005600a5f3960055ff35f355f5500",
+          "nonce": "3",
+          "to": null,
+          "type": "legacy",
+          "value": "0"
+        }
+      },
+      "name": "legacy-create",
+      "signerIndex": 0,
+      "sponsoredAuthorizations": []
+    },
+    {
+      "cast": {
+        "command": [
+          "mktx",
+          "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "--nonce",
+          "0",
+          "--gas-limit",
+          "30000",
+          "--chain",
+          "1",
+          "--value",
+          "1",
+          "--legacy",
+          "--gas-price",
+          "1000000000",
+          "--access-list",
+          "[{\"address\":\"0x5FbDB2315678afecb367f032d93F642f64180aa3\",\"storageKeys\":[\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"0x00000000000000000000000000000000000000000000000000000000000000ff\"]}]",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "hash": "0x0164740dc83315e7c2346c9655c027338e4bd6633d3c8f40fa6606d38efc3b2c",
+        "raw": "0x01f8c10180843b9aca008275309470997970c51812dc3a010c7d01b50e0d17dc79c80180f85bf859945fbdb2315678afecb367f032d93f642f64180aa3f842a00000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000ff80a01f26b6c4389b03888cc5863307c1d35b8501b450ea060c1d5c92f8b972040254a0556cbd7d7c7baa562486c621d07c78d048a6f6737ed7e06077f7ea7aa65b4b76",
+        "signer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+      },
+      "envelope": {
+        "format": "keysmith/unsigned-tx@1",
+        "selfAuthorizations": [],
+        "tx": {
+          "accessList": [
+            {
+              "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+              "storageKeys": [
+                "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "0x00000000000000000000000000000000000000000000000000000000000000ff"
+              ]
+            }
+          ],
+          "chainId": "1",
+          "gasLimit": "30000",
+          "gasPrice": "1000000000",
+          "input": "0x",
+          "nonce": "0",
+          "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "type": "eip2930",
+          "value": "1"
+        }
+      },
+      "name": "eip2930-access-list",
+      "signerIndex": 0,
+      "sponsoredAuthorizations": []
+    },
+    {
+      "cast": {
+        "command": [
+          "mktx",
+          "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "--nonce",
+          "0",
+          "--gas-limit",
+          "21000",
+          "--chain",
+          "1",
+          "--value",
+          "1000000000000000000",
+          "--gas-price",
+          "30000000000",
+          "--priority-gas-price",
+          "1000000000",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "hash": "0x63b6225690459c534825a3948b4fb0d26602b301d3f310b2c5d4eea5325c06ba",
+        "raw": "0x02f8730180843b9aca008506fc23ac008252089470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080c080a03113f8c10307e896ecc46d1a795e5e689d35936f6019c5f9c654469193fe3ceaa078f36ebfffa79403e073f7663a7c9f4ad14134dda35c9084727ca7f1a789e06f",
+        "signer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+      },
+      "envelope": {
+        "format": "keysmith/unsigned-tx@1",
+        "selfAuthorizations": [],
+        "tx": {
+          "chainId": "1",
+          "gasLimit": "21000",
+          "input": "0x",
+          "maxFeePerGas": "30000000000",
+          "maxPriorityFeePerGas": "1000000000",
+          "nonce": "0",
+          "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "type": "eip1559",
+          "value": "1000000000000000000"
+        }
+      },
+      "name": "eip1559-transfer-one-ether",
+      "signerIndex": 0,
+      "sponsoredAuthorizations": []
+    },
+    {
+      "cast": {
+        "command": [
+          "mktx",
+          "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          "0xa9059cbb00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c80000000000000000000000000000000000000000000000000de0b6b3a7640000",
+          "--nonce",
+          "4294967296",
+          "--gas-limit",
+          "65000",
+          "--chain",
+          "8453",
+          "--value",
+          "0",
+          "--gas-price",
+          "2000000000",
+          "--priority-gas-price",
+          "1000000",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "hash": "0x2c0d89560f65f55136dc350376e267d423abb5d99efdfd3e8f2f1dfb2b6ff569",
+        "raw": "0x02f8b5822105850100000000830f4240847735940082fde8945fbdb2315678afecb367f032d93f642f64180aa380b844a9059cbb00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c80000000000000000000000000000000000000000000000000de0b6b3a7640000c080a0e6ae9cd9e5aaf2df08a7b1303368516f770dba7222d0142ea9dada64b83716e2a02e220e810da9413c0232a22adcb742838aa04e3a37ba43ab62d246b65a391b98",
+        "signer": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+      },
+      "envelope": {
+        "format": "keysmith/unsigned-tx@1",
+        "selfAuthorizations": [],
+        "tx": {
+          "chainId": "8453",
+          "gasLimit": "65000",
+          "input": "0xa9059cbb00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c80000000000000000000000000000000000000000000000000de0b6b3a7640000",
+          "maxFeePerGas": "2000000000",
+          "maxPriorityFeePerGas": "1000000",
+          "nonce": "4294967296",
+          "to": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          "type": "eip1559",
+          "value": "0"
+        }
+      },
+      "name": "eip1559-erc20-transfer-calldata",
+      "signerIndex": 2,
+      "sponsoredAuthorizations": []
+    },
+    {
+      "cast": {
+        "command": [
+          "mktx",
+          "--nonce",
+          "0",
+          "--gas-limit",
+          "100000",
+          "--chain",
+          "1",
+          "--value",
+          "0",
+          "--gas-price",
+          "2000000000",
+          "--priority-gas-price",
+          "1000000000",
+          "--private-key",
+          "<anvil test key>",
+          "--create",
+          "0x6005600a5f3960055ff35f355f5500"
+        ],
+        "hash": "0x672fb48ec1b8a1d6da9168728f455196f23c41b6876559c3ff94d32987a37ba9",
+        "raw": "0x02f8660180843b9aca008477359400830186a080808f6005600a5f3960055ff35f355f5500c080a0351f331e8e8748c0e2a2fbd36770fcb6a51118512ea5c46d8e80e8f0d5604c86a02f70a580ab23b504d829f286e03df5eaac45c9ed2e8bdf1394a9e1dbc7d6c43b",
+        "signer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+      },
+      "envelope": {
+        "format": "keysmith/unsigned-tx@1",
+        "selfAuthorizations": [],
+        "tx": {
+          "chainId": "1",
+          "gasLimit": "100000",
+          "input": "0x6005600a5f3960055ff35f355f5500",
+          "maxFeePerGas": "2000000000",
+          "maxPriorityFeePerGas": "1000000000",
+          "nonce": "0",
+          "to": null,
+          "type": "eip1559",
+          "value": "0"
+        }
+      },
+      "name": "eip1559-create",
+      "signerIndex": 0,
+      "sponsoredAuthorizations": []
+    },
+    {
+      "cast": {
+        "command": [
+          "mktx",
+          "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "--nonce",
+          "255",
+          "--gas-limit",
+          "50000",
+          "--chain",
+          "10",
+          "--value",
+          "1000000000000000000000000000",
+          "--gas-price",
+          "123456789012",
+          "--priority-gas-price",
+          "123456789012",
+          "--access-list",
+          "[{\"address\":\"0x5FbDB2315678afecb367f032d93F642f64180aa3\",\"storageKeys\":[\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"0x00000000000000000000000000000000000000000000000000000000000000ff\"]}]",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "hash": "0xeabb3abef4a56d1bdc17a3a208cd82a00829c67081f81a1662e6eae29f060836",
+        "raw": "0x02f8d50a81ff851cbe991a14851cbe991a1482c3509470997970c51812dc3a010c7d01b50e0d17dc79c88c033b2e3c9fd0803ce800000080f85bf859945fbdb2315678afecb367f032d93f642f64180aa3f842a00000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000ff01a06dc3b24f8d02b90cb69973b4f771e96f7b5984f84ba479bea2eb35ec32583564a002f0c5accbb15cf67f99e189bb20d596944e9048a6da62af407ebfe8fcf08df6",
+        "signer": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+      },
+      "envelope": {
+        "format": "keysmith/unsigned-tx@1",
+        "selfAuthorizations": [],
+        "tx": {
+          "accessList": [
+            {
+              "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+              "storageKeys": [
+                "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "0x00000000000000000000000000000000000000000000000000000000000000ff"
+              ]
+            }
+          ],
+          "chainId": "10",
+          "gasLimit": "50000",
+          "input": "0x",
+          "maxFeePerGas": "123456789012",
+          "maxPriorityFeePerGas": "123456789012",
+          "nonce": "255",
+          "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "type": "eip1559",
+          "value": "1000000000000000000000000000"
+        }
+      },
+      "name": "eip1559-access-list-large-value",
+      "signerIndex": 1,
+      "sponsoredAuthorizations": []
+    },
+    {
+      "cast": {
+        "command": [
+          "mktx",
+          "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "--nonce",
+          "4",
+          "--gas-limit",
+          "60000",
+          "--chain",
+          "1",
+          "--value",
+          "0",
+          "--gas-price",
+          "2000000000",
+          "--priority-gas-price",
+          "1000000000",
+          "--auth",
+          "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "hash": "0x0a28e726c83837d4a133704ebdafd1a01f203f44ec9be7fdd43e4a0aceeffc02",
+        "raw": "0x04f8c80104843b9aca00847735940082ea609470997970c51812dc3a010c7d01b50e0d17dc79c88080c0f85cf85a01945fbdb2315678afecb367f032d93f642f64180aa30501a06e0089c7283c53da6377df27399347d3578ff4276431e323f1d897a39e40f22ba01608b9af83e8953b993de8a64a9274eb7183f687048a0e0155cc267d93d73abe01a06cb3f9e532a55ab02922c7b4aed9943be9cb0072ffffb76d291db5860984d745a002f5a58d182130fc88a39a1b35e3e88749bccf6c7a5b49bc51b0f1ef6612bfa2",
+        "signer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+      },
+      "envelope": {
+        "format": "keysmith/unsigned-tx@1",
+        "selfAuthorizations": [
+          {
+            "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+            "chainId": "1"
+          }
+        ],
+        "tx": {
+          "chainId": "1",
+          "gasLimit": "60000",
+          "input": "0x",
+          "maxFeePerGas": "2000000000",
+          "maxPriorityFeePerGas": "1000000000",
+          "nonce": "4",
+          "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "type": "eip7702",
+          "value": "0"
+        }
+      },
+      "name": "eip7702-self-executed",
+      "signerIndex": 0,
+      "sponsoredAuthorizations": []
+    },
+    {
+      "cast": {
+        "command": [
+          "mktx",
+          "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "0xdeadbeef",
+          "--nonce",
+          "9",
+          "--gas-limit",
+          "80000",
+          "--chain",
+          "31337",
+          "--value",
+          "0",
+          "--gas-price",
+          "2000000000",
+          "--priority-gas-price",
+          "1000000000",
+          "--auth",
+          "0xf85c827a69945fbdb2315678afecb367f032d93f642f64180aa38001a025624a5a59ba3fd4a8b93d874183eb46eca7a9329a47081954554b3c3fa1e490a06675890c92133c78f8d8bec7781c278758aa19e02084cd44e08b6434d1409dc6",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "hash": "0x2863c45061911cc733da433b6cd2e52a733739a58838413f1e2120981dd00624",
+        "raw": "0x04f8d1827a6909843b9aca00847735940083013880943c44cdddb6a900fa2b585dd299e03d12fa4293bc8084deadbeefc0f85ef85c827a69945fbdb2315678afecb367f032d93f642f64180aa38001a025624a5a59ba3fd4a8b93d874183eb46eca7a9329a47081954554b3c3fa1e490a06675890c92133c78f8d8bec7781c278758aa19e02084cd44e08b6434d1409dc680a0ea795260647a89412a44af750800916bd5af8f8420324463504ec10eb796511ea045b50b9fdbb3c8c8b06ade56ba54bb899af9ed890bea4ec9b5592e244c548dfe",
+        "signer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+      },
+      "envelope": {
+        "format": "keysmith/unsigned-tx@1",
+        "selfAuthorizations": [],
+        "tx": {
+          "chainId": "31337",
+          "gasLimit": "80000",
+          "input": "0xdeadbeef",
+          "maxFeePerGas": "2000000000",
+          "maxPriorityFeePerGas": "1000000000",
+          "nonce": "9",
+          "to": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "type": "eip7702",
+          "value": "0"
+        }
+      },
+      "name": "eip7702-sponsored",
+      "signerIndex": 0,
+      "sponsoredAuthorizations": [
+        {
+          "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          "castRlp": "0xf85c827a69945fbdb2315678afecb367f032d93f642f64180aa38001a025624a5a59ba3fd4a8b93d874183eb46eca7a9329a47081954554b3c3fa1e490a06675890c92133c78f8d8bec7781c278758aa19e02084cd44e08b6434d1409dc6",
+          "chainId": "31337",
+          "nonce": "0",
+          "signerIndex": 2
+        }
+      ]
+    },
+    {
+      "cast": {
+        "command": [
+          "mktx",
+          "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "--nonce",
+          "12",
+          "--gas-limit",
+          "120000",
+          "--chain",
+          "1",
+          "--value",
+          "5",
+          "--gas-price",
+          "3000000000",
+          "--priority-gas-price",
+          "2000000000",
+          "--access-list",
+          "[{\"address\":\"0x5FbDB2315678afecb367f032d93F642f64180aa3\",\"storageKeys\":[\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"0x00000000000000000000000000000000000000000000000000000000000000ff\"]}]",
+          "--auth",
+          "0xf85a0194e7f1725e7734ce288f8367e1bb143e90bb3f05120301a05f3972ca63b9bd5e8972ee2b3945477bb3f89a2b441cef4a99e402ab313bac98a059a2a857d2c9ebed7bc0d347b5f329b3501cadb61e4b708a37f6340d8315098f",
+          "--auth",
+          "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "hash": "0x543188c564ae47ddb10dd42f4e5307ce8a7d9cf66b60b28058403960ab1add04",
+        "raw": "0x04f90181010c847735940084b2d05e008301d4c09470997970c51812dc3a010c7d01b50e0d17dc79c80580f85bf859945fbdb2315678afecb367f032d93f642f64180aa3f842a00000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000fff8b8f85a0194e7f1725e7734ce288f8367e1bb143e90bb3f05120301a05f3972ca63b9bd5e8972ee2b3945477bb3f89a2b441cef4a99e402ab313bac98a059a2a857d2c9ebed7bc0d347b5f329b3501cadb61e4b708a37f6340d8315098ff85a01945fbdb2315678afecb367f032d93f642f64180aa30d80a09f3a25bf808adf295dc8d906c16dc59ce9e3054aa796251b557295636c0749d4a0282a4e5eecafc0002f75d3722527c6fe1be1d8979485fdb65d3de1826b08658701a0bac03ee2f1d59da5d50dd0d5cd546f75f29e790fe9f5845a3717e495abb7d947a06971eb70beee7571574cfe40429cbc647429a07449b7d87f15f921742b9248c5",
+        "signer": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+      },
+      "envelope": {
+        "format": "keysmith/unsigned-tx@1",
+        "selfAuthorizations": [
+          {
+            "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+            "chainId": "1"
+          }
+        ],
+        "tx": {
+          "accessList": [
+            {
+              "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+              "storageKeys": [
+                "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "0x00000000000000000000000000000000000000000000000000000000000000ff"
+              ]
+            }
+          ],
+          "chainId": "1",
+          "gasLimit": "120000",
+          "input": "0x",
+          "maxFeePerGas": "3000000000",
+          "maxPriorityFeePerGas": "2000000000",
+          "nonce": "12",
+          "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "type": "eip7702",
+          "value": "5"
+        }
+      },
+      "name": "eip7702-sponsored-and-self-with-access-list",
+      "signerIndex": 1,
+      "sponsoredAuthorizations": [
+        {
+          "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+          "castRlp": "0xf85a0194e7f1725e7734ce288f8367e1bb143e90bb3f05120301a05f3972ca63b9bd5e8972ee2b3945477bb3f89a2b441cef4a99e402ab313bac98a059a2a857d2c9ebed7bc0d347b5f329b3501cadb61e4b708a37f6340d8315098f",
+          "chainId": "1",
+          "nonce": "3",
+          "signerIndex": 2
+        }
+      ]
+    }
+  ],
+  "typedData": [
+    {
+      "cast": {
+        "command": [
+          "wallet",
+          "sign",
+          "--data",
+          "--from-file",
+          "test-vectors/cast/typed-data/domain-salt.json",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "signature": "0x22467ac10c7d018ac0fb4767341036b79eacbf091adbb09bbd4d73c30b84bdc03659ba2649a4ffbf086c5a9363c403a696541898e2a9b9b91b3de75bea6816f41c"
+      },
+      "file": "domain-salt.json",
+      "signerIndex": 0
+    },
+    {
+      "cast": {
+        "command": [
+          "wallet",
+          "sign",
+          "--data",
+          "--from-file",
+          "test-vectors/cast/typed-data/mail.json",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "signature": "0x8a7d4af65242789d629fa992574bf8224f51882c9ac7a14bb326607263f9bba75559a6a86b88118c6cbf620c9cb959f94137abf9582ec9102066e85715b41f2c1b"
+      },
+      "file": "mail.json",
+      "signerIndex": 1
+    },
+    {
+      "cast": {
+        "command": [
+          "wallet",
+          "sign",
+          "--data",
+          "--from-file",
+          "test-vectors/cast/typed-data/nested-arrays.json",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "signature": "0x51aa0070951074820cfacdd62e0b0885f9a918aad22a35e5f2d1dfd3eb31c40129603368dd7581db85abce640290cfb6304bb89aa0a593d3ea3ca294e5ffa3b01b"
+      },
+      "file": "nested-arrays.json",
+      "signerIndex": 2
+    },
+    {
+      "cast": {
+        "command": [
+          "wallet",
+          "sign",
+          "--data",
+          "--from-file",
+          "test-vectors/cast/typed-data/permit.json",
+          "--private-key",
+          "<anvil test key>"
+        ],
+        "signature": "0xe46e7620d6d2216e71d1cc2db56f4540d2acc8519a3debaefec45efe98731faf5c57cf554b01b68d2d58f084d78507da62ffa2076b1cb7b8caad0f8fe6870a761c"
+      },
+      "file": "permit.json",
+      "signerIndex": 0
+    }
+  ]
+}
