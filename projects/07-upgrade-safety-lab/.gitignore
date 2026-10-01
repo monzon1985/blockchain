@@ -1,0 +1,23 @@
+# Local deployment records and broadcast logs of the anvil demo (the root pattern broadcast/*/31337/ is
+# anchored at the repository root, so it does not reach this folder)
+deployments/
+broadcast/
+
+# Alternate Foundry profiles (coverage, slither, layout gate) and their reports
+out-coverage/
+cache-coverage/
+out-slither/
+cache-slither/
+out-layout/
+crytic-export/
+lcov.info
+
+# Crash-recovery journal of scripts/mutants.mjs (only exists while a mutant is applied)
+.mutant-journal.json
+
+# Rust build output of the layout gate
+layout-diff/target/
+
+# insta pending snapshots (accepted snapshots are committed)
+*.snap.new
+*.pending-snap

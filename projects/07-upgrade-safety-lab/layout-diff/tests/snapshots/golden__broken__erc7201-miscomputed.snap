@@ -1,0 +1,8 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff diff: VaultOld -> VaultMiscomputed
+  error    erc7201-slot-mismatch  erc7201:upgradelab.fixture.Vault `upgradelab.fixture.Vault`
+           accessor `VaultNamespaceMiscomputed._vault` points `struct VaultNamespaceMiscomputed.VaultStorage` at 0x1d933e2f622d66c7bd50eded2f7da1ae266141266f51fd0f712d64fabd14cc25 but keccak256(abi.encode(uint256(keccak256("upgradelab.fixture.Vault")) - 1)) & ~0xff = 0x819cce18e5cf8e75cd2afe106a4a4ac724728bb2e279633e7e31bfeafb9f3300
+result: UNSAFE (1 errors, 0 allowed, 0 warnings, 0 infos)

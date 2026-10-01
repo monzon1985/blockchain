@@ -1,0 +1,64 @@
+{
+  "contract": "VaultMiscomputed",
+  "storage": [],
+  "types": {},
+  "namespaces": [
+    {
+      "id": "upgradelab.fixture.Vault",
+      "struct": "VaultNamespaceMiscomputed.VaultStorage",
+      "probe": "VaultMiscomputedProbe",
+      "accessors": [
+        {
+          "function": "VaultNamespaceMiscomputed._vault",
+          "location": {
+            "slot": "0x1d933e2f622d66c7bd50eded2f7da1ae266141266f51fd0f712d64fabd14cc25"
+          }
+        }
+      ],
+      "layout": {
+        "storage": [
+          {
+            "contract": "test/layout/fixtures/LayoutFixtures.sol:VaultMiscomputedProbe",
+            "label": "$",
+            "offset": 0,
+            "slot": "58625408040334849500924236921239742039552787708103897197961220198668955497216",
+            "type": "t_struct(VaultStorage)_storage"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "encoding": "inplace",
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_struct(VaultStorage)_storage": {
+            "encoding": "inplace",
+            "label": "struct VaultNamespaceMiscomputed.VaultStorage",
+            "numberOfBytes": "64",
+            "members": [
+              {
+                "contract": "test/layout/fixtures/LayoutFixtures.sol:VaultMiscomputedProbe",
+                "label": "totalAssets",
+                "offset": 0,
+                "slot": "0",
+                "type": "t_uint256"
+              },
+              {
+                "contract": "test/layout/fixtures/LayoutFixtures.sol:VaultMiscomputedProbe",
+                "label": "asset",
+                "offset": 0,
+                "slot": "1",
+                "type": "t_address"
+              }
+            ]
+          },
+          "t_uint256": {
+            "encoding": "inplace",
+            "label": "uint256",
+            "numberOfBytes": "32"
+          }
+        }
+      }
+    }
+  ]
+}

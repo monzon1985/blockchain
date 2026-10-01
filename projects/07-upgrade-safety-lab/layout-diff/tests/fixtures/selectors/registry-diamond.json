@@ -1,0 +1,74 @@
+{
+  "sources": [
+    {
+      "name": "RegistryDiamond",
+      "selectors": {
+        "facetAddress(bytes4)": "cdffacc6",
+        "functionFacetPairs()": "60b5befb"
+      }
+    },
+    {
+      "name": "AdminFacet",
+      "selectors": {
+        "gracePeriod()": "a06db7dc",
+        "pause()": "8456cb59",
+        "paused()": "5c975abb",
+        "paymentToken()": "3013ce29",
+        "setGracePeriod(uint64)": "55a5133b",
+        "setTreasury(address)": "f0f44260",
+        "totalRevenue()": "bf2d9e0b",
+        "treasury()": "61d027b3",
+        "unpause()": "3f4ba83a",
+        "version()": "54fd4d50"
+      }
+    },
+    {
+      "name": "DiamondCutFacet",
+      "selectors": {
+        "diamondCut((address,uint8,bytes4[])[],address,bytes)": "1f931c1c"
+      }
+    },
+    {
+      "name": "DiamondLoupeFacet",
+      "selectors": {
+        "facetAddresses()": "52ef6b2c",
+        "facetFunctionSelectors(address)": "adfca15e",
+        "facets()": "7a0ed627",
+        "supportsInterface(bytes4)": "01ffc9a7"
+      }
+    },
+    {
+      "name": "OwnershipFacet",
+      "selectors": {
+        "acceptOwnership()": "79ba5097",
+        "owner()": "8da5cb5b",
+        "pendingOwner()": "e30c3978",
+        "renounceOwnership()": "715018a6",
+        "transferOwnership(address)": "f2fde38b"
+      }
+    },
+    {
+      "name": "PlanFacet",
+      "selectors": {
+        "createPlan(uint64)": "7a4481ee",
+        "plan(uint256)": "ab79205c",
+        "planCount()": "382d39bb",
+        "planPrice(uint256)": "b95be6fb",
+        "setPlanActive(uint256,bool)": "b195bfd2",
+        "setPlanPrice(uint256,uint128)": "1cc6c9df"
+      }
+    },
+    {
+      "name": "SubscriptionFacet",
+      "selectors": {
+        "cancel()": "ea8a1af0",
+        "isActive(address)": "9f8a13d7",
+        "renewalsOf(address)": "bbca0013",
+        "subscribe(uint256)": "0f574ba7",
+        "subscribeWithMaxPrice(uint256,uint128)": "3f4db3da",
+        "subscriptionOf(address)": "3c5030bb",
+        "totalSubscriptions()": "1328b870"
+      }
+    }
+  ]
+}

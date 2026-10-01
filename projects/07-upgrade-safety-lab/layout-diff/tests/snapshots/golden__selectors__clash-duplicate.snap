@@ -1,0 +1,8 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff selectors: clash-duplicate
+  error    duplicate-function     selectors `0x8da5cb5b`
+           the same function is served by several sources: OwnershipFacet.owner(), DuplicateOwnerFacet.owner()
+result: UNSAFE (1 errors, 0 allowed, 0 warnings, 0 infos)

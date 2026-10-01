@@ -1,0 +1,8 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff diff: VaultOld -> VaultComputed
+  error    accessor-unresolved    erc7201:upgradelab.fixture.Vault `upgradelab.fixture.Vault`
+           accessor `VaultNamespaceComputed._vault` points `struct VaultNamespaceComputed.VaultStorage` at `keccak256(abi.encode(uint256(keccak256("upgradelab.fixture.Vault")) - 1)) & ~bytes32(uint256(0xff))`, which is not a compile-time constant the gate can evaluate; use the `erc7201` builtin or a literal constant so the slot can be checked
+result: UNSAFE (1 errors, 0 allowed, 0 warnings, 0 infos)

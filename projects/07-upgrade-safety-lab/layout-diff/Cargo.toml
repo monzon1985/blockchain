@@ -1,0 +1,33 @@
+[package]
+name = "layout-diff"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+description = "Storage-layout gate for upgradeable Solidity contracts: diffs `forge inspect <C> storageLayout --json` snapshots, checks ERC-7201 namespaces and diamond selector clashes."
+publish = false
+
+[[bin]]
+name = "layout-diff"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.6", features = ["derive"] }
+ruint = "1.20"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tiny-keccak = { version = "2.0", features = ["keccak"] }
+
+[dev-dependencies]
+insta = "1.48"
+proptest = "1.11"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"

@@ -1,0 +1,10 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff diff: ReorderOld -> ReorderNew
+  error    moved                  sequential `owner_`
+           `owner_` (address) moved from slot 0 to slot 1: it now reads whatever the old layout stored there
+  error    moved                  sequential `total`
+           `total` (uint256) moved from slot 1 to slot 0: it now reads whatever the old layout stored there
+result: UNSAFE (2 errors, 0 allowed, 0 warnings, 0 infos)

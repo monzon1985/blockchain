@@ -1,0 +1,127 @@
+{
+  "$comment": "Storage-layout gate configuration, read by scripts/check-layouts.mjs and by layout-diff's golden tests. Every allowance must carry a reason and must match an actual error (stale allowances fail the gate).",
+  "probes": [
+    "OzInitializableProbe",
+    "OzOwnableProbe",
+    "OzOwnable2StepProbe",
+    "OzPausableProbe",
+    "OzAccessManagedProbe",
+    "RegistryV2NamespaceProbe",
+    "RegistryV3NamespaceProbe",
+    "DiamondTableProbe",
+    "DiamondOwnershipProbe",
+    "DiamondRegistryProbe",
+    "VaultOldProbe",
+    "VaultReorderedProbe",
+    "VaultAppendedProbe",
+    "VaultMiscomputedProbe",
+    "RewardsCollidingProbe",
+    "OwnedProbe",
+    "FeesProbe",
+    "VaultComputedProbe"
+  ],
+  "chains": [
+    {
+      "name": "uups-registry",
+      "versions": [
+        "SubscriptionRegistryV1",
+        "SubscriptionRegistryBridge",
+        "SubscriptionRegistryV2",
+        "SubscriptionRegistryV3"
+      ],
+      "allow": [
+        {
+          "old": "SubscriptionRegistryV1",
+          "new": "SubscriptionRegistryBridge",
+          "finding": "moved-to-namespace:_initialized",
+          "reason": "SubscriptionRegistryBridge.migrateFromV4 (reinitializer(2)) writes version 2 into openzeppelin.storage.Initializable and zeroes slot 0 in the upgrade transaction; proven by SubscriptionRegistryBridge.t.sol and UpgradeSequence.t.sol"
+        },
+        {
+          "old": "SubscriptionRegistryV1",
+          "new": "SubscriptionRegistryBridge",
+          "finding": "moved-to-namespace:_initializing",
+          "reason": "migrateFromV4 requires the legacy flag to be false (LegacyStateInvalid otherwise); OZ 5.x keeps its own flag in openzeppelin.storage.Initializable"
+        },
+        {
+          "old": "SubscriptionRegistryV1",
+          "new": "SubscriptionRegistryBridge",
+          "finding": "moved-to-namespace:_owner",
+          "reason": "migrateFromV4 copies slot 51 into openzeppelin.storage.Ownable and zeroes slot 51 in the upgrade transaction; proven by SubscriptionRegistryBridge.t.sol and RetiredSlots.t.sol"
+        }
+      ]
+    }
+  ],
+  "singles": [
+    {
+      "name": "diamond",
+      "contract": "RegistryDiamond",
+      "delegates": [
+        "DiamondCutFacet",
+        "DiamondLoupeFacet",
+        "OwnershipFacet",
+        "PlanFacet",
+        "SubscriptionFacet",
+        "AdminFacet",
+        "DiamondInit"
+      ]
+    }
+  ],
+  "mustFail": [
+    {
+      "name": "naive-v4-to-v5",
+      "old": "SubscriptionRegistryV1",
+      "new": "SubscriptionRegistryV2",
+      "expect": ["moved-to-namespace"],
+      "about": "The real lineage without the bridge: OpenZeppelin issue #6362."
+    },
+    { "name": "reorder", "old": "ReorderOld", "new": "ReorderNew", "expect": ["moved"] },
+    { "name": "removed", "old": "RemovedOld", "new": "RemovedNew", "expect": ["removed", "moved"] },
+    { "name": "type-changed", "old": "RetypedOld", "new": "RetypedNew", "expect": ["type-changed", "moved"] },
+    { "name": "inserted-before", "old": "InsertedOld", "new": "InsertedNew", "expect": ["moved"] },
+    { "name": "gap-shrunk", "old": "GapChildOld", "new": "GapChildNew", "expect": ["gap-resized", "moved"] },
+    { "name": "namespace-reordered", "old": "VaultOld", "new": "VaultReordered", "expect": ["moved"] },
+    { "name": "erc7201-miscomputed", "old": "VaultOld", "new": "VaultMiscomputed", "expect": ["erc7201-slot-mismatch"] },
+    {
+      "name": "erc7201-collision",
+      "old": "VaultOld",
+      "new": "VaultWithRewards",
+      "expect": ["erc7201-slot-mismatch", "storage-collision"]
+    },
+    {
+      "name": "sequential-to-namespace",
+      "old": "OwnedSequentialOld",
+      "new": "OwnedNamespacedNew",
+      "expect": ["moved-to-namespace"]
+    },
+    {
+      "name": "library-namespace",
+      "old": "VaultOld",
+      "new": "VaultWithFeeLibrary",
+      "expect": ["erc7201-slot-mismatch", "storage-collision"],
+      "about": "A namespace held by a library, outside the inheritance, whose accessor reuses another namespace's location."
+    },
+    {
+      "name": "accessor-unresolved",
+      "old": "VaultOld",
+      "new": "VaultComputed",
+      "expect": ["accessor-unresolved"],
+      "about": "An accessor whose slot is computed at run time: the gate cannot check it, so it refuses it."
+    }
+  ],
+  "mustPass": [
+    { "name": "gap-consumed", "old": "GapChildOld", "new": "GapChildSafe" },
+    { "name": "namespace-appended", "old": "VaultOld", "new": "VaultAppended" }
+  ],
+  "selectors": {
+    "routing": { "name": "registry-diamond", "diamond": "RegistryDiamond", "table": "DiamondSelectors" },
+    "mustFail": [
+      { "name": "clash-4byte", "sources": ["ClashFacetA", "ClashFacetB"], "expect": ["selector-collision"] },
+      {
+        "name": "clash-duplicate",
+        "sources": ["OwnershipFacet", "DuplicateOwnerFacet"],
+        "expect": ["duplicate-function"]
+      }
+    ],
+    "api": { "interface": "ISubscriptionRegistry", "uups": ["SubscriptionRegistryV3"] }
+  }
+}

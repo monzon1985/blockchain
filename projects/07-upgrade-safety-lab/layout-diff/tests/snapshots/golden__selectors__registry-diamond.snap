@@ -1,0 +1,6 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff selectors: registry-diamond
+result: SAFE (0 errors, 0 allowed, 0 warnings, 0 infos)

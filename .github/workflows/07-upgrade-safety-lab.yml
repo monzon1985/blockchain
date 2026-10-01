@@ -1,0 +1,262 @@
+name: "7 · Upgrade Safety Lab"
+
+on:
+  push:
+    paths:
+      - "projects/07-upgrade-safety-lab/**"
+      - ".github/workflows/07-upgrade-safety-lab.yml"
+  pull_request:
+    paths:
+      - "projects/07-upgrade-safety-lab/**"
+      - ".github/workflows/07-upgrade-safety-lab.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/07-upgrade-safety-lab
+
+# Third-party actions are pinned to full commit SHAs (the tag each SHA was resolved from is in the comment).
+env:
+  FOUNDRY_VERSION: v1.8.3
+  NODE_VERSION: "24"
+  RUST_VERSION: "1.98.1"
+  PYTHON_VERSION: "3.12"
+  UV_VERSION: "0.12.20"
+  SLITHER_VERSION: "0.11.6"
+  CRYTIC_COMPILE_VERSION: "0.4.2"
+
+jobs:
+  solidity:
+    name: Build, lint, tests (fixed seed) and gas snapshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # 4,000 fuzz runs, 256 x 100 invariant campaigns, fixed seed (foundry.toml [profile.ci]).
+      FOUNDRY_PROFILE: ci
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            projects/07-upgrade-safety-lab/dependencies
+            ~/.svm
+          key: soldeer-07-${{ hashFiles('projects/07-upgrade-safety-lab/soldeer.lock', 'projects/07-upgrade-safety-lab/foundry.toml') }}
+
+      - name: Install Solidity dependencies (Soldeer, lockfile-pinned)
+        run: forge soldeer install
+
+      - name: Formatting
+        run: forge fmt --check
+
+      - name: Build (compiler warnings are errors)
+        run: forge build --deny warnings
+
+      - name: Lint (warnings are errors)
+        run: forge lint --deny warnings
+
+      - name: Tests (unit, fuzz, upgrade-chain invariants, UUPS-vs-diamond differential)
+        run: forge test
+
+      # `forge test` rewrites snapshots/GasBench.json from `vm.snapshotGasLastFrame`; a value that changed without
+      # the committed file being updated shows up as a diff.
+      - name: Per-call gas snapshot (snapshots/GasBench.json) is up to date
+        run: git diff --exit-code -- snapshots/GasBench.json
+
+      - name: Whole-test gas snapshot (.gas-snapshot) is up to date
+        run: forge snapshot --check --match-contract GasBench
+
+  layout-gate:
+    name: layout-diff (Rust) and the storage-layout gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1 (master)
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: projects/07-upgrade-safety-lab/layout-diff
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            projects/07-upgrade-safety-lab/dependencies
+            ~/.svm
+          key: soldeer-07-${{ hashFiles('projects/07-upgrade-safety-lab/soldeer.lock', 'projects/07-upgrade-safety-lab/foundry.toml') }}
+
+      - name: Install Solidity dependencies
+        run: forge soldeer install
+
+      - name: rustfmt
+        working-directory: projects/07-upgrade-safety-lab/layout-diff
+        run: cargo fmt --check
+
+      - name: clippy (warnings are errors)
+        working-directory: projects/07-upgrade-safety-lab/layout-diff
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Rust tests (unit, insta goldens, CLI, proptest)
+        working-directory: projects/07-upgrade-safety-lab/layout-diff
+        run: cargo test --locked
+
+      - name: Layout gate (version pairs, accessors, unsafe fixtures, routing table, API parity, fixture drift)
+        run: node scripts/check-layouts.mjs
+
+  anvil-demo:
+    name: Keystore-signed upgrade lineage on anvil
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            projects/07-upgrade-safety-lab/dependencies
+            ~/.svm
+          key: soldeer-07-${{ hashFiles('projects/07-upgrade-safety-lab/soldeer.lock', 'projects/07-upgrade-safety-lab/foundry.toml') }}
+
+      - name: Install Solidity dependencies
+        run: forge soldeer install
+
+      - name: V1 -> bridge -> V2 -> (cancelled) -> V3 and the diamond, verified on-chain after each step
+        run: node scripts/demo-anvil.mjs
+
+  static-analysis:
+    name: Slither
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install Slither
+        run: |
+          uv tool install --python "$PYTHON_VERSION" "slither-analyzer==$SLITHER_VERSION" \
+            --with "crytic-compile==$CRYTIC_COMPILE_VERSION"
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            projects/07-upgrade-safety-lab/dependencies
+            ~/.svm
+          key: soldeer-07-${{ hashFiles('projects/07-upgrade-safety-lab/soldeer.lock', 'projects/07-upgrade-safety-lab/foundry.toml') }}
+
+      - name: Install Solidity dependencies
+        run: forge soldeer install
+
+      - name: Slither (fail on any untriaged finding; triage in docs/THREAT_MODEL.md)
+        env:
+          FOUNDRY_PROFILE: slither
+        run: slither . --config-file slither.config.json
+
+  coverage:
+    name: Coverage (>= 90% of src lines)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            projects/07-upgrade-safety-lab/dependencies
+            ~/.svm
+          key: soldeer-07-${{ hashFiles('projects/07-upgrade-safety-lab/soldeer.lock', 'projects/07-upgrade-safety-lab/foundry.toml') }}
+
+      - name: Install Solidity dependencies
+        run: forge soldeer install
+
+      - name: Line coverage of production Solidity
+        env:
+          FOUNDRY_PROFILE: coverage
+        run: |
+          forge coverage --report summary --report lcov --no-match-coverage "(test|script|dependencies)/"
+          awk -F: '/^SF:/ { src = ($2 ~ /^src\//) }
+                   src && /^LH:/ { hit += $2 }
+                   src && /^LF:/ { found += $2 }
+                   END { pct = 100 * hit / found; printf "src line coverage: %.2f%% (%d/%d)\n", pct, hit, found; exit (pct < 90) }' lcov.info
+
+      - name: Coverage left the committed gas snapshot alone (gas_snapshot_emit = false)
+        run: git diff --exit-code -- snapshots/
+
+  mutants:
+    name: Mutation smoke test of the differential harness
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            projects/07-upgrade-safety-lab/dependencies
+            ~/.svm
+          key: soldeer-07-${{ hashFiles('projects/07-upgrade-safety-lab/soldeer.lock', 'projects/07-upgrade-safety-lab/foundry.toml') }}
+
+      - name: Install Solidity dependencies
+        run: forge soldeer install
+
+      - name: Every behavioural mutant of either architecture must be killed
+        run: node scripts/mutants.mjs
+
+      - name: The mutation run restored every source file
+        run: git diff --exit-code -- src/

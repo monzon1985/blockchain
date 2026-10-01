@@ -1,0 +1,32 @@
+{
+  "contract": "ReorderNew",
+  "storage": [
+    {
+      "contract": "test/layout/fixtures/LayoutFixtures.sol:ReorderNew",
+      "label": "total",
+      "offset": 0,
+      "slot": "0",
+      "type": "t_uint256"
+    },
+    {
+      "contract": "test/layout/fixtures/LayoutFixtures.sol:ReorderNew",
+      "label": "owner_",
+      "offset": 0,
+      "slot": "1",
+      "type": "t_address"
+    }
+  ],
+  "types": {
+    "t_address": {
+      "encoding": "inplace",
+      "label": "address",
+      "numberOfBytes": "20"
+    },
+    "t_uint256": {
+      "encoding": "inplace",
+      "label": "uint256",
+      "numberOfBytes": "32"
+    }
+  },
+  "namespaces": []
+}

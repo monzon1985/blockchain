@@ -1,0 +1,27 @@
+{
+  "contract": "InsertedOld",
+  "storage": [
+    {
+      "contract": "test/layout/fixtures/LayoutFixtures.sol:InsertedOld",
+      "label": "a",
+      "offset": 0,
+      "slot": "0",
+      "type": "t_uint256"
+    },
+    {
+      "contract": "test/layout/fixtures/LayoutFixtures.sol:InsertedOld",
+      "label": "b",
+      "offset": 0,
+      "slot": "1",
+      "type": "t_uint256"
+    }
+  ],
+  "types": {
+    "t_uint256": {
+      "encoding": "inplace",
+      "label": "uint256",
+      "numberOfBytes": "32"
+    }
+  },
+  "namespaces": []
+}

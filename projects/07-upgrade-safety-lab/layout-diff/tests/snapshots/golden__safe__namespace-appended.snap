@@ -1,0 +1,8 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff diff: VaultOld -> VaultAppended
+  info     added                  erc7201:upgradelab.fixture.Vault `feeBps`
+           new `feeBps` (uint256) at slot 2, after every old variable
+result: SAFE (0 errors, 0 allowed, 0 warnings, 1 infos)

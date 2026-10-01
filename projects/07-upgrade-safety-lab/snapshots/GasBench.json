@@ -1,0 +1,21 @@
+{
+  "cancel_diamond": "28272",
+  "cancel_uups": "28175",
+  "createPlan_diamond": "57856",
+  "createPlan_uups": "57800",
+  "isActive_diamond": "9767",
+  "isActive_uups": "9979",
+  "migration_step1_v1ToBridge": "90342",
+  "migration_step2_bridgeToV2": "72241",
+  "migration_step3_executeV2ToV3": "65888",
+  "setGracePeriodFirstWrite_diamond": "35198",
+  "setGracePeriodFirstWrite_uups": "52549",
+  "setGracePeriodUpdate_diamond": "35186",
+  "setGracePeriodUpdate_uups": "35437",
+  "subscribeFree_diamond": "59736",
+  "subscribeFree_uups": "64046",
+  "subscribePaid_diamond": "123790",
+  "subscribePaid_uups": "128166",
+  "subscribeRenewal_diamond": "65330",
+  "subscribeRenewal_uups": "69646"
+}

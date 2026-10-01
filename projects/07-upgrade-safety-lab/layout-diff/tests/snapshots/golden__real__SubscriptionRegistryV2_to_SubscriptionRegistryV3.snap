@@ -1,0 +1,14 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff diff: SubscriptionRegistryV2 -> SubscriptionRegistryV3
+  info     added                  erc7201:upgradelab.storage.SubscriptionRegistry `paymentToken`
+           new `paymentToken` (contract IERC20) at slot 2, after every old variable
+  info     added                  erc7201:upgradelab.storage.SubscriptionRegistry `treasury`
+           new `treasury` (address) at slot 3, after every old variable
+  info     added                  erc7201:upgradelab.storage.SubscriptionRegistry `totalRevenue`
+           new `totalRevenue` (uint256) at slot 4, after every old variable
+  info     added                  erc7201:upgradelab.storage.SubscriptionRegistry `planPrice`
+           new `planPrice` (mapping(uint256 => uint128)) at slot 5, after every old variable
+result: SAFE (0 errors, 0 allowed, 0 warnings, 4 infos)

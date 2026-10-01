@@ -1,0 +1,6 @@
+{
+  "filter_paths": "(dependencies/|test/|script/)",
+  "detectors_to_exclude": "assembly,naming-convention,timestamp,incorrect-equality,unindexed-event-address,missing-inheritance",
+  "exclude_dependencies": true,
+  "fail_on": "pedantic"
+}

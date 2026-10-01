@@ -1,0 +1,20 @@
+{
+  "sources": [
+    {
+      "name": "OwnershipFacet",
+      "selectors": {
+        "acceptOwnership()": "79ba5097",
+        "owner()": "8da5cb5b",
+        "pendingOwner()": "e30c3978",
+        "renounceOwnership()": "715018a6",
+        "transferOwnership(address)": "f2fde38b"
+      }
+    },
+    {
+      "name": "DuplicateOwnerFacet",
+      "selectors": {
+        "owner()": "8da5cb5b"
+      }
+    }
+  ]
+}

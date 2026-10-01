@@ -1,0 +1,12 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff diff: VaultOld -> VaultWithRewards
+  info     namespace-added        erc7201:upgradelab.fixture.Rewards `upgradelab.fixture.Rewards`
+           new namespace `upgradelab.fixture.Rewards` (struct RewardsNamespaceCollides.RewardsStorage) at 0x60c7287db0f176087dbf8b261e788644250af1f3c50dc10714ac97105a482700
+  error    erc7201-slot-mismatch  erc7201:upgradelab.fixture.Rewards `upgradelab.fixture.Rewards`
+           accessor `RewardsNamespaceCollides._rewards` points `struct RewardsNamespaceCollides.RewardsStorage` at 0x819cce18e5cf8e75cd2afe106a4a4ac724728bb2e279633e7e31bfeafb9f3300 but keccak256(abi.encode(uint256(keccak256("upgradelab.fixture.Rewards")) - 1)) & ~0xff = 0x60c7287db0f176087dbf8b261e788644250af1f3c50dc10714ac97105a482700
+  error    storage-collision      layout `upgradelab.fixture.Vault`
+           namespace `upgradelab.fixture.Rewards` as placed by `RewardsNamespaceCollides._rewards` [0x819cce18e5cf8e75cd2afe106a4a4ac724728bb2e279633e7e31bfeafb9f3300, 0x819cce18e5cf8e75cd2afe106a4a4ac724728bb2e279633e7e31bfeafb9f3301) overlaps namespace `upgradelab.fixture.Vault` [0x819cce18e5cf8e75cd2afe106a4a4ac724728bb2e279633e7e31bfeafb9f3300, 0x819cce18e5cf8e75cd2afe106a4a4ac724728bb2e279633e7e31bfeafb9f3302): both write the same slots
+result: UNSAFE (2 errors, 0 allowed, 0 warnings, 1 infos)

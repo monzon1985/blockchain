@@ -1,0 +1,8 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff selectors: clash-4byte
+  error    selector-collision     selectors `0x42966c68`
+           different functions share one 4-byte selector: ClashFacetA.burn(uint256), ClashFacetB.collate_propagate_storage(bytes16)
+result: UNSAFE (1 errors, 0 allowed, 0 warnings, 0 infos)

@@ -1,0 +1,12 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff diff: SubscriptionRegistryBridge -> SubscriptionRegistryV2
+  info     namespace-added        erc7201:openzeppelin.storage.AccessManaged `openzeppelin.storage.AccessManaged`
+           new namespace `openzeppelin.storage.AccessManaged` (struct AccessManagedUpgradeable.AccessManagedStorage) at 0xf3177357ab46d8af007ab3fdb9af81da189e1068fefdc0073dca88a2cab40a00
+  info     namespace-added        erc7201:openzeppelin.storage.Pausable `openzeppelin.storage.Pausable`
+           new namespace `openzeppelin.storage.Pausable` (struct PausableUpgradeable.PausableStorage) at 0xcd5ed15c6e187e77e9aee88184c21f4f2182ab5827cb3b7e07fbedcd63f03300
+  info     namespace-added        erc7201:upgradelab.storage.SubscriptionRegistry `upgradelab.storage.SubscriptionRegistry`
+           new namespace `upgradelab.storage.SubscriptionRegistry` (struct RegistryNamespaceV2.RegistryStorage) at 0xb4bb17120a8e44106124fda25af4145500ca9108cc41e1baa7fd32e47222d800
+result: SAFE (0 errors, 0 allowed, 0 warnings, 3 infos)

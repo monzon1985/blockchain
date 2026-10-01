@@ -1,0 +1,16 @@
+{
+  "sources": [
+    {
+      "name": "ClashFacetA",
+      "selectors": {
+        "burn(uint256)": "42966c68"
+      }
+    },
+    {
+      "name": "ClashFacetB",
+      "selectors": {
+        "collate_propagate_storage(bytes16)": "42966c68"
+      }
+    }
+  ]
+}

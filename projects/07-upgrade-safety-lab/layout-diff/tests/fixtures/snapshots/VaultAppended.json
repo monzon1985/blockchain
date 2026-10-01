@@ -1,0 +1,71 @@
+{
+  "contract": "VaultAppended",
+  "storage": [],
+  "types": {},
+  "namespaces": [
+    {
+      "id": "upgradelab.fixture.Vault",
+      "struct": "VaultNamespaceAppended.VaultStorage",
+      "probe": "VaultAppendedProbe",
+      "accessors": [
+        {
+          "function": "VaultNamespaceAppended._vault",
+          "location": {
+            "erc7201": "upgradelab.fixture.Vault"
+          }
+        }
+      ],
+      "layout": {
+        "storage": [
+          {
+            "contract": "test/layout/fixtures/LayoutFixtures.sol:VaultAppendedProbe",
+            "label": "$",
+            "offset": 0,
+            "slot": "58625408040334849500924236921239742039552787708103897197961220198668955497216",
+            "type": "t_struct(VaultStorage)_storage"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "encoding": "inplace",
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_struct(VaultStorage)_storage": {
+            "encoding": "inplace",
+            "label": "struct VaultNamespaceAppended.VaultStorage",
+            "numberOfBytes": "96",
+            "members": [
+              {
+                "contract": "test/layout/fixtures/LayoutFixtures.sol:VaultAppendedProbe",
+                "label": "totalAssets",
+                "offset": 0,
+                "slot": "0",
+                "type": "t_uint256"
+              },
+              {
+                "contract": "test/layout/fixtures/LayoutFixtures.sol:VaultAppendedProbe",
+                "label": "asset",
+                "offset": 0,
+                "slot": "1",
+                "type": "t_address"
+              },
+              {
+                "contract": "test/layout/fixtures/LayoutFixtures.sol:VaultAppendedProbe",
+                "label": "feeBps",
+                "offset": 0,
+                "slot": "2",
+                "type": "t_uint256"
+              }
+            ]
+          },
+          "t_uint256": {
+            "encoding": "inplace",
+            "label": "uint256",
+            "numberOfBytes": "32"
+          }
+        }
+      }
+    }
+  ]
+}

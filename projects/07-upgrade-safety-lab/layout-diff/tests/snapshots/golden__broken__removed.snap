@@ -1,0 +1,10 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff diff: RemovedOld -> RemovedNew
+  error    removed                sequential `b`
+           `b` (uint256) at slot 1 is no longer declared; its bytes are reused by `c`, which moved there
+  error    moved                  sequential `c`
+           `c` (uint256) moved from slot 2 to slot 1: it now reads whatever the old layout stored there
+result: UNSAFE (2 errors, 0 allowed, 0 warnings, 0 infos)

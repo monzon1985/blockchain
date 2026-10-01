@@ -1,0 +1,12 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff diff: VaultOld -> VaultWithFeeLibrary
+  info     namespace-added        erc7201:upgradelab.fixture.Fees `upgradelab.fixture.Fees`
+           new namespace `upgradelab.fixture.Fees` (struct LibFees.FeesStorage) at 0xe334bb1d74e202145c39ed2329f87d1afcb6c7db2921af3480602e762f8f4e00
+  error    erc7201-slot-mismatch  erc7201:upgradelab.fixture.Fees `upgradelab.fixture.Fees`
+           accessor `LibFees.fees` points `struct LibFees.FeesStorage` at 0x819cce18e5cf8e75cd2afe106a4a4ac724728bb2e279633e7e31bfeafb9f3300 but keccak256(abi.encode(uint256(keccak256("upgradelab.fixture.Fees")) - 1)) & ~0xff = 0xe334bb1d74e202145c39ed2329f87d1afcb6c7db2921af3480602e762f8f4e00
+  error    storage-collision      layout `upgradelab.fixture.Vault`
+           namespace `upgradelab.fixture.Fees` as placed by `LibFees.fees` [0x819cce18e5cf8e75cd2afe106a4a4ac724728bb2e279633e7e31bfeafb9f3300, 0x819cce18e5cf8e75cd2afe106a4a4ac724728bb2e279633e7e31bfeafb9f3301) overlaps namespace `upgradelab.fixture.Vault` [0x819cce18e5cf8e75cd2afe106a4a4ac724728bb2e279633e7e31bfeafb9f3300, 0x819cce18e5cf8e75cd2afe106a4a4ac724728bb2e279633e7e31bfeafb9f3302): both write the same slots
+result: UNSAFE (2 errors, 0 allowed, 0 warnings, 1 infos)

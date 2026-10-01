@@ -1,0 +1,108 @@
+# Upgrade Safety Lab: Foundry configuration.
+#
+# One toolchain root compiles three generations of the same app side by side:
+#   src/uups/v1      OZ Contracts-Upgradeable 4.9.6 (sequential storage + __gap arrays)
+#   src/uups/bridge  OZ 5.7.0 bridge that migrates the v4 state into ERC-7201 namespaces
+#   src/uups/v2, v3  OZ 5.7.0 (ERC-7201 namespaced storage, AccessManager-gated upgrades)
+#   src/diamond      ERC-2535 diamond of the same app (ERC-8109 events and introspection)
+# The two OpenZeppelin generations live under different remapping prefixes, so the
+# compiler never sees two contracts with the same name in one import scope.
+
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 10_000
+via_ir = false
+# Deterministic bytecode on every OS (no metadata hash, no CBOR trailer): the gas
+# snapshot and the storage-layout fixtures are identical on Windows and Linux CI.
+bytecode_hash = "none"
+cbor_metadata = false
+auto_detect_remappings = false
+remappings = [
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "@openzeppelin/contracts-upgradeable/=dependencies/@openzeppelin-contracts-upgradeable-5.7.0/",
+    "@openzeppelin-v4/contracts-upgradeable/=dependencies/oz-contracts-upgradeable-v4-4.9.6/contracts/",
+]
+# The layout gate reads the AST from the build artifacts to discover every
+# `@custom:storage-location erc7201:<id>` struct a contract inherits.
+ast = true
+# The implementation-takeover PoC uses SELFDESTRUCT on purpose (test/poc only; solc warning 1699).
+ignored_warnings_from = ["test/poc"]
+# Deployment scripts record addresses for the next upgrade step.
+fs_permissions = [{ access = "read-write", path = "./deployments" }]
+
+[profile.default.fuzz]
+runs = 512
+
+[profile.default.invariant]
+runs = 128
+depth = 64
+fail_on_revert = true
+
+# CI: fixed seed (deterministic) and a heavier campaign.
+[profile.ci.fuzz]
+runs = 4_000
+seed = "0x7570677261646573"
+
+[profile.ci.invariant]
+runs = 256
+depth = 100
+fail_on_revert = true
+
+# forge coverage instruments without the optimizer; keep its artifacts apart, and never let its (unoptimized) gas
+# numbers overwrite the committed per-call snapshot in snapshots/.
+[profile.coverage]
+out = "out-coverage"
+cache_path = "cache-coverage"
+gas_snapshot_emit = false
+
+# The layout gate's AST analysis (scripts/check-layouts.mjs): one cache-less, unoptimized compilation into its own
+# directory, whose single build-info file holds every AST with consistent ids (an incremental build mixes them).
+[profile.layout]
+out = "out-layout"
+cache = false
+optimizer = false
+build_info = true
+
+# Slither (crytic-compile) runs `forge clean` on the active profile: keep its artifacts apart.
+[profile.slither]
+out = "out-slither"
+cache_path = "cache-slither"
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+quote_style = "double"
+number_underscore = "thousands"
+sort_imports = true
+
+[soldeer]
+recursive_deps = false
+remappings_generate = false
+remappings_regenerate = false
+
+[dependencies]
+forge-std = "1.16.2"
+"@openzeppelin-contracts" = "5.7.0"
+"@openzeppelin-contracts-upgradeable" = "5.7.0"
+# OZ Contracts-Upgradeable 4.9.6 comes from its GitHub tag (Soldeer git source, aliased so it can sit
+# next to 5.7.0); soldeer.lock pins the exact commit.
+oz-contracts-upgradeable-v4 = { version = "4.9.6", git = "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable.git", tag = "v4.9.6" }
+
+[lint]
+# `block-timestamp`: subscription expiry is timestamp-based by design; a proposer can skew the
+# timestamp by seconds, which is immaterial next to periods measured in days (docs/THREAT_MODEL.md).
+# `reentrancy-events`: false positive on the ERC-7201 accessor pattern. solar treats the
+# `$.slot := location` assembly of every namespaced-storage getter (OZ's included) as an external
+# call. The only real external call in src/ (the SafeERC20 pull in `subscribe`) comes after every
+# event; Slither's reentrancy detectors run in CI on the same code.
+exclude_lints = ["block-timestamp", "reentrancy-events"]

@@ -1,0 +1,12 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff diff: GapChildOld -> GapChildNew
+  error    moved                  sequential `c`
+           `c` (uint256) moved from slot 50 to slot 49: it now reads whatever the old layout stored there
+  error    gap-resized            sequential `__gap`
+           `__gap` spanned slots 1..50 (49 slots) and now spans 2..49 (47 slots): it must keep ending at slot 50, otherwise every variable declared after it shifts
+  info     added                  sequential `q`
+           new `q` (uint256) at slot 1, in space the old layout reserved
+result: UNSAFE (2 errors, 0 allowed, 0 warnings, 1 infos)

@@ -1,0 +1,71 @@
+{
+  "contract": "OwnedNamespacedNew",
+  "storage": [
+    {
+      "contract": "test/layout/fixtures/LayoutFixtures.sol:OwnedNamespacedNew",
+      "label": "__retiredOwnerSlot",
+      "offset": 0,
+      "slot": "0",
+      "type": "t_array(t_uint256)1_storage"
+    },
+    {
+      "contract": "test/layout/fixtures/LayoutFixtures.sol:OwnedNamespacedNew",
+      "label": "value",
+      "offset": 0,
+      "slot": "1",
+      "type": "t_uint256"
+    }
+  ],
+  "types": {
+    "t_array(t_uint256)1_storage": {
+      "encoding": "inplace",
+      "label": "uint256[1]",
+      "numberOfBytes": "32",
+      "base": "t_uint256"
+    },
+    "t_uint256": {
+      "encoding": "inplace",
+      "label": "uint256",
+      "numberOfBytes": "32"
+    }
+  },
+  "namespaces": [
+    {
+      "id": "upgradelab.fixture.Owned",
+      "struct": "OwnedNamespace.OwnedStorage",
+      "probe": "OwnedProbe",
+      "layout": {
+        "storage": [
+          {
+            "contract": "test/layout/fixtures/LayoutFixtures.sol:OwnedProbe",
+            "label": "$",
+            "offset": 0,
+            "slot": "63927751655925240596717364545715633947416237106687634698617149544067330689280",
+            "type": "t_struct(OwnedStorage)_storage"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "encoding": "inplace",
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_struct(OwnedStorage)_storage": {
+            "encoding": "inplace",
+            "label": "struct OwnedNamespace.OwnedStorage",
+            "numberOfBytes": "32",
+            "members": [
+              {
+                "contract": "test/layout/fixtures/LayoutFixtures.sol:OwnedProbe",
+                "label": "_owner",
+                "offset": 0,
+                "slot": "0",
+                "type": "t_address"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff diff: GapChildOld -> GapChildSafe
+  info     gap-consumed           sequential `__gap`
+           `__gap` gave 1 slot(s) to new variables and still ends at slot 50
+  info     added                  sequential `q`
+           new `q` (uint256) at slot 1, in space the old layout reserved
+result: SAFE (0 errors, 0 allowed, 0 warnings, 2 infos)

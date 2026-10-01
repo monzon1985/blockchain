@@ -1,0 +1,205 @@
+{
+  "storage": [
+    {
+      "astId": 3270,
+      "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+      "label": "_legacyInitialized",
+      "offset": 0,
+      "slot": "0",
+      "type": "t_uint8"
+    },
+    {
+      "astId": 3273,
+      "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+      "label": "_legacyInitializing",
+      "offset": 1,
+      "slot": "0",
+      "type": "t_bool"
+    },
+    {
+      "astId": 3278,
+      "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+      "label": "__legacyContextGap",
+      "offset": 0,
+      "slot": "1",
+      "type": "t_array(t_uint256)50_storage"
+    },
+    {
+      "astId": 3281,
+      "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+      "label": "_legacyOwner",
+      "offset": 0,
+      "slot": "51",
+      "type": "t_address"
+    },
+    {
+      "astId": 3286,
+      "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+      "label": "__legacyOwnableGap",
+      "offset": 0,
+      "slot": "52",
+      "type": "t_array(t_uint256)49_storage"
+    },
+    {
+      "astId": 3291,
+      "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+      "label": "__legacyErc1967Gap",
+      "offset": 0,
+      "slot": "101",
+      "type": "t_array(t_uint256)50_storage"
+    },
+    {
+      "astId": 3296,
+      "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+      "label": "__legacyUupsGap",
+      "offset": 0,
+      "slot": "151",
+      "type": "t_array(t_uint256)50_storage"
+    },
+    {
+      "astId": 3315,
+      "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+      "label": "_planCount",
+      "offset": 0,
+      "slot": "201",
+      "type": "t_uint64"
+    },
+    {
+      "astId": 3318,
+      "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+      "label": "_totalSubscriptions",
+      "offset": 8,
+      "slot": "201",
+      "type": "t_uint64"
+    },
+    {
+      "astId": 3324,
+      "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+      "label": "_plans",
+      "offset": 0,
+      "slot": "202",
+      "type": "t_mapping(t_uint256,t_struct(Plan)3306_storage)"
+    },
+    {
+      "astId": 3330,
+      "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+      "label": "_subscriptions",
+      "offset": 0,
+      "slot": "203",
+      "type": "t_mapping(t_address,t_struct(Subscription)3312_storage)"
+    },
+    {
+      "astId": 3335,
+      "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+      "label": "__gap",
+      "offset": 0,
+      "slot": "204",
+      "type": "t_array(t_uint256)47_storage"
+    }
+  ],
+  "types": {
+    "t_address": {
+      "encoding": "inplace",
+      "label": "address",
+      "numberOfBytes": "20"
+    },
+    "t_array(t_uint256)47_storage": {
+      "encoding": "inplace",
+      "label": "uint256[47]",
+      "numberOfBytes": "1504",
+      "base": "t_uint256"
+    },
+    "t_array(t_uint256)49_storage": {
+      "encoding": "inplace",
+      "label": "uint256[49]",
+      "numberOfBytes": "1568",
+      "base": "t_uint256"
+    },
+    "t_array(t_uint256)50_storage": {
+      "encoding": "inplace",
+      "label": "uint256[50]",
+      "numberOfBytes": "1600",
+      "base": "t_uint256"
+    },
+    "t_bool": {
+      "encoding": "inplace",
+      "label": "bool",
+      "numberOfBytes": "1"
+    },
+    "t_mapping(t_address,t_struct(Subscription)3312_storage)": {
+      "encoding": "mapping",
+      "key": "t_address",
+      "label": "mapping(address => struct RegistryStorageV1.Subscription)",
+      "numberOfBytes": "32",
+      "value": "t_struct(Subscription)3312_storage"
+    },
+    "t_mapping(t_uint256,t_struct(Plan)3306_storage)": {
+      "encoding": "mapping",
+      "key": "t_uint256",
+      "label": "mapping(uint256 => struct RegistryStorageV1.Plan)",
+      "numberOfBytes": "32",
+      "value": "t_struct(Plan)3306_storage"
+    },
+    "t_struct(Plan)3306_storage": {
+      "encoding": "inplace",
+      "label": "struct RegistryStorageV1.Plan",
+      "numberOfBytes": "32",
+      "members": [
+        {
+          "astId": 3303,
+          "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+          "label": "duration",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_uint64"
+        },
+        {
+          "astId": 3305,
+          "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+          "label": "active",
+          "offset": 8,
+          "slot": "0",
+          "type": "t_bool"
+        }
+      ]
+    },
+    "t_struct(Subscription)3312_storage": {
+      "encoding": "inplace",
+      "label": "struct RegistryStorageV1.Subscription",
+      "numberOfBytes": "32",
+      "members": [
+        {
+          "astId": 3309,
+          "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+          "label": "planId",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_uint64"
+        },
+        {
+          "astId": 3311,
+          "contract": "src/uups/v2/SubscriptionRegistryV2.sol:SubscriptionRegistryV2",
+          "label": "expiresAt",
+          "offset": 8,
+          "slot": "0",
+          "type": "t_uint64"
+        }
+      ]
+    },
+    "t_uint256": {
+      "encoding": "inplace",
+      "label": "uint256",
+      "numberOfBytes": "32"
+    },
+    "t_uint64": {
+      "encoding": "inplace",
+      "label": "uint64",
+      "numberOfBytes": "8"
+    },
+    "t_uint8": {
+      "encoding": "inplace",
+      "label": "uint8",
+      "numberOfBytes": "1"
+    }
+  }
+}

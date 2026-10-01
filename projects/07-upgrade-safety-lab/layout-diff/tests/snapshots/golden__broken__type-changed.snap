@@ -1,0 +1,10 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff diff: RetypedOld -> RetypedNew
+  error    type-changed           sequential `counter`
+           `counter` at slot 0: uint64 (8 bytes) became uint128 (16 bytes)
+  error    moved                  sequential `limit`
+           `limit` (uint64) moved from slot 0 offset 8 to slot 0 offset 16: it now reads whatever the old layout stored there
+result: UNSAFE (2 errors, 0 allowed, 0 warnings, 0 infos)

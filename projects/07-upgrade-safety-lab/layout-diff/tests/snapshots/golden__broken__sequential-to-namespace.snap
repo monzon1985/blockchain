@@ -1,0 +1,10 @@
+---
+source: tests/golden.rs
+expression: report.render_text()
+---
+layout-diff diff: OwnedSequentialOld -> OwnedNamespacedNew
+  error    moved-to-namespace     sequential `_owner`
+           `_owner` lives at slot 0 in the old layout and in namespace `upgradelab.fixture.Owned` in the new one; the new code reads the namespace, which starts empty, so the old value is stranded (OpenZeppelin issue #6362). Copy it in a migration step (reinitializer) before switching implementations
+  info     namespace-added        erc7201:upgradelab.fixture.Owned `upgradelab.fixture.Owned`
+           new namespace `upgradelab.fixture.Owned` (struct OwnedNamespace.OwnedStorage) at 0x8d55d3406af23f4cc098db7509675c4f48412ed2fe504b928566fabcb5c74900
+result: UNSAFE (1 errors, 0 allowed, 0 warnings, 1 infos)
