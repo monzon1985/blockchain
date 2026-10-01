@@ -1,0 +1,10 @@
+--- a/src/DestinationSettler.sol
++++ b/src/DestinationSettler.sol
+@@ -150,7 +150,6 @@
+         require(block.timestamp <= intent.fillDeadline, FillDeadlinePassed(intent.fillDeadline, block.timestamp));
+         FillRecord storage record = _fills[orderId];
+         address previous = record.filler;
+-        require(previous == address(0), AlreadyFilled(orderId, previous));
+         address exclusiveFiller = intent.data.exclusiveFiller;
+         uint32 exclusivityDeadline = intent.data.exclusivityDeadline;
+         require(

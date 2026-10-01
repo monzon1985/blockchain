@@ -1,0 +1,59 @@
+[profile.default]
+src = "src"
+out = "out"
+test = "test"
+script = "script"
+libs = ["dependencies"]
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 10_000
+bytecode_hash = "none"
+# Two compilers on purpose: our code is pinned to 0.8.37, Permit2 keeps its own exact
+# `pragma solidity 0.8.17` and the via-IR / 1M-runs settings of the canonical deployment.
+auto_detect_solc = true
+additional_compiler_profiles = [{ name = "permit2", via_ir = true, optimizer_runs = 1_000_000 }]
+compilation_restrictions = [
+  { paths = "src/**", version = "=0.8.37" },
+  { paths = "dependencies/permit2-cc56ad0/src/Permit2.sol", version = "=0.8.17", via_ir = true, min_optimizer_runs = 1_000_000 },
+]
+
+fs_permissions = [{ access = "read", path = "./test/fixtures" }]
+
+[fuzz]
+runs = 256
+
+[invariant]
+runs = 64
+depth = 64
+fail_on_revert = true
+
+# Deterministic CI: the fuzz seed also seeds invariant runs; more runs and deeper sequences.
+[profile.ci.fuzz]
+runs = 1000
+seed = "0x7683"
+
+[profile.ci.invariant]
+runs = 128
+depth = 96
+fail_on_revert = true
+
+[lint]
+# `forge lint src --deny warnings` runs as its own CI gate. Inline suppressions carry their justification;
+# project-wide exclusions are justified in docs/static-analysis.md.
+lint_on_build = false
+# Deadlines (open, fill, refund grace, challenge window) are minutes to hours long; the few seconds of validator
+# timestamp leeway cannot change who may act.
+exclude_lints = ["block-timestamp"]
+
+[soldeer]
+remappings_generate = true
+remappings_regenerate = false
+remappings_version = false
+remappings_location = "txt"
+recursive_deps = false
+
+[dependencies]
+forge-std = "1.16.2"
+"@openzeppelin-contracts" = "5.7.0"
+permit2 = { version = "cc56ad0", git = "https://github.com/Uniswap/permit2.git", rev = "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219" }
+solmate = { version = "8d910d8", git = "https://github.com/transmissions11/solmate.git", rev = "8d910d876f51c3b2585c9109409d601f600e68e1" }

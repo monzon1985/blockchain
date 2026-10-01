@@ -1,0 +1,3 @@
+# Deterministic line endings: fixtures, gas snapshots and lockfiles are compared byte for byte.
+* text=auto eol=lf
+*.png binary

@@ -1,0 +1,287 @@
+name: "23 · ERC-7683 Intents: Solver and Trust-Minimized Settlement"
+
+on:
+  push:
+    paths:
+      - "projects/23-erc7683-intents-settlement/**"
+      - ".github/workflows/23-erc7683-intents-settlement.yml"
+  pull_request:
+    paths:
+      - "projects/23-erc7683-intents-settlement/**"
+      - ".github/workflows/23-erc7683-intents-settlement.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/23-erc7683-intents-settlement
+
+env:
+  FOUNDRY_VERSION: v1.8.3
+  PROJECT: projects/23-erc7683-intents-settlement
+
+jobs:
+  contracts:
+    name: Foundry (fmt, lint, build, tests, gas, coverage, SPDX)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FOUNDRY_PROFILE: ci
+      # Every run compares vm.snapshotGasLastFrame results with snapshots/GasBench.json instead of rewriting it.
+      FORGE_SNAPSHOT_CHECK: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/dependencies
+          key: soldeer-23-${{ hashFiles('projects/23-erc7683-intents-settlement/soldeer.lock', 'projects/23-erc7683-intents-settlement/foundry.toml') }}
+
+      - name: Cache compiler output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PROJECT }}/cache
+            ${{ env.PROJECT }}/out
+          key: forge-23-${{ hashFiles('projects/23-erc7683-intents-settlement/soldeer.lock', 'projects/23-erc7683-intents-settlement/foundry.toml', 'projects/23-erc7683-intents-settlement/src/**', 'projects/23-erc7683-intents-settlement/test/**/*.sol', 'projects/23-erc7683-intents-settlement/script/**') }}
+          restore-keys: forge-23-
+
+      - name: Install dependencies (Soldeer)
+        run: forge soldeer install
+
+      - name: SPDX header in every source file
+        run: |
+          missing=0
+          for f in $(git ls-files -co --exclude-standard -- '*.sol' '*.ts' '*.js' '*.sh'); do
+            if ! head -3 "$f" | grep -q "SPDX-License-Identifier: MIT"; then echo "missing SPDX header: $f"; missing=1; fi
+          done
+          exit $missing
+
+      - name: Format
+        run: forge fmt --check
+
+      - name: Build
+        run: forge build
+
+      - name: Lint (src, warnings are errors)
+        run: forge lint src --deny warnings --report-unused-suppressions
+
+      - name: Tests (unit, fuzz, invariants, fixtures; fixed seed)
+        run: forge test
+
+      - name: Gas snapshot check (whole-test .gas-snapshot and per-call snapshots/GasBench.json)
+        run: forge snapshot --check --match-contract GasBench
+
+      - name: Coverage gate (>= 90% lines of src)
+        # Coverage measures lines, so it runs under the default profile (256 fuzz runs, 64 x 64 invariants); the deep
+        # ci-profile campaign already ran in `forge test` above. Gas benchmarks are excluded: coverage builds without
+        # the optimizer, so their numbers would not match.
+        env:
+          FOUNDRY_PROFILE: default
+        run: |
+          forge coverage --report lcov --report summary --no-match-coverage "(test|script|dependencies)/" --no-match-contract GasBench
+          python3 - <<'EOF'
+          found = hit = 0
+          src = False
+          for line in open("lcov.info"):
+              if line.startswith("SF:"):
+                  src = "src/" in line and "dependencies" not in line
+              elif src and line.startswith("LF:"):
+                  found += int(line[3:])
+              elif src and line.startswith("LH:"):
+                  hit += int(line[3:])
+          pct = 100.0 * hit / found
+          print(f"src line coverage: {hit}/{found} = {pct:.2f}%")
+          raise SystemExit(0 if pct >= 90.0 else 1)
+          EOF
+
+  mutants:
+    name: Mutation smoke test (every mutant must be killed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/dependencies
+          key: soldeer-23-${{ hashFiles('projects/23-erc7683-intents-settlement/soldeer.lock', 'projects/23-erc7683-intents-settlement/foundry.toml') }}
+
+      - name: Cache compiler output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PROJECT }}/cache
+            ${{ env.PROJECT }}/out
+          key: forge-23-${{ hashFiles('projects/23-erc7683-intents-settlement/soldeer.lock', 'projects/23-erc7683-intents-settlement/foundry.toml', 'projects/23-erc7683-intents-settlement/src/**', 'projects/23-erc7683-intents-settlement/test/**/*.sol', 'projects/23-erc7683-intents-settlement/script/**') }}
+          restore-keys: forge-23-
+
+      - name: Install dependencies and build
+        run: |
+          forge soldeer install
+          forge build
+
+      - name: Apply each test/mutants/*.patch and expect forge test to fail
+        run: bash test/mutants/run.sh
+
+  static-analysis:
+    name: Slither
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install Slither 0.11.6
+        run: |
+          uv tool install slither-analyzer==0.11.6
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/dependencies
+          key: soldeer-23-${{ hashFiles('projects/23-erc7683-intents-settlement/soldeer.lock', 'projects/23-erc7683-intents-settlement/foundry.toml') }}
+
+      - name: Install dependencies (Soldeer)
+        run: forge soldeer install
+
+      - name: Slither (must report 0 results)
+        run: slither . --config-file slither.config.json
+
+  medusa:
+    name: Medusa (cross-chain properties and assertions, 300 s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install crytic-compile 0.4.2 and Medusa 1.5.1
+        run: |
+          uv tool install crytic-compile==0.4.2
+          mkdir -p "$HOME/.local/bin"
+          curl -sSfL https://github.com/crytic/medusa/releases/download/v1.5.1/medusa-linux-x64.tar.gz | tar -xz -C "$HOME/.local/bin"
+          chmod +x "$HOME/.local/bin/medusa"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/dependencies
+          key: soldeer-23-${{ hashFiles('projects/23-erc7683-intents-settlement/soldeer.lock', 'projects/23-erc7683-intents-settlement/foundry.toml') }}
+
+      - name: Keep the Medusa corpus across runs (it grows; a stale entry is simply dropped)
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/medusa-corpus
+          key: medusa-corpus-23-${{ github.run_id }}
+          restore-keys: medusa-corpus-23-
+
+      - name: Install dependencies (Soldeer)
+        run: forge soldeer install
+
+      - name: Medusa
+        run: medusa fuzz --config medusa.json --timeout 300
+
+  solver:
+    name: Solver (typecheck, lint, vitest, coverage, two-anvil e2e, demo, fresh proof capture)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: projects/23-erc7683-intents-settlement/solver/package-lock.json
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/dependencies
+          key: soldeer-23-${{ hashFiles('projects/23-erc7683-intents-settlement/soldeer.lock', 'projects/23-erc7683-intents-settlement/foundry.toml') }}
+
+      - name: Cache compiler output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PROJECT }}/cache
+            ${{ env.PROJECT }}/out
+          key: forge-23-${{ hashFiles('projects/23-erc7683-intents-settlement/soldeer.lock', 'projects/23-erc7683-intents-settlement/foundry.toml', 'projects/23-erc7683-intents-settlement/src/**', 'projects/23-erc7683-intents-settlement/test/**/*.sol', 'projects/23-erc7683-intents-settlement/script/**') }}
+          restore-keys: forge-23-
+
+      - name: Build contracts (artifacts for ABIs, deployments and anvil)
+        run: |
+          forge soldeer install
+          forge build
+
+      - name: Install
+        working-directory: projects/23-erc7683-intents-settlement/solver
+        run: npm ci
+
+      - name: Generated ABIs are up to date
+        working-directory: projects/23-erc7683-intents-settlement/solver
+        run: |
+          npm run gen-abi
+          git diff --exit-code -- src/abi.ts
+
+      - name: Typecheck
+        working-directory: projects/23-erc7683-intents-settlement/solver
+        run: npm run typecheck
+
+      - name: Lint
+        working-directory: projects/23-erc7683-intents-settlement/solver
+        run: npm run lint
+
+      - name: Unit tests (solver on fake chains, pricing, decay, journal, encodings)
+        working-directory: projects/23-erc7683-intents-settlement/solver
+        run: npm test
+
+      - name: End to end on two anvil chains (1001 / 1002)
+        working-directory: projects/23-erc7683-intents-settlement/solver
+        run: npm run e2e
+
+      - name: Coverage gate (>= 90% lines of solver/src, unit + e2e)
+        working-directory: projects/23-erc7683-intents-settlement/solver
+        run: npm run coverage
+
+      - name: Demo (one order per mode and a slashed fraudulent claim; fails if any is not repaid or challenged)
+        working-directory: projects/23-erc7683-intents-settlement/solver
+        run: npm run demo
+
+      - name: Capture fresh eth_getProof fixtures on CI's anvil and verify them on-chain
+        run: |
+          (cd solver && CAPTURE_OUT="$PWD/../test/fixtures/anvil-proofs.ci.json" npm run capture-proofs)
+          ANVIL_FIXTURE=test/fixtures/anvil-proofs.ci.json forge test --match-contract AnvilStorageProofTest

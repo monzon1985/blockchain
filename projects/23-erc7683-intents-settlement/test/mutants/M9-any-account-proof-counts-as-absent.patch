@@ -1,0 +1,11 @@
+--- a/src/libraries/FillProofLib.sol
++++ b/src/libraries/FillProofLib.sol
+@@ -87,7 +87,7 @@
+         returns (bytes32)
+     {
+         bytes memory key = abi.encodePacked(keccak256(abi.encodePacked(account)));
+-        if (MerklePatriciaExclusion.isAbsent(stateRoot, key, accountProof)) {
++        if (key.length != 0) {
+             return MerklePatriciaExclusion.EMPTY_TRIE_ROOT;
+         }
+         return storageRoot(stateRoot, account, accountProof);

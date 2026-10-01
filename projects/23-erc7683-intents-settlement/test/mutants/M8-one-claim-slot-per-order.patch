@@ -1,0 +1,11 @@
+--- a/src/settlement/optimistic/OptimisticSettlementModule.sol
++++ b/src/settlement/optimistic/OptimisticSettlementModule.sol
+@@ -308,7 +308,7 @@
+     /// @param filledAt The claimed fill time.
+     /// @return The claim id.
+     function claimIdOf(bytes32 orderId, address filler, uint64 filledAt) public pure returns (bytes32) {
+-        return keccak256(abi.encode(orderId, filler, filledAt));
++        return keccak256(abi.encode(orderId, filler == filler, filledAt == filledAt));
+     }
+ 
+     /// @notice Pending claim (`orderId`, `filler`, `filledAt`), all zero if none.

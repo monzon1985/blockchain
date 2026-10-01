@@ -1,0 +1,11 @@
+--- a/src/OriginSettler.sol
++++ b/src/OriginSettler.sol
+@@ -261,7 +261,7 @@
+         address token = escrow.inputToken;
+         uint256 amount = escrow.inputAmount;
+         emit OrderSettled(orderId, module, filler, token, amount);
+-        IERC20(token).safeTransfer(filler, amount);
++        IERC20(token).safeTransfer(escrow.user, amount);
+     }
+ 
+     /// @notice Returns the escrow of an unfilled order to its user. Callable by anyone after

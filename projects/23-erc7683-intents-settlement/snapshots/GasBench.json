@@ -1,0 +1,16 @@
+{
+  "fill (start amount, fillerData)": "91893",
+  "fillWithRepayment (during Dutch decay)": "96593",
+  "mode 1: mailbox delivery + settle (origin)": "116743",
+  "mode 1: report (destination)": "49910",
+  "mode 2: challenge with exclusion proof (anvil)": "270839",
+  "mode 2: claim with bond (origin)": "134005",
+  "mode 2: finalize + settle + bond refund (origin)": "101892",
+  "mode 3: proveFill (anvil account + storage proof) + settle": "296201",
+  "open (on-chain order, ERC-20 approval)": "180364",
+  "openFor (gasless, Permit2 witness transfer)": "200918",
+  "refund after fill deadline + grace (origin)": "65380",
+  "submitHeader (relayer, anvil header)": "157566",
+  "verify account + 1 record slot (what mode 3 does)": "189801",
+  "verify account + 2 record slots (baseline)": "242214"
+}

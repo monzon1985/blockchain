@@ -1,0 +1,10 @@
+--- a/src/OriginSettler.sol
++++ b/src/OriginSettler.sol
+@@ -273,7 +273,6 @@
+         require(status == OrderStatus.Open, OrderNotOpen(orderId, status));
+         uint256 availableAfter = uint256(escrow.fillDeadline) + REFUND_GRACE;
+         require(block.timestamp > availableAfter, RefundNotYetAvailable(orderId, availableAfter));
+-        require(!ISettlementModule(escrow.settlementModule).hasPendingClaim(orderId), RepaymentClaimPending(orderId));
+ 
+         escrow.status = OrderStatus.Refunded;
+         address user = escrow.user;

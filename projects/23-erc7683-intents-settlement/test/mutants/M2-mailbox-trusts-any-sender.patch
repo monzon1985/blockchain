@@ -1,0 +1,11 @@
+--- a/src/settlement/mailbox/MailboxSettlementModule.sol
++++ b/src/settlement/mailbox/MailboxSettlementModule.sol
+@@ -82,7 +82,7 @@
+     function handle(uint256 originDomain, address sender, bytes calldata body) external {
+         require(msg.sender == MAILBOX, NotMailbox(msg.sender));
+         address reporter = routes[originDomain].reporter;
+-        require(reporter != address(0) && sender == reporter, UntrustedReporter(originDomain, sender));
++        require(reporter != address(0), UntrustedReporter(originDomain, sender));
+         (bytes32 orderId, address filler, bytes32 fillHash, uint64 filledAt) =
+             abi.decode(body, (bytes32, address, bytes32, uint64));
+         emit FillAttested(orderId, originDomain, filler, filledAt);

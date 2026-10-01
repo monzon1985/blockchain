@@ -1,0 +1,11 @@
+--- a/src/settlement/optimistic/OptimisticSettlementModule.sol
++++ b/src/settlement/optimistic/OptimisticSettlementModule.sol
+@@ -237,7 +237,7 @@
+         require(pending.claimant != address(0), NoPendingClaim(orderId, filler, filledAt));
+         require(block.timestamp <= pending.challengeDeadline, ChallengeWindowClosed(pending.challengeDeadline));
+         uint256 recorded = _recordAfter(orderId, filledAt, blockNumber, accountProof, slotProof);
+-        require(recorded != FillProofLib.pack(filler, filledAt), ClaimNotFraudulent(orderId));
++        require(recorded == FillProofLib.pack(filler, filledAt), ClaimNotFraudulent(orderId));
+ 
+         delete _claims[claimId];
+         unchecked {

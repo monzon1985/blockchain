@@ -1,0 +1,11 @@
+--- a/src/libraries/MerklePatriciaExclusion.sol
++++ b/src/libraries/MerklePatriciaExclusion.sol
+@@ -63,7 +63,7 @@
+             bytes memory encoded = proof[i];
+             if (keccak256(encoded) != cursor.expected) return false;
+             Outcome outcome = _walk(encoded.asSlice(), nibbles, cursor);
+-            if (outcome == Outcome.Absent) return i + 1 == count;
++            if (outcome == Outcome.Absent) return true;
+             if (outcome == Outcome.NotAbsent) return false;
+         }
+         return false;

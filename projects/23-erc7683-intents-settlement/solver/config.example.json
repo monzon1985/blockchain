@@ -1,0 +1,62 @@
+{
+  "deployment": {
+    "origin": {
+      "chainId": 1001,
+      "rpcUrl": "http://127.0.0.1:8545",
+      "originSettler": "0x0000000000000000000000000000000000000000",
+      "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "headerStore": "0x0000000000000000000000000000000000000000",
+      "mailbox": "0x0000000000000000000000000000000000000000",
+      "mailboxModule": "0x0000000000000000000000000000000000000000",
+      "optimisticModule": "0x0000000000000000000000000000000000000000",
+      "proofModule": "0x0000000000000000000000000000000000000000",
+      "bondToken": "0x0000000000000000000000000000000000000000"
+    },
+    "destination": {
+      "chainId": 1002,
+      "rpcUrl": "http://127.0.0.1:8546",
+      "destinationSettler": "0x0000000000000000000000000000000000000000",
+      "mailbox": "0x0000000000000000000000000000000000000000",
+      "reporter": "0x0000000000000000000000000000000000000000"
+    }
+  },
+  "repaymentAddress": "0x0000000000000000000000000000000000000000",
+  "dbPath": "solver.db",
+  "feedDir": "feed",
+  "pollIntervalMs": 1000,
+  "mailboxRecheckSec": 300,
+  "pricing": {
+    "tokenPrices": {
+      "0x0000000000000000000000000000000000000000": "1"
+    },
+    "nativePriceOrigin": "3000",
+    "nativePriceDest": "3000",
+    "gas": {
+      "open": "250000",
+      "fill": "150000",
+      "settle": {
+        "mailbox": "100000",
+        "optimistic": "300000",
+        "proof": "350000"
+      }
+    },
+    "capitalCostBpsPerHour": "1",
+    "modeRiskBps": {
+      "mailbox": "5",
+      "optimistic": "10",
+      "proof": "2"
+    },
+    "settlementDelaySec": {
+      "mailbox": "300",
+      "optimistic": "1800",
+      "proof": "120"
+    },
+    "settlementLatencySec": {
+      "mailbox": "300",
+      "optimistic": "30",
+      "proof": "180"
+    },
+    "minProfit": "1000000000000000000",
+    "fillSafetyMarginSec": "10"
+  }
+}

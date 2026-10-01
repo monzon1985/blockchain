@@ -1,0 +1,10 @@
+--- a/src/OriginSettler.sol
++++ b/src/OriginSettler.sol
+@@ -246,7 +246,6 @@
+         OrderStatus status = escrow.status;
+         require(status == OrderStatus.Open, OrderNotOpen(orderId, status));
+         address module = escrow.settlementModule;
+-        require(msg.sender == module, UnauthorizedModule(orderId, msg.sender, module));
+         uint256 expectedChainId = escrow.destinationChainId;
+         require(
+             destinationChainId == expectedChainId,
