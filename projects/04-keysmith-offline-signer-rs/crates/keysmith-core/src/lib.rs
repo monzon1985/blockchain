@@ -14,6 +14,7 @@
 //! | [`eip712`], [`eip191`], [`permit`] | Typed data, `personal_sign`, ERC-2612 permits |
 //! | [`keystore`] | Web3 Secret Storage v3 (scrypt / pbkdf2 + AES-128-CTR) |
 //! | [`gas`], [`policy`], [`envelope`], [`report`] | Intrinsic gas, signing policy, air-gap envelopes, decode reports |
+//! | [`calldata`] | ERC-20 call recognition for the operator review |
 //!
 //! The crate has no I/O, no randomness source and no networking: callers supply entropy, and
 //! the only way data enters or leaves is through function arguments and return values.
@@ -29,6 +30,7 @@ pub mod authorization;
 pub mod base58;
 pub mod bip32;
 pub mod bip39;
+pub mod calldata;
 pub mod eip191;
 pub mod eip712;
 pub mod envelope;

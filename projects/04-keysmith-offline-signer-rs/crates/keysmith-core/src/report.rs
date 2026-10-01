@@ -141,13 +141,14 @@ pub fn report(signed: &SignedTransaction, base_fee: Option<u128>) -> TxReport {
             s: signed.signature.s,
             low_s: signed.signature.is_low_s(),
         },
-        findings: findings(tx, base_fee),
+        findings: findings(tx, signer.as_ref(), base_fee),
     }
 }
 
-/// Consensus findings plus, when a base fee is supplied, whether the fee cap can be included.
-fn findings(tx: &Transaction, base_fee: Option<u128>) -> Vec<Finding> {
-    let mut out = gas::check_transaction(tx);
+/// Consensus findings (with the EIP-7702 nonce rule for the recovered sender) plus, when a base
+/// fee is supplied, whether the fee cap can be included.
+fn findings(tx: &Transaction, sender: Option<&Address>, base_fee: Option<u128>) -> Vec<Finding> {
+    let mut out = gas::check_transaction(tx, sender);
     if let Some(base) = base_fee
         && tx.max_fee_per_gas() < base
     {

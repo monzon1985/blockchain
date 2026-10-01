@@ -7,6 +7,7 @@
 
 mod cli;
 mod commands;
+mod confirm;
 mod error;
 mod keysource;
 mod render;

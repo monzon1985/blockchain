@@ -1,0 +1,27 @@
+---
+source: crates/keysmith-cli/tests/cli.rs
+expression: stderr_of(&cmd.assert().success())
+---
+--- keysmith sign: review (nothing is signed until you confirm) ---
+type            EIP-7702 on chain 1
+from            0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+to              0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+value           5 wei (0.000000000000000005 ETH)
+nonce           12
+gas limit       120000
+fee cap         3000000000 wei/gas (3 gwei)
+priority fee    2000000000 wei/gas (2 gwei)
+max cost        360000000000005 wei (0.000360000000000005 ETH)
+input           68 bytes, selector 0xa9059cbb = ERC-20 transfer(address,uint256)
+ERC-20 call     transfer 100 base units to 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+calldata        0xa9059cbb
+                  0000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc
+                  0000000000000000000000000000000000000000000000000000000000000064
+access list     0x5FbDB2315678afecb367f032d93F642f64180aa3 (2 storage keys)
+                  0x0000000000000000000000000000000000000000000000000000000000000000
+                  0x00000000000000000000000000000000000000000000000000000000000000ff
+authorization 0 delegate 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512 on chain 1 with nonce 3, authority 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+authorization 1 delegate 0x5FbDB2315678afecb367f032d93F642f64180aa3 on chain 1 with nonce 13, authority 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 (the signer)
+policy          default (no --policy file): denies contract creation, pre-EIP-155 legacy and chainId-0 delegations
+note            UNTRUSTED text from the envelope author, not a description of what is signed: "delegate to the batch executor"
+findings        none

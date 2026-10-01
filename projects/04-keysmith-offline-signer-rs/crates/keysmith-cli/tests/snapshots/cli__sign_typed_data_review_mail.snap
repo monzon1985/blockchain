@@ -1,0 +1,21 @@
+---
+source: crates/keysmith-cli/tests/cli.rs
+expression: stderr_of(&cmd.assert().success())
+---
+--- keysmith sign-typed-data: review (nothing is signed until you confirm) ---
+signer          0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+primary type    Mail
+domain (hashed into the domain separator)
+  name (string): "Ether Mail"
+  version (string): "1"
+  chainId (uint256): 1
+  verifyingContract (address): 0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC
+message (every leaf is hashed; quoted strings are untrusted text, shown escaped)
+  from.name (string): "Cow"
+  from.wallet (address): 0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826
+  to.name (string): "Bob"
+  to.wallet (address): 0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB
+  contents (string): "Hello, Bob!"
+digest          0xbe609aee343fb3c4b28e1df9e632fca64fcfaede20f02e86244efddf30957bd2
+policy          default (no --policy file): no typed-data limits; restrict with allowedChainIds, allowedVerifyingContracts, allowedSpenders and maxPermitValue
+findings        none

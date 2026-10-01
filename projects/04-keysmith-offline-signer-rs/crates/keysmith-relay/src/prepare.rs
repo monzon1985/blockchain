@@ -37,7 +37,7 @@ pub struct PrepareRequest {
     pub access_list: Vec<AccessListItem>,
     /// Authorizations already signed by other authorities (sponsored EIP-7702).
     pub authorizations: Vec<SignedAuthorization>,
-    /// Delegations the sender will sign offline for itself (nonce = tx nonce + 1).
+    /// Delegations the sender will sign offline for itself (nonces tx nonce + 1, + 2, ...).
     pub self_authorizations: Vec<SelfAuthorization>,
     /// Explicit nonce (default: the node's pending nonce).
     pub nonce: Option<u64>,
@@ -53,7 +53,7 @@ pub struct PrepareRequest {
     pub expected_chain_id: Option<u64>,
     /// `false` produces a pre-EIP-155 legacy transaction (replayable on every chain).
     pub replay_protected: bool,
-    /// Free-form note shown by the signer.
+    /// Free-form note, shown by the signer as untrusted text.
     pub note: Option<String>,
 }
 

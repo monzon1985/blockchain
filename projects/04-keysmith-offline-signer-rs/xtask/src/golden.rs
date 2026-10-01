@@ -540,6 +540,34 @@ fn verify_keystore(root: &Path, expected_pk: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// The `MAJOR.MINOR.PATCH` release in a `cast --version` line such as
+/// `cast Version: 1.8.3-stable` (any pre-release or build suffix is dropped).
+pub fn cast_semver(line: &str) -> Option<&str> {
+    let rest = line.trim().strip_prefix("cast Version:")?.trim_start();
+    let end = rest
+        .find(|c: char| !(c.is_ascii_digit() || c == '.'))
+        .unwrap_or(rest.len());
+    let version = &rest[..end];
+    let parts: Vec<&str> = version.split('.').collect();
+    (parts.len() == 3 && parts.iter().all(|p| !p.is_empty())).then_some(version)
+}
+
+/// `--check` must run the same cast release that wrote the committed vectors: a different
+/// release that happens to produce identical vectors would not prove the README's claim
+/// (vectors from cast 1.8.3). Only build metadata after the version may differ.
+pub fn same_cast_release(running: &str, committed: &str) -> Result<(), String> {
+    match (cast_semver(running), cast_semver(committed)) {
+        (Some(a), Some(b)) if a == b => Ok(()),
+        (Some(a), Some(b)) => Err(format!(
+            "the committed vectors were produced by cast {b} but this is cast {a}; install \
+             Foundry {b} (or regenerate deliberately with `cargo xtask regen-golden`)"
+        )),
+        _ => Err(format!(
+            "cannot compare cast versions: running {running:?}, committed {committed:?}"
+        )),
+    }
+}
+
 /// Entry point.
 pub fn run(root: &Path, check: bool) -> Result<String, String> {
     let version = cast(&["--version"])?;
@@ -571,10 +599,16 @@ pub fn run(root: &Path, check: bool) -> Result<String, String> {
         let committed =
             std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
         let committed: Value = serde_json::from_str(&committed).map_err(|e| e.to_string())?;
+        let committed_tool = committed
+            .get("tool")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        same_cast_release(&version_line, committed_tool)?;
         let mut fresh = doc.clone();
-        // The tool line may differ in build metadata only; everything else must match exactly.
-        if let (Some(a), Some(b)) = (fresh.get_mut("tool"), committed.get("tool")) {
-            *a = b.clone();
+        // Same release: the tool lines may differ in build metadata only (checked above);
+        // everything else must match exactly.
+        if let Some(a) = fresh.get_mut("tool") {
+            *a = Value::from(committed_tool);
         }
         if fresh != committed {
             return Err(format!(
@@ -590,4 +624,41 @@ pub fn run(root: &Path, check: bool) -> Result<String, String> {
     std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))?;
     regenerate_keystore(root, &keys[KEYSTORE_SIGNER])?;
     Ok(format!("wrote {} with {version_line}\n", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cast_version_lines_parse_to_their_release() {
+        assert_eq!(cast_semver("cast Version: 1.8.3"), Some("1.8.3"));
+        assert_eq!(cast_semver("cast Version: 1.8.3-stable"), Some("1.8.3"));
+        assert_eq!(cast_semver("cast Version: 1.8.3+abc123 "), Some("1.8.3"));
+        assert_eq!(cast_semver("cast Version: 1.10.0-nightly"), Some("1.10.0"));
+        for bad in [
+            "",
+            "forge Version: 1.8.3",
+            "cast Version: 1.8",
+            "cast Version: v1.8.3",
+        ] {
+            assert_eq!(cast_semver(bad), None, "{bad:?}");
+        }
+    }
+
+    /// Regression: `--check` overwrote the regenerated `tool` with the committed one before
+    /// comparing, so any cast release that happened to produce the same vectors passed.
+    #[test]
+    fn check_requires_the_committed_cast_release() {
+        let committed = "cast Version: 1.8.3";
+        assert_eq!(same_cast_release("cast Version: 1.8.3", committed), Ok(()));
+        assert_eq!(
+            same_cast_release("cast Version: 1.8.3-stable", committed),
+            Ok(())
+        );
+        let err = same_cast_release("cast Version: 1.8.4", committed).unwrap_err();
+        assert!(err.contains("cast 1.8.3 but this is cast 1.8.4"), "{err}");
+        assert!(same_cast_release("cast Version: 1.9.0", committed).is_err());
+        assert!(same_cast_release("garbage", committed).is_err());
+    }
 }

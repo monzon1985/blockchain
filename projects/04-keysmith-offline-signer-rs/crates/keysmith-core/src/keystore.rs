@@ -89,30 +89,88 @@ impl ScryptParams {
         p: 6,
     };
 
-    fn memory_bytes(&self) -> u128 {
-        128 * u128::from(self.r) * (1u128 << self.log_n)
+    /// Upper bound of the bytes `scrypt` 0.11 allocates for these parameters:
+    /// `B = 128·r·p` (the PBKDF2 output that is mixed), `V = 128·r·N` (the ROMix table) and a
+    /// scratch block `T` of at most `256·r`, i.e. `128·r·(N + p + 2)`.
+    ///
+    /// Counting only `V` is not enough: with a tiny `N` and a huge `r`, `B` dominates (for
+    /// `N = 4, r = 2^20, p = 16`, `V` is 512 MiB but `B` alone is 2 GiB).
+    pub fn memory_bytes(&self) -> u128 {
+        let n = 1u128 << self.log_n;
+        128 * u128::from(self.r) * (n + u128::from(self.p) + 2)
+    }
+
+    /// CPU work in units of one 128-byte BlockMix row: ROMix runs `2·N` BlockMix rounds over
+    /// `r` rows for each of the `p` lanes, so the cost is proportional to `N·r·p`.
+    pub fn work(&self) -> u128 {
+        (1u128 << self.log_n) * u128::from(self.r) * u128::from(self.p)
     }
 }
 
-/// Upper bounds applied to KDF parameters read from untrusted keystores.
+/// Upper bounds applied to KDF parameters read from untrusted keystores. Every bound is
+/// checked before the KDF allocates or computes anything.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KdfLimits {
-    /// Maximum scrypt memory `128 * r * N` in bytes.
+    /// Maximum total scrypt memory [`ScryptParams::memory_bytes`] = `128·r·(N + p + 2)` bytes.
     pub max_scrypt_memory: u64,
+    /// Maximum scrypt block size `r`.
+    pub max_scrypt_r: u32,
     /// Maximum scrypt `p`.
     pub max_scrypt_p: u32,
+    /// Maximum scrypt CPU work [`ScryptParams::work`] = `N·r·p`.
+    pub max_scrypt_work: u64,
     /// Maximum PBKDF2 iteration count.
     pub max_pbkdf2_iterations: u32,
 }
 
 impl Default for KdfLimits {
-    /// 1 GiB of scrypt memory (N = 2^20 at r = 8), p <= 16, PBKDF2 <= 10^7 iterations.
+    /// * memory: 1 GiB for the ROMix table (`N = 2^20` at `r = 8`, the largest `keystore
+    ///   export` writes) plus 1 MiB for the `B` and `T` buffers, which the `r` and `p` caps
+    ///   below keep under 72 KiB;
+    /// * `r <= 32` (every common wallet uses 8), `p <= 16`;
+    /// * work `N·r·p <= 2^24`, 8x geth's standard `N = 2^18, r = 8, p = 1`;
+    /// * PBKDF2 `c <= 10^7`.
     fn default() -> Self {
         Self {
-            max_scrypt_memory: 1 << 30,
+            max_scrypt_memory: (1 << 30) + (1 << 20),
+            max_scrypt_r: 32,
             max_scrypt_p: 16,
+            max_scrypt_work: 1 << 24,
             max_pbkdf2_iterations: 10_000_000,
         }
+    }
+}
+
+impl KdfLimits {
+    /// Checks scrypt parameters against every bound. Pure arithmetic: nothing is allocated.
+    pub fn check_scrypt(&self, params: &ScryptParams) -> Result<(), KeystoreError> {
+        if params.r > self.max_scrypt_r {
+            return Err(KeystoreError::KdfTooExpensive(format!(
+                "scrypt r = {}, limit {}",
+                params.r, self.max_scrypt_r
+            )));
+        }
+        if params.p > self.max_scrypt_p {
+            return Err(KeystoreError::KdfTooExpensive(format!(
+                "scrypt p = {}, limit {}",
+                params.p, self.max_scrypt_p
+            )));
+        }
+        let memory = params.memory_bytes();
+        if memory > u128::from(self.max_scrypt_memory) {
+            return Err(KeystoreError::KdfTooExpensive(format!(
+                "scrypt needs {memory} bytes (128*r*(N+p+2)), limit {}",
+                self.max_scrypt_memory
+            )));
+        }
+        let work = params.work();
+        if work > u128::from(self.max_scrypt_work) {
+            return Err(KeystoreError::KdfTooExpensive(format!(
+                "scrypt work N*r*p = {work}, limit {}",
+                self.max_scrypt_work
+            )));
+        }
+        Ok(())
     }
 }
 
@@ -384,19 +442,7 @@ pub fn decrypt(
     let expected_mac: [u8; 32] = hex::decode_array(&raw.crypto.mac).map_err(bad_hex("mac"))?;
     let derived = match kdf {
         Kdf::Scrypt(params, salt) => {
-            let memory = params.memory_bytes();
-            if memory > u128::from(limits.max_scrypt_memory) {
-                return Err(KeystoreError::KdfTooExpensive(format!(
-                    "scrypt needs {memory} bytes, limit {}",
-                    limits.max_scrypt_memory
-                )));
-            }
-            if params.p > limits.max_scrypt_p {
-                return Err(KeystoreError::KdfTooExpensive(format!(
-                    "scrypt p = {}, limit {}",
-                    params.p, limits.max_scrypt_p
-                )));
-            }
+            limits.check_scrypt(&params)?;
             derive_scrypt(password, &salt, &params)?
         }
         Kdf::Pbkdf2(c, salt) => {
@@ -605,5 +651,69 @@ mod tests {
             decrypt("{}", b"pw", &KdfLimits::default()),
             Err(KeystoreError::InvalidJson(_))
         ));
+    }
+
+    fn with_scrypt(json: &str, n: u64, r: u32, p: u32) -> String {
+        json.replace("\"n\": 4096", &format!("\"n\": {n}"))
+            .replace("\"r\": 8", &format!("\"r\": {r}"))
+            .replace("\"p\": 6", &format!("\"p\": {p}"))
+    }
+
+    fn too_expensive(json: &str) -> String {
+        match decrypt(json, b"pw", &KdfLimits::default()) {
+            Err(KeystoreError::KdfTooExpensive(why)) => why,
+            other => panic!("expected KdfTooExpensive, got {:?}", other.map(|_| ())),
+        }
+    }
+
+    /// Regression: the memory bound used to count only scrypt's ROMix table `V = 128·r·N`.
+    /// A keystore with a tiny `N` and a huge `r` passed it while scrypt also allocated
+    /// `B = 128·r·p` (here 2 GiB) and ran for most of a minute. Every one of these files must
+    /// now be refused by arithmetic alone, before scrypt allocates anything.
+    #[test]
+    fn small_n_large_r_and_p_cannot_bypass_the_memory_bound() {
+        let key = PrivateKey::from_bytes(&[9; 32]).unwrap();
+        let json = encrypt(&key, b"pw", ScryptParams::LIGHT, &rnd()).unwrap();
+        // The reviewer's proof of concept: V = 512 MiB "passed", B = 2 GiB was allocated anyway.
+        let poc = with_scrypt(&json, 4, 1 << 20, 16);
+        assert!(too_expensive(&poc).contains("r = 1048576"));
+        // N = 2, r = 2^22, p = 16 counted as exactly 1 GiB under the old rule.
+        too_expensive(&with_scrypt(&json, 2, 1 << 22, 16));
+
+        let limits = KdfLimits {
+            max_scrypt_r: u32::MAX,
+            max_scrypt_work: u64::MAX,
+            ..KdfLimits::default()
+        };
+        let params = |log_n: u8, r: u32, p: u32| ScryptParams { log_n, r, p };
+        // With the r cap lifted, the true-footprint memory bound alone still refuses the PoC.
+        assert!(matches!(
+            limits.check_scrypt(&params(2, 1 << 20, 16)),
+            Err(KeystoreError::KdfTooExpensive(why)) if why.contains("128*r*(N+p+2)")
+        ));
+        // N = 2^20, r = 8: V alone is exactly 1 GiB. p = 16 adds 16 KiB of B: still within the
+        // 1 MiB headroom, so it is the work bound that refuses it, not the memory bound.
+        assert_eq!(params(20, 8, 1).memory_bytes(), 128 * 8 * ((1 << 20) + 3));
+        assert!(limits.check_scrypt(&params(20, 8, 16)).is_ok());
+        assert!(matches!(
+            KdfLimits::default().check_scrypt(&params(20, 8, 16)),
+            Err(KeystoreError::KdfTooExpensive(why)) if why.contains("work")
+        ));
+        // Each bound fires on its own.
+        let only_r = too_expensive(&with_scrypt(&json, 2, 64, 1));
+        assert!(only_r.contains("r = 64"), "{only_r}");
+        let only_work = too_expensive(&with_scrypt(&json, 1 << 18, 8, 16));
+        assert!(only_work.contains("work"), "{only_work}");
+        let only_memory = too_expensive(&with_scrypt(&json, 1 << 21, 8, 1));
+        assert!(only_memory.contains("bytes"), "{only_memory}");
+        // The largest keystore `keysmith keystore export` writes (N = 2^20, r = 8, p = 1) and
+        // geth's standard and light parameters all stay within the default limits.
+        for ok in [
+            params(20, 8, 1),
+            ScryptParams::STANDARD,
+            ScryptParams::LIGHT,
+        ] {
+            assert_eq!(KdfLimits::default().check_scrypt(&ok), Ok(()), "{ok:?}");
+        }
     }
 }

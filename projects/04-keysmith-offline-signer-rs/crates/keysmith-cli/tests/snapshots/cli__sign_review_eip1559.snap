@@ -2,14 +2,16 @@
 source: crates/keysmith-cli/tests/cli.rs
 expression: review
 ---
---- keysmith sign: review ---
+--- keysmith sign: review (nothing is signed until you confirm) ---
 type            EIP-1559 on chain 1
 from            0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 to              0x70997970C51812dc3A010C7d01b50e0d17dc79C8
 value           1000000000000000000 wei (1 ETH)
 nonce           0
-input           0 bytes
 gas limit       21000
 fee cap         30000000000 wei/gas (30 gwei)
+priority fee    1000000000 wei/gas (1 gwei)
 max cost        1000630000000000000 wei (1.00063 ETH)
+input           0 bytes
+policy          default (no --policy file): denies contract creation, pre-EIP-155 legacy and chainId-0 delegations
 findings        none

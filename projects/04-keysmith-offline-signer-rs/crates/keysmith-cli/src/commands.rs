@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: MIT
 //! Command implementations. Each returns the text to print on stdout; diagnostics go to stderr.
+//!
+//! Every signing command follows the same order: parse and validate the request, apply the
+//! policy (refusing with exit code 3 on a violation), print the review to stderr, ask for the
+//! operator's confirmation ([`confirm`]), and only then sign and write the output.
 
 use crate::cli::{
     DecodeArgs, DeriveArgs, ExecutorArg, HashTypedDataArgs, KeystoreExportArgs, MessageInput,
-    PermitArgs, SignArgs, SignAuthArgs, SignFormat, SignMessageArgs, SignTypedDataArgs,
+    PermitArgs, PolicyArgs, SignArgs, SignAuthArgs, SignFormat, SignMessageArgs, SignTypedDataArgs,
     VerifyMessageArgs,
 };
+use crate::confirm::confirm;
 use crate::error::CliError;
 use crate::keysource::{load_key, load_mnemonic, read_password_file};
 use crate::render;
@@ -16,7 +21,7 @@ use keysmith_core::eip712::TypedData;
 use keysmith_core::envelope::{self, SignedEnvelope, UnsignedEnvelope};
 use keysmith_core::keystore::{self, KeystoreRandomness, ScryptParams};
 use keysmith_core::permit::Permit;
-use keysmith_core::policy::Policy;
+use keysmith_core::policy::{Policy, Violation};
 use keysmith_core::report;
 use keysmith_core::tx::SignedTransaction;
 use keysmith_core::units::parse_units;
@@ -44,11 +49,31 @@ fn read_input(path: &Path) -> Result<String, CliError> {
     std::fs::read_to_string(path).map_err(|e| CliError::io("input", path, &e))
 }
 
+/// Whether a file written by keysmith holds secret material.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Contents {
+    /// A mnemonic or keystore: created owner-only (mode 0600 on Unix).
+    Secret,
+    /// Anything else (signed envelopes): default permissions.
+    Public,
+}
+
 /// Creates `path` exclusively (never overwrites) and writes `contents`.
-fn write_new_file(path: &Path, contents: &[u8]) -> Result<(), CliError> {
-    let mut f = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
+///
+/// Secret files are created with mode 0600 on Unix, as `cast` and geth create keystores, so a
+/// plaintext mnemonic is never world-readable for even a moment (a later `chmod` would leave
+/// that window open). On Windows the file inherits the directory's ACL.
+fn write_new_file(path: &Path, contents: &[u8], kind: Contents) -> Result<(), CliError> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    if kind == Contents::Secret {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    #[cfg(not(unix))]
+    let _ = kind;
+    let mut f = options
         .open(path)
         .map_err(|e| CliError::Input(format!("cannot create {}: {e}", path.display())))?;
     f.write_all(contents)
@@ -59,11 +84,74 @@ fn to_pretty(v: &impl serde::Serialize) -> Result<String, CliError> {
     serde_json::to_string_pretty(v).map_err(|e| CliError::Core(e.to_string()))
 }
 
-fn load_policy(path: Option<&Path>) -> Result<Option<Policy>, CliError> {
-    match path {
-        Some(p) => Ok(Some(Policy::from_json_str(&read_input(p)?)?)),
-        None => Ok(None),
+/// The kind of request a policy is applied to; it decides what the review says the built-in
+/// default policy enforces.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Scope {
+    /// `keysmith sign`.
+    Transaction,
+    /// `keysmith sign-auth`.
+    Authorization,
+    /// `keysmith sign-typed-data` and `keysmith permit`.
+    TypedData,
+}
+
+impl Scope {
+    fn default_line(self) -> &'static str {
+        match self {
+            Scope::Transaction => {
+                "default (no --policy file): denies contract creation, pre-EIP-155 legacy and \
+                 chainId-0 delegations"
+            }
+            Scope::Authorization => "default (no --policy file): denies chainId-0 delegations",
+            Scope::TypedData => {
+                "default (no --policy file): no typed-data limits; restrict with allowedChainIds, \
+                 allowedVerifyingContracts, allowedSpenders and maxPermitValue"
+            }
+        }
     }
+
+    fn none_line(self) -> &'static str {
+        match self {
+            Scope::Transaction => "NONE (--no-policy): only consensus checks apply",
+            Scope::Authorization | Scope::TypedData => "NONE (--no-policy)",
+        }
+    }
+}
+
+/// Resolves the policy of a signing command, with the line the review shows for it.
+///
+/// No flag means [`Policy::default`] (the empty policy), so its deny-by-default booleans hold
+/// whether or not the operator wrote a policy file; `--no-policy` is the explicit escape hatch.
+fn load_policy(args: &PolicyArgs, scope: Scope) -> Result<(Option<Policy>, String), CliError> {
+    if let Some(path) = &args.policy {
+        let policy = Policy::from_json_str(&read_input(path)?)?;
+        return Ok((Some(policy), format!("{}", path.display())));
+    }
+    if args.no_policy {
+        return Ok((None, scope.none_line().to_owned()));
+    }
+    Ok((Some(Policy::default()), scope.default_line().to_owned()))
+}
+
+fn refuse_violations(violations: &[Violation]) -> Result<(), CliError> {
+    if violations.is_empty() {
+        return Ok(());
+    }
+    let msg = violations
+        .iter()
+        .map(|v| format!("[{}] {}", v.rule, v.message))
+        .collect::<Vec<_>>()
+        .join("; ");
+    Err(CliError::Refused(format!("policy violation: {msg}")))
+}
+
+/// Seconds since the Unix epoch from the offline machine's clock (for deadline warnings).
+fn unix_now() -> Option<u64> {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_secs())
 }
 
 /// `keysmith mnemonic new`.
@@ -86,7 +174,7 @@ pub fn mnemonic_new(words: usize, out: Option<&Path>) -> Result<String, CliError
         Some(path) => {
             let mut text = Zeroizing::new(mnemonic.phrase().to_owned());
             text.push('\n');
-            write_new_file(path, text.as_bytes())?;
+            write_new_file(path, text.as_bytes(), Contents::Secret)?;
             eprintln!("wrote a {words}-word mnemonic to {}", path.display());
             Ok(String::new())
         }
@@ -176,7 +264,7 @@ pub fn keystore_export(args: &KeystoreExportArgs) -> Result<String, CliError> {
         ..ScryptParams::STANDARD
     };
     let json = keystore::encrypt(&key, password.as_bytes(), params, &randomness)?;
-    write_new_file(&args.out, json.as_bytes())?;
+    write_new_file(&args.out, json.as_bytes(), Contents::Secret)?;
     Ok(format!("{}\n", key.address()))
 }
 
@@ -186,23 +274,22 @@ pub fn keystore_inspect(path: &Path) -> Result<String, CliError> {
     Ok(format!("{}\n", to_pretty(&info)?))
 }
 
-/// `keysmith sign`.
+/// `keysmith sign`: validate and policy-check the envelope, print the review, confirm, sign.
 pub fn sign(args: &SignArgs) -> Result<String, CliError> {
     let env = UnsignedEnvelope::from_json_str(&read_input(&args.envelope)?)?;
-    let policy = load_policy(args.policy.as_deref())?;
+    let (policy, policy_line) = load_policy(&args.policy, Scope::Transaction)?;
     let key = load_key(&args.key)?;
-    let outcome = envelope::sign_envelope(&env, &key, policy.as_ref())?;
-    eprint!(
-        "{}",
-        render::sign_review(&outcome.signed.tx, &key.address(), &outcome.warnings)
-    );
+    let plan = envelope::plan_envelope(&env, &key, policy.as_ref())?;
+    eprint!("{}", render::sign_review(&plan, &policy_line));
+    confirm(args.confirm.yes)?;
+    let outcome = plan.sign(&key)?;
     let text = match args.format {
         SignFormat::Json => format!("{}\n", to_pretty(&outcome.envelope)?),
         SignFormat::Raw => format!("{}\n", outcome.envelope.raw),
     };
     match &args.out {
         Some(path) => {
-            write_new_file(path, text.as_bytes())?;
+            write_new_file(path, text.as_bytes(), Contents::Public)?;
             Ok(format!("{}\n", outcome.envelope.hash))
         }
         None => Ok(text),
@@ -225,24 +312,16 @@ pub fn sign_auth(args: &SignAuthArgs) -> Result<String, CliError> {
         address,
         nonce,
     };
-    if auth.is_any_chain() {
-        eprintln!(
-            "WARNING: chainId 0 makes this delegation valid on EVERY EVM chain; anyone can replay it \
-             wherever your nonce matches."
-        );
-    }
-    if let Some(policy) = load_policy(args.policy.as_deref())? {
-        let violations = policy.check_authorization(&auth);
-        if !violations.is_empty() {
-            let msg = violations
-                .iter()
-                .map(|v| format!("[{}] {}", v.rule, v.message))
-                .collect::<Vec<_>>()
-                .join("; ");
-            return Err(CliError::Refused(format!("policy violation: {msg}")));
-        }
+    let (policy, policy_line) = load_policy(&args.policy, Scope::Authorization)?;
+    if let Some(policy) = &policy {
+        refuse_violations(&policy.check_authorization(&auth))?;
     }
     let key = load_key(&args.key)?;
+    eprint!(
+        "{}",
+        render::auth_review(&auth, &key.address(), executor, args.nonce, &policy_line)
+    );
+    confirm(args.confirm.yes)?;
     let signed = auth.sign(&key)?;
     if args.json {
         return Ok(format!(
@@ -272,9 +351,14 @@ fn message_bytes(input: &MessageInput) -> Result<Vec<u8>, CliError> {
 }
 
 /// `keysmith sign-message`.
+///
+/// There is no policy for EIP-191 messages: `personal_sign` has no chain id, contract or
+/// amount to constrain. The review shows the exact bytes (escaped) and the digest.
 pub fn sign_message(args: &SignMessageArgs) -> Result<String, CliError> {
     let message = message_bytes(&args.input)?;
     let key = load_key(&args.key)?;
+    eprint!("{}", render::message_review(&message, &key.address()));
+    confirm(args.confirm.yes)?;
     let sig = eip191::sign_personal_message(&key, &message)?;
     Ok(format!("{}\n", hex::encode_prefixed(&sig.to_rsv_bytes())))
 }
@@ -316,8 +400,26 @@ pub fn hash_typed_data(args: &HashTypedDataArgs) -> Result<String, CliError> {
 /// `keysmith sign-typed-data`.
 pub fn sign_typed_data(args: &SignTypedDataArgs) -> Result<String, CliError> {
     let td = load_typed_data(&args.file)?;
+    // Hashing validates the whole document (types, values, depth) before anything else.
     let digest = td.signing_hash()?;
+    let (policy, policy_line) = load_policy(&args.policy, Scope::TypedData)?;
+    if let Some(policy) = &policy {
+        refuse_violations(&policy.check_typed_data(&td)?)?;
+    }
     let key = load_key(&args.key)?;
+    let findings = td.review_findings(unix_now())?;
+    eprint!(
+        "{}",
+        render::typed_data_review(
+            "sign-typed-data",
+            &td,
+            &key.address(),
+            &digest,
+            &findings,
+            &policy_line
+        )?
+    );
+    confirm(args.confirm.yes)?;
     let sig = key.sign_hash(&digest)?;
     let packed = hex::encode_prefixed(&sig.to_rsv_bytes());
     if args.json {
@@ -336,8 +438,10 @@ pub fn sign_typed_data(args: &SignTypedDataArgs) -> Result<String, CliError> {
     Ok(format!("{packed}\n"))
 }
 
-/// `keysmith permit`.
+/// `keysmith permit`: an ERC-2612 permit, reviewed and policy-checked as the equivalent typed
+/// data.
 pub fn permit(args: &PermitArgs) -> Result<String, CliError> {
+    let (policy, policy_line) = load_policy(&args.policy, Scope::TypedData)?;
     let key = load_key(&args.key)?;
     let permit = Permit {
         token_name: args.name.clone(),
@@ -350,6 +454,23 @@ pub fn permit(args: &PermitArgs) -> Result<String, CliError> {
         nonce: U256::parse(&args.nonce)?,
         deadline: U256::parse(&args.deadline)?,
     };
+    let td = permit.typed_data()?;
+    if let Some(policy) = &policy {
+        refuse_violations(&policy.check_typed_data(&td)?)?;
+    }
+    let findings = td.review_findings(unix_now())?;
+    eprint!(
+        "{}",
+        render::typed_data_review(
+            "permit",
+            &td,
+            &key.address(),
+            &permit.signing_hash(),
+            &findings,
+            &policy_line
+        )?
+    );
+    confirm(args.confirm.yes)?;
     let signed = permit.sign(&key)?;
     let packed = hex::encode_prefixed(&signed.signature.to_rsv_bytes());
     if args.json {

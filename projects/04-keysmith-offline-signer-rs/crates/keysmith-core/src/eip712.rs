@@ -13,10 +13,19 @@
 //! The parser is deliberately strict because a signer must hash exactly what the operator
 //! reviewed: unknown types, duplicate members, missing values, **extra message fields that the
 //! type does not declare** (they would be displayed but not signed), wrong `bytesN` lengths,
-//! out-of-range integers and lossy JSON floats are all errors. When `primaryType` is
-//! `EIP712Domain` the digest omits the message hash (MetaMask / alloy compatibility).
+//! out-of-range integers and lossy JSON floats are all errors. Type names follow the Solidity
+//! grammar exactly: bit widths and `bytesN` lengths are plain ASCII digits without a sign or a
+//! leading zero (`uint+8` and `bytes01` are errors, not aliases), and member names must be
+//! identifiers. When `primaryType` is `EIP712Domain` the digest omits the message hash
+//! (MetaMask / alloy compatibility).
+//!
+//! Hostile inputs are bounded before any recursive work: at most [`MAX_TYPES`] declared types,
+//! at most [`MAX_DEPTH`] array dimensions per member type, and at most [`MAX_DEPTH`] levels of
+//! struct / array nesting while hashing. Dependency collection is iterative, so a long chain
+//! of struct types cannot exhaust the stack.
 
 use crate::address::Address;
+use crate::gas::{Finding, Severity};
 use crate::hash::keccak256;
 use crate::hex;
 use crate::u256::U256;
@@ -26,8 +35,12 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use serde_json::{Map, Value};
 
-/// Maximum struct / array nesting while hashing values.
+/// Maximum struct / array nesting while hashing values, and maximum number of array
+/// dimensions in one member type.
 pub const MAX_DEPTH: usize = 64;
+
+/// Maximum number of struct types a document may declare (`EIP712Domain` included).
+pub const MAX_TYPES: usize = 256;
 
 /// The implicit domain members, in canonical order, used when `types.EIP712Domain` is absent.
 const CANONICAL_DOMAIN: [(&str, &str); 5] = [
@@ -85,6 +98,17 @@ pub enum Eip712Error {
     /// Nesting exceeds [`MAX_DEPTH`].
     #[error("typed data nested deeper than {0} levels")]
     TooDeep(usize),
+    /// More than [`MAX_TYPES`] struct types are declared.
+    #[error("typed data declares more than {0} types")]
+    TooManyTypes(usize),
+    /// A struct member name is not an identifier.
+    #[error("struct `{ty}` has a member named `{member}`, which is not an identifier")]
+    InvalidMemberName {
+        /// Struct name.
+        ty: String,
+        /// Offending member name.
+        member: String,
+    },
 }
 
 fn invalid(ty: &str, reason: impl Into<String>) -> Eip712Error {
@@ -107,14 +131,20 @@ enum Kind<'a> {
     Struct(&'a str),
 }
 
+/// A decimal number written as Solidity does: ASCII digits only, no sign, no leading zero
+/// (Rust's integer parser alone would accept `+8` and `01`).
+fn plain_decimal(s: &str) -> Option<usize> {
+    if s.is_empty() || s.len() > 5 || s.starts_with('0') || !s.bytes().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    s.parse().ok()
+}
+
 fn parse_bits(s: &str) -> Option<u32> {
     if s.is_empty() {
         return Some(256);
     }
-    if s.starts_with('0') {
-        return None;
-    }
-    let bits: u32 = s.parse().ok()?;
+    let bits = u32::try_from(plain_decimal(s)?).ok()?;
     (bits.is_multiple_of(8) && (8..=256).contains(&bits)).then_some(bits)
 }
 
@@ -149,10 +179,74 @@ fn classify(ty: &str) -> Option<Kind<'_>> {
         return parse_bits(bits).map(Kind::Int);
     }
     if let Some(n) = ty.strip_prefix("bytes") {
-        let n: usize = n.parse().ok()?;
+        let n = plain_decimal(n)?;
         return (1..=32).contains(&n).then_some(Kind::FixedBytes(n));
     }
     Some(Kind::Struct(ty))
+}
+
+/// One hashed leaf of a typed-data value, as shown in the operator review.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Field {
+    /// Path from the root object, e.g. `from.wallet` or `items[2].amount`.
+    pub path: String,
+    /// Declared EIP-712 type of the leaf.
+    pub ty: String,
+    /// The value exactly as it is hashed.
+    pub value: FieldValue,
+}
+
+/// The value of a typed-data leaf.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FieldValue {
+    /// `uint8` .. `uint256`.
+    Uint(U256),
+    /// `int8` .. `int256`, as sign and magnitude.
+    Int {
+        /// `true` for values below zero.
+        negative: bool,
+        /// Absolute value.
+        magnitude: U256,
+    },
+    /// `bool`.
+    Bool(bool),
+    /// `address`.
+    Address(Address),
+    /// `bytes` / `bytes1` .. `bytes32`.
+    Bytes(Vec<u8>),
+    /// `string`: untrusted text from the document.
+    Text(String),
+    /// An empty array (it is hashed, but has no leaves).
+    EmptyArray,
+}
+
+/// Last path segments treated as expiry timestamps (compared case-insensitively).
+const DEADLINE_NAMES: [&str; 7] = [
+    "deadline",
+    "expiry",
+    "expiration",
+    "sigdeadline",
+    "validuntil",
+    "validbefore",
+    "endtime",
+];
+
+/// A deadline further in the future than this (relative to the signer's clock) is flagged.
+pub const FAR_DEADLINE_SECS: u64 = 365 * 24 * 60 * 60;
+
+fn uint_max(bits: u32) -> U256 {
+    let mut b = [0u8; 32];
+    // bits is a multiple of 8 in 8..=256 (parse_bits), so this is a whole number of bytes.
+    let bytes = (bits / 8) as usize;
+    for byte in b.iter_mut().skip(32 - bytes) {
+        *byte = 0xff;
+    }
+    U256::from_be_bytes(b)
+}
+
+fn last_segment(path: &str) -> &str {
+    let tail = path.rsplit('.').next().unwrap_or(path);
+    tail.split('[').next().unwrap_or(tail)
 }
 
 fn is_reserved(name: &str) -> bool {
@@ -218,6 +312,9 @@ impl TypedData {
             }
         }
 
+        if raw_types.len() > MAX_TYPES {
+            return Err(Eip712Error::TooManyTypes(MAX_TYPES));
+        }
         let mut types = BTreeMap::new();
         for (name, members) in &raw_types {
             if is_reserved(name) || !valid_ident(name) {
@@ -236,6 +333,12 @@ impl TypedData {
                         "members of `{name}` need string `name` and `type`"
                     )));
                 };
+                if !valid_ident(field_name) {
+                    return Err(Eip712Error::InvalidMemberName {
+                        ty: name.clone(),
+                        member: field_name.to_string(),
+                    });
+                }
                 if !seen.insert(field_name.to_string()) {
                     return Err(Eip712Error::DuplicateMember {
                         ty: name.clone(),
@@ -277,14 +380,26 @@ impl TypedData {
         Ok(())
     }
 
+    /// Validates a member type iteratively: one loop step per array dimension, bounded by
+    /// [`MAX_DEPTH`] (a type with 20,000 `[]` suffixes used to recurse once per suffix).
     fn check_type(&self, ty: &str) -> Result<(), Eip712Error> {
-        match classify(ty) {
-            None => Err(Eip712Error::UnknownType(ty.to_string())),
-            Some(Kind::Array { inner, .. }) => self.check_type(inner),
-            Some(Kind::Struct(name)) if !self.types.contains_key(name) => {
-                Err(Eip712Error::UnknownType(ty.to_string()))
+        let mut t = ty;
+        let mut dims = 0usize;
+        loop {
+            match classify(t) {
+                None => return Err(Eip712Error::UnknownType(ty.to_string())),
+                Some(Kind::Array { inner, .. }) => {
+                    dims += 1;
+                    if dims > MAX_DEPTH {
+                        return Err(Eip712Error::TooDeep(MAX_DEPTH));
+                    }
+                    t = inner;
+                }
+                Some(Kind::Struct(name)) if !self.types.contains_key(name) => {
+                    return Err(Eip712Error::UnknownType(ty.to_string()));
+                }
+                Some(_) => return Ok(()),
             }
-            Some(_) => Ok(()),
         }
     }
 
@@ -321,12 +436,17 @@ impl TypedData {
         }
     }
 
+    /// Transitive struct dependencies of `name`, collected with an explicit work list (a
+    /// chain of thousands of struct types used to recurse once per link).
     fn collect_deps(&self, name: &str, deps: &mut BTreeSet<String>) -> Result<(), Eip712Error> {
-        for (_, ty) in self.members(name)? {
-            if let Some(dep) = Self::base_struct(ty)
-                && deps.insert(dep.to_string())
-            {
-                self.collect_deps(dep, deps)?;
+        let mut pending: Vec<&str> = alloc::vec![name];
+        while let Some(current) = pending.pop() {
+            for (_, ty) in self.members(current)? {
+                if let Some(dep) = Self::base_struct(ty)
+                    && deps.insert(dep.to_string())
+                {
+                    pending.push(dep);
+                }
             }
         }
         Ok(())
@@ -435,20 +555,9 @@ impl TypedData {
                 out[..n].copy_from_slice(&bytes);
                 Ok(out)
             }
-            Kind::Bool => {
-                let b = match v {
-                    Value::Bool(b) => *b,
-                    Value::String(s) if s == "true" => true,
-                    Value::String(s) if s == "false" => false,
-                    _ => return Err(invalid(ty, "expected a boolean")),
-                };
-                Ok(U256::from_u64(u64::from(b)).to_be_bytes())
-            }
+            Kind::Bool => Ok(U256::from_u64(u64::from(bool_value(ty, v)?)).to_be_bytes()),
             Kind::Address => {
-                let s = v
-                    .as_str()
-                    .ok_or_else(|| invalid(ty, "expected a hex string"))?;
-                let a = Address::parse(s).map_err(|e| invalid(ty, e.to_string()))?;
+                let a = address_value(ty, v)?;
                 let mut out = [0u8; 32];
                 out[12..].copy_from_slice(&a.0);
                 Ok(out)
@@ -503,6 +612,213 @@ impl TypedData {
             .and_then(Value::as_str)
             .and_then(|s| Address::parse(s).ok())
     }
+
+    /// The hashed leaves of the domain, in declared member order.
+    pub fn domain_fields(&self) -> Result<Vec<Field>, Eip712Error> {
+        let mut out = Vec::new();
+        self.flatten_struct("EIP712Domain", &self.domain, "", 0, &mut out)?;
+        Ok(out)
+    }
+
+    /// The hashed leaves of the message, in declared member order (none when `primaryType`
+    /// is `EIP712Domain`, whose digest omits the message).
+    pub fn message_fields(&self) -> Result<Vec<Field>, Eip712Error> {
+        let mut out = Vec::new();
+        if self.primary_type != "EIP712Domain" {
+            self.flatten_struct(&self.primary_type, &self.message, "", 0, &mut out)?;
+        }
+        Ok(out)
+    }
+
+    /// Operator warnings that do not make the document invalid:
+    ///
+    /// * `typed-data-no-chain-id`: the domain has no `chainId`, so the signature is valid on
+    ///   every chain where the verifying contract accepts it;
+    /// * `typed-data-max-uint`: a `uint32`..`uint256` leaf holds its type's maximum, the usual
+    ///   encoding of an UNLIMITED allowance or of a permit that never expires;
+    /// * `typed-data-far-deadline`: with `now` (Unix seconds from the signer's clock), a
+    ///   deadline-like member more than [`FAR_DEADLINE_SECS`] away.
+    pub fn review_findings(&self, now: Option<u64>) -> Result<Vec<Finding>, Eip712Error> {
+        let mut out = Vec::new();
+        if self.domain.get("chainId").is_none() {
+            out.push(Finding {
+                severity: Severity::Warning,
+                code: "typed-data-no-chain-id",
+                message: "the domain has no chainId: the signature is valid on every chain where \
+                          the verifying contract accepts it"
+                    .into(),
+            });
+        }
+        let mut leaves = self.domain_fields()?;
+        leaves.extend(self.message_fields()?);
+        for f in &leaves {
+            let (FieldValue::Uint(v), Some(Kind::Uint(bits))) = (&f.value, classify(&f.ty)) else {
+                continue;
+            };
+            if bits >= 32 && *v == uint_max(bits) {
+                out.push(Finding {
+                    severity: Severity::Warning,
+                    code: "typed-data-max-uint",
+                    message: format!(
+                        "`{}` is the maximum {} (2^{bits}-1): typically an UNLIMITED allowance or \
+                         a signature that never expires",
+                        f.path, f.ty
+                    ),
+                });
+                continue;
+            }
+            let name = last_segment(&f.path).to_ascii_lowercase();
+            if let Some(now) = now
+                && DEADLINE_NAMES.contains(&name.as_str())
+                && *v > U256::from_u64(now.saturating_add(FAR_DEADLINE_SECS))
+            {
+                out.push(Finding {
+                    severity: Severity::Warning,
+                    code: "typed-data-far-deadline",
+                    message: format!(
+                        "`{}` = {v} is more than a year after this machine's clock ({now}): the \
+                         signature stays usable until then",
+                        f.path
+                    ),
+                });
+            }
+        }
+        Ok(out)
+    }
+
+    fn flatten_struct(
+        &self,
+        name: &str,
+        value: &Value,
+        prefix: &str,
+        depth: usize,
+        out: &mut Vec<Field>,
+    ) -> Result<(), Eip712Error> {
+        if depth > MAX_DEPTH {
+            return Err(Eip712Error::TooDeep(MAX_DEPTH));
+        }
+        let obj = value
+            .as_object()
+            .ok_or_else(|| invalid(name, "expected a JSON object"))?;
+        let members = self.members(name)?;
+        for key in obj.keys() {
+            if !members.iter().any(|(n, _)| n == key) {
+                return Err(Eip712Error::UndeclaredMember {
+                    ty: name.to_string(),
+                    member: key.clone(),
+                });
+            }
+        }
+        for (member, ty) in members {
+            let v = obj.get(member).ok_or_else(|| Eip712Error::MissingValue {
+                ty: name.to_string(),
+                member: member.clone(),
+            })?;
+            let path = if prefix.is_empty() {
+                member.clone()
+            } else {
+                format!("{prefix}.{member}")
+            };
+            self.flatten_value(ty, v, path, depth + 1, out)?;
+        }
+        Ok(())
+    }
+
+    fn flatten_value(
+        &self,
+        ty: &str,
+        v: &Value,
+        path: String,
+        depth: usize,
+        out: &mut Vec<Field>,
+    ) -> Result<(), Eip712Error> {
+        if depth > MAX_DEPTH {
+            return Err(Eip712Error::TooDeep(MAX_DEPTH));
+        }
+        let kind = classify(ty).ok_or_else(|| Eip712Error::UnknownType(ty.to_string()))?;
+        let value = match kind {
+            Kind::Array { inner, len } => {
+                let items = v
+                    .as_array()
+                    .ok_or_else(|| invalid(ty, "expected a JSON array"))?;
+                if let Some(expected) = len
+                    && items.len() != expected
+                {
+                    return Err(invalid(
+                        ty,
+                        format!("expected {expected} elements, got {}", items.len()),
+                    ));
+                }
+                if items.is_empty() {
+                    out.push(Field {
+                        path,
+                        ty: ty.to_string(),
+                        value: FieldValue::EmptyArray,
+                    });
+                    return Ok(());
+                }
+                for (i, item) in items.iter().enumerate() {
+                    self.flatten_value(inner, item, format!("{path}[{i}]"), depth + 1, out)?;
+                }
+                return Ok(());
+            }
+            Kind::Struct(name) => return self.flatten_struct(name, v, &path, depth, out),
+            Kind::String => FieldValue::Text(
+                v.as_str()
+                    .ok_or_else(|| invalid(ty, "expected a string"))?
+                    .to_string(),
+            ),
+            Kind::Bytes => FieldValue::Bytes(hex_value(ty, v)?),
+            Kind::FixedBytes(n) => {
+                let bytes = hex_value(ty, v)?;
+                if bytes.len() != n {
+                    return Err(invalid(
+                        ty,
+                        format!("expected {n} bytes, got {}", bytes.len()),
+                    ));
+                }
+                FieldValue::Bytes(bytes)
+            }
+            Kind::Bool => FieldValue::Bool(bool_value(ty, v)?),
+            Kind::Address => FieldValue::Address(address_value(ty, v)?),
+            Kind::Uint(bits) => {
+                let n = unsigned_value(ty, v)?;
+                if n.bits() > bits {
+                    return Err(invalid(ty, format!("value does not fit in {bits} bits")));
+                }
+                FieldValue::Uint(n)
+            }
+            Kind::Int(bits) => {
+                let (negative, magnitude) = signed_parts(ty, v, bits)?;
+                FieldValue::Int {
+                    negative: negative && !magnitude.is_zero(),
+                    magnitude,
+                }
+            }
+        };
+        out.push(Field {
+            path,
+            ty: ty.to_string(),
+            value,
+        });
+        Ok(())
+    }
+}
+
+fn bool_value(ty: &str, v: &Value) -> Result<bool, Eip712Error> {
+    match v {
+        Value::Bool(b) => Ok(*b),
+        Value::String(s) if s == "true" => Ok(true),
+        Value::String(s) if s == "false" => Ok(false),
+        _ => Err(invalid(ty, "expected a boolean")),
+    }
+}
+
+fn address_value(ty: &str, v: &Value) -> Result<Address, Eip712Error> {
+    let s = v
+        .as_str()
+        .ok_or_else(|| invalid(ty, "expected a hex string"))?;
+    Address::parse(s).map_err(|e| invalid(ty, e.to_string()))
 }
 
 fn hex_value(ty: &str, v: &Value) -> Result<Vec<u8>, Eip712Error> {
@@ -528,7 +844,8 @@ fn unsigned_value(ty: &str, v: &Value) -> Result<U256, Eip712Error> {
     }
 }
 
-fn signed_value(ty: &str, v: &Value, bits: u32) -> Result<[u8; 32], Eip712Error> {
+/// Parses an `intN` value into sign and magnitude, enforcing its range.
+fn signed_parts(ty: &str, v: &Value, bits: u32) -> Result<(bool, U256), Eip712Error> {
     let (negative, magnitude) = match v {
         Value::Number(n) => match (n.as_u64(), n.as_i64()) {
             (Some(u), _) => (false, U256::from_u64(u)),
@@ -569,6 +886,11 @@ fn signed_value(ty: &str, v: &Value, bits: u32) -> Result<[u8; 32], Eip712Error>
             format!("value does not fit in {bits} signed bits"),
         ));
     }
+    Ok((negative, magnitude))
+}
+
+fn signed_value(ty: &str, v: &Value, bits: u32) -> Result<[u8; 32], Eip712Error> {
+    let (negative, magnitude) = signed_parts(ty, v, bits)?;
     if !negative || magnitude.is_zero() {
         return Ok(magnitude.to_be_bytes());
     }
@@ -794,5 +1116,179 @@ mod tests {
 
     fn keccak256_concat2(a: &[u8], b: &[u8]) -> [u8; 32] {
         crate::hash::keccak256_concat(&[a, b])
+    }
+
+    /// Regression: type validation recursed once per array dimension and dependency
+    /// collection once per struct link, so a ~40 KB document overflowed the stack and
+    /// aborted the process. Both are now iterative and bounded.
+    #[test]
+    fn hostile_type_shapes_are_errors_not_stack_overflows() {
+        let deep_array = format!("uint256{}", "[]".repeat(20_000));
+        assert_eq!(
+            with(
+                &format!(r#"{{"S":[{{"name":"a","type":"{deep_array}"}}]}}"#),
+                "S",
+                "{}"
+            ),
+            Err(Eip712Error::TooDeep(MAX_DEPTH))
+        );
+        // MAX_DEPTH dimensions are still a valid type; one more is not.
+        let ok = format!("uint8{}", "[]".repeat(MAX_DEPTH));
+        let t = format!(r#"{{"S":[{{"name":"a","type":"{ok}"}}]}}"#);
+        assert!(
+            TypedData::from_json_str(&format!(
+                r#"{{"types":{t},"primaryType":"S","domain":{{}}}}"#
+            ))
+            .is_ok()
+        );
+        let one_more = format!("uint8{}", "[]".repeat(MAX_DEPTH + 1));
+        assert_eq!(
+            with(
+                &format!(r#"{{"S":[{{"name":"a","type":"{one_more}"}}]}}"#),
+                "S",
+                "{}"
+            ),
+            Err(Eip712Error::TooDeep(MAX_DEPTH))
+        );
+
+        // A chain T0 -> T1 -> ... of struct types.
+        let chain = |n: usize| {
+            let mut types = Vec::new();
+            for i in 0..n {
+                let member = if i + 1 < n {
+                    format!(r#"{{"name":"next","type":"T{}"}}"#, i + 1)
+                } else {
+                    String::from(r#"{"name":"v","type":"uint256"}"#)
+                };
+                types.push(format!(r#""T{i}":[{member}]"#));
+            }
+            format!(
+                r#"{{"types":{{{}}},"primaryType":"T0","domain":{{}}}}"#,
+                types.join(",")
+            )
+        };
+        assert_eq!(
+            TypedData::from_json_str(&chain(5_000)),
+            Err(Eip712Error::TooManyTypes(MAX_TYPES))
+        );
+        // Within the cap, a long chain resolves without recursion.
+        let td = TypedData::from_json_str(&chain(MAX_TYPES - 1)).unwrap();
+        let encoded = td.encode_type("T0").unwrap();
+        assert!(encoded.starts_with("T0(T1 next)"));
+        assert_eq!(encoded.matches('(').count(), MAX_TYPES - 1);
+    }
+
+    /// Regression: `uint+8`, `int+256` and `bytes01` were accepted as aliases of `uint8`,
+    /// `int256` and `bytes1` (Rust's integer parser accepts a sign and leading zeros) and the
+    /// malformed string was hashed into encodeType. Member names were never validated.
+    #[test]
+    fn type_names_follow_the_solidity_grammar_exactly() {
+        for bad in [
+            "uint+8", "int+256", "bytes01", "bytes+1", "uint08", "int008", "bytes 1", "uint-8",
+            "bytes٣",
+        ] {
+            assert_eq!(
+                with(
+                    &format!(r#"{{"S":[{{"name":"a","type":"{bad}"}}]}}"#),
+                    "S",
+                    "{}"
+                ),
+                Err(Eip712Error::UnknownType(bad.into())),
+                "{bad}"
+            );
+        }
+        for good in ["uint8", "int256", "bytes1", "bytes32", "uint", "int"] {
+            let t = format!(r#"{{"S":[{{"name":"a","type":"{good}"}}]}}"#);
+            assert!(
+                TypedData::from_json_str(&format!(
+                    r#"{{"types":{t},"primaryType":"S","domain":{{}}}}"#
+                ))
+                .is_ok(),
+                "{good}"
+            );
+        }
+        for bad_member in ["", "a b", "1x", "x-y", "from.wallet", "é"] {
+            assert_eq!(
+                with(
+                    &format!(r#"{{"S":[{{"name":"{bad_member}","type":"uint8"}}]}}"#),
+                    "S",
+                    "{}"
+                ),
+                Err(Eip712Error::InvalidMemberName {
+                    ty: "S".into(),
+                    member: bad_member.into()
+                }),
+                "{bad_member:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn review_fields_and_warnings() {
+        let td = TypedData::from_json_str(MAIL).unwrap();
+        let paths: Vec<_> = td
+            .message_fields()
+            .unwrap()
+            .into_iter()
+            .map(|f| f.path)
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                "from.name",
+                "from.wallet",
+                "to.name",
+                "to.wallet",
+                "contents"
+            ]
+        );
+        let domain = td.domain_fields().unwrap();
+        assert_eq!(domain[2].path, "chainId");
+        assert_eq!(domain[2].value, FieldValue::Uint(U256::ONE));
+        assert!(td.review_findings(Some(0)).unwrap().is_empty());
+
+        let permit = r#"{"types":{"Permit":[{"name":"spender","type":"address"},
+              {"name":"value","type":"uint256"},{"name":"deadline","type":"uint256"},
+              {"name":"delta","type":"int8"},{"name":"tags","type":"bytes2[]"},{"name":"on","type":"bool"}]},
+            "primaryType":"Permit","domain":{"name":"T"},
+            "message":{"spender":"0x0000000000000000000000000000000000000001",
+              "value":"115792089237316195423570985008687907853269984665640564039457584007913129639935",
+              "deadline":"4102444800","delta":-5,"tags":[],"on":true}}"#;
+        let td = TypedData::from_json_str(permit).unwrap();
+        let fields = td.message_fields().unwrap();
+        assert_eq!(fields[1].value, FieldValue::Uint(U256::MAX));
+        assert_eq!(
+            fields[3].value,
+            FieldValue::Int {
+                negative: true,
+                magnitude: U256::from_u64(5)
+            }
+        );
+        assert_eq!(fields[4].value, FieldValue::EmptyArray);
+        assert_eq!(fields[5].value, FieldValue::Bool(true));
+        let codes = |now| -> Vec<&'static str> {
+            td.review_findings(now)
+                .unwrap()
+                .iter()
+                .map(|f| f.code)
+                .collect()
+        };
+        // 2100-01-01 is more than a year after 2026-10-01, but not after 2099-06-01.
+        assert_eq!(
+            codes(Some(1_790_812_800)),
+            [
+                "typed-data-no-chain-id",
+                "typed-data-max-uint",
+                "typed-data-far-deadline"
+            ]
+        );
+        assert_eq!(
+            codes(Some(4_084_000_000)),
+            ["typed-data-no-chain-id", "typed-data-max-uint"]
+        );
+        assert_eq!(
+            codes(None),
+            ["typed-data-no-chain-id", "typed-data-max-uint"]
+        );
     }
 }

@@ -97,7 +97,10 @@ pub struct TxRequest {
 }
 
 /// A delegation the signing key should authorize for itself (self-executed EIP-7702).
-/// Its nonce is not supplied: it is always `tx.nonce + 1`.
+/// Its nonce is not supplied: the signer assigns `tx.nonce + 1`, `tx.nonce + 2`, ... in list
+/// order (after any of the signer's own tuples already in `tx.authorizationList`), because
+/// EIP-7702 bumps the sender's nonce before the list is processed and the authority's nonce
+/// again after every tuple that applies.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SelfAuthorization {
@@ -118,10 +121,11 @@ pub struct UnsignedEnvelope {
     pub from: Option<Address>,
     /// The transaction.
     pub tx: TxRequest,
-    /// Delegations to sign with the same key at `tx.nonce + 1` and append.
+    /// Delegations to sign with the same key (consecutive nonces from `tx.nonce + 1`) and append.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub self_authorizations: Vec<SelfAuthorization>,
-    /// Free-form note shown to the operator.
+    /// Free-form note from the envelope's author. Untrusted: `keysmith sign` shows it escaped
+    /// and labelled as such, never as a description of what is signed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
 }
@@ -177,8 +181,8 @@ pub enum EnvelopeError {
     /// `selfAuthorizations` on a non-7702 transaction.
     #[error("selfAuthorizations require an eip7702 transaction")]
     SelfAuthorizationsRequire7702,
-    /// `tx.nonce + 1` overflows.
-    #[error("self-authorization nonce overflows (tx nonce is u64::MAX)")]
+    /// A self-authorization nonce (`tx.nonce + k`) overflows.
+    #[error("self-authorization nonce overflows u64")]
     NonceOverflow,
     /// The key does not match `from`.
     #[error("envelope expects signer {expected} but the key is {actual}")]
@@ -373,6 +377,25 @@ impl UnsignedEnvelope {
     }
 }
 
+/// A transaction that passed every check and the policy but is **not signed yet**: what the
+/// operator reviews before confirming. Produced by [`plan_envelope`], consumed by
+/// [`SigningPlan::sign`].
+#[derive(Debug, Clone)]
+pub struct SigningPlan {
+    /// The transaction exactly as it will be signed (self-authorizations appended).
+    pub tx: Transaction,
+    /// Address of the key that will sign.
+    pub signer: Address,
+    /// Non-fatal findings the operator should see.
+    pub warnings: Vec<Finding>,
+    /// Self-executed authorizations prepared for this transaction (they are part of
+    /// `tx.authorization_list`). They are signed in memory because they are part of what is
+    /// reviewed; nothing leaves the process until [`SigningPlan::sign`] returns.
+    pub self_authorizations: Vec<SignedAuthorization>,
+    /// The envelope's untrusted note.
+    pub note: Option<String>,
+}
+
 /// Everything the offline signer produced and observed.
 #[derive(Debug, Clone)]
 pub struct SignOutcome {
@@ -386,19 +409,19 @@ pub struct SignOutcome {
     pub self_authorizations: Vec<SignedAuthorization>,
 }
 
-/// The complete offline signing procedure for an unsigned envelope:
+/// Steps 1-5 of the offline procedure, without the transaction signature:
 ///
 /// 1. check the format tag and that `key` is the expected `from`;
 /// 2. rebuild the transaction from its fields;
-/// 3. sign any `selfAuthorizations` at `tx.nonce + 1` and append them;
-/// 4. run consensus checks (refuse on any error);
-/// 5. enforce `policy` (refuse on any violation);
-/// 6. sign.
-pub fn sign_envelope(
+/// 3. sign any `selfAuthorizations` at consecutive nonces `tx.nonce + 1 + m`, `+ m + 1`, ...
+///    (`m` = tuples already in the list that the same key signed) and append them;
+/// 4. run consensus checks, including the EIP-7702 authorization rules (refuse on any error);
+/// 5. enforce `policy` (refuse on any violation).
+pub fn plan_envelope(
     env: &UnsignedEnvelope,
     key: &PrivateKey,
     policy: Option<&Policy>,
-) -> Result<SignOutcome, EnvelopeError> {
+) -> Result<SigningPlan, EnvelopeError> {
     if env.format != UNSIGNED_FORMAT {
         return Err(EnvelopeError::UnsupportedFormat(env.format.clone()));
     }
@@ -417,10 +440,19 @@ pub fn sign_envelope(
         let Transaction::Eip7702(ref mut inner) = tx else {
             return Err(EnvelopeError::SelfAuthorizationsRequire7702);
         };
-        let nonce = Executor::SelfExecuting
+        let own_supplied = inner
+            .authorization_list
+            .iter()
+            .filter(|a| a.recover_authority().ok() == Some(signer))
+            .count() as u64;
+        let mut nonce = Executor::SelfExecuting
             .authorization_nonce(inner.nonce)
+            .and_then(|n| n.checked_add(own_supplied))
             .ok_or(EnvelopeError::NonceOverflow)?;
-        for req in &env.self_authorizations {
+        for (k, req) in env.self_authorizations.iter().enumerate() {
+            if k > 0 {
+                nonce = nonce.checked_add(1).ok_or(EnvelopeError::NonceOverflow)?;
+            }
             let auth = Authorization {
                 chain_id: req.chain_id,
                 address: req.address,
@@ -432,7 +464,7 @@ pub fn sign_envelope(
             inner.authorization_list.push(auth);
         }
     }
-    let findings = gas::check_transaction(&tx);
+    let findings = gas::check_transaction(&tx, Some(&signer));
     if gas::has_errors(&findings) {
         return Err(EnvelopeError::Invalid(findings));
     }
@@ -442,21 +474,52 @@ pub fn sign_envelope(
             return Err(EnvelopeError::PolicyViolation(violations));
         }
     }
-    let signed = tx.sign(key).map_err(EnvelopeError::Signature)?;
-    let envelope = SignedEnvelope {
-        format: SIGNED_FORMAT.into(),
-        tx_type: signed.tx.tx_type(),
-        from: signer,
-        hash: hex::encode_prefixed(&signed.hash()),
-        raw: hex::encode_prefixed(&signed.encoded()),
-        note: env.note.clone(),
-    };
-    Ok(SignOutcome {
-        signed,
-        envelope,
+    Ok(SigningPlan {
+        tx,
+        signer,
         warnings: findings,
         self_authorizations: self_signed,
+        note: env.note.clone(),
     })
+}
+
+impl SigningPlan {
+    /// Step 6: signs the planned transaction. `key` must be the key the plan was made with.
+    pub fn sign(self, key: &PrivateKey) -> Result<SignOutcome, EnvelopeError> {
+        let actual = key.address();
+        if actual != self.signer {
+            return Err(EnvelopeError::FromMismatch {
+                expected: self.signer,
+                actual,
+            });
+        }
+        let signed = self.tx.sign(key).map_err(EnvelopeError::Signature)?;
+        let envelope = SignedEnvelope {
+            format: SIGNED_FORMAT.into(),
+            tx_type: signed.tx.tx_type(),
+            from: self.signer,
+            hash: hex::encode_prefixed(&signed.hash()),
+            raw: hex::encode_prefixed(&signed.encoded()),
+            note: self.note,
+        };
+        Ok(SignOutcome {
+            signed,
+            envelope,
+            warnings: self.warnings,
+            self_authorizations: self.self_authorizations,
+        })
+    }
+}
+
+/// The complete offline signing procedure for an unsigned envelope: [`plan_envelope`]
+/// followed immediately by [`SigningPlan::sign`] (no operator review in between; the CLI
+/// shows the plan and asks for confirmation first).
+pub fn sign_envelope(
+    env: &UnsignedEnvelope,
+    key: &PrivateKey,
+    policy: Option<&Policy>,
+) -> Result<SignOutcome, EnvelopeError> {
+    plan_envelope(env, key, policy)?.sign(key)
 }
 
 impl SignedEnvelope {
@@ -694,5 +757,89 @@ mod tests {
             sign_envelope(&env, &k, None).unwrap_err(),
             EnvelopeError::NonceOverflow
         );
+    }
+
+    fn self_auth(byte: u8) -> SelfAuthorization {
+        SelfAuthorization {
+            chain_id: U256::ONE,
+            address: Address([byte; 20]),
+        }
+    }
+
+    /// Regression: every self-authorization used to be signed at `tx.nonce + 1`. EIP-7702 bumps
+    /// the authority's nonce after each tuple that applies, so the second one was skipped on
+    /// every node: its delegation silently never happened, with no finding.
+    #[test]
+    fn several_self_authorizations_get_consecutive_nonces() {
+        let k = key();
+        let mut env = envelope(
+            r#"{"type":"eip7702","chainId":"1","nonce":"4","gasLimit":"100000","maxFeePerGas":"2",
+                "maxPriorityFeePerGas":"1","to":"0x70997970C51812dc3A010C7d01b50e0d17dc79C8"}"#,
+        );
+        env.self_authorizations = alloc::vec![self_auth(0xa1), self_auth(0xb2), self_auth(0xc3)];
+        let plan = plan_envelope(&env, &k, None).unwrap();
+        let nonces: Vec<u64> = plan.self_authorizations.iter().map(|a| a.nonce).collect();
+        assert_eq!(nonces, [5, 6, 7]);
+        // Valid, but the operator is told that only the last delegation remains.
+        let codes: Vec<_> = plan.warnings.iter().map(|f| f.code).collect();
+        assert_eq!(
+            codes,
+            [
+                "authorization-duplicate-authority",
+                "authorization-duplicate-authority"
+            ]
+        );
+        let out = plan.sign(&k).unwrap();
+        assert_eq!(out.signed.tx.authorization_list().len(), 3);
+        assert_eq!(out.signed.recover_signer().unwrap(), k.address());
+
+        // A tuple of the same key already in the list (correctly at nonce + 1) shifts the
+        // self-authorizations to nonce + 2.
+        let own = Authorization {
+            chain_id: U256::ONE,
+            address: Address([0xd4; 20]),
+            nonce: 5,
+        }
+        .sign(&k)
+        .unwrap();
+        env.tx.authorization_list = alloc::vec![own.clone()];
+        env.self_authorizations = alloc::vec![self_auth(0xa1)];
+        let plan = plan_envelope(&env, &k, None).unwrap();
+        assert_eq!(plan.self_authorizations[0].nonce, 6);
+
+        // A supplied tuple of the same key at a stale nonce is refused, not silently skipped.
+        let stale = Authorization {
+            nonce: 4,
+            ..own.authorization()
+        }
+        .sign(&k)
+        .unwrap();
+        env.tx.authorization_list = alloc::vec![stale];
+        env.self_authorizations.clear();
+        match plan_envelope(&env, &k, None) {
+            Err(EnvelopeError::Invalid(findings)) => {
+                assert!(
+                    findings
+                        .iter()
+                        .any(|f| f.code == "authorization-nonce-mismatch"),
+                    "{findings:?}"
+                );
+            }
+            other => panic!("expected a refusal, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_plan_signs_only_with_its_own_key() {
+        let env = envelope(
+            r#"{"type":"eip1559","chainId":"1","nonce":0,"gasLimit":"21000","maxFeePerGas":"2",
+                "maxPriorityFeePerGas":"1","to":"0x70997970C51812dc3A010C7d01b50e0d17dc79C8"}"#,
+        );
+        let plan = plan_envelope(&env, &key(), None).unwrap();
+        let other = PrivateKey::from_bytes(&[7; 32]).unwrap();
+        assert!(matches!(
+            plan.sign(&other),
+            Err(EnvelopeError::FromMismatch { .. })
+        ));
     }
 }

@@ -4,8 +4,11 @@
 //! * `check-airgap`: the signer path (`keysmith-core`, `keysmith-cli`) must not depend on any
 //!   networking crate nor reference socket APIs; `keysmith-relay` serves as a positive control.
 //! * `regen-golden [--check]`: regenerate (or verify) the golden vectors with Foundry's `cast`.
+//! * `coverage <lcov.info> [--fail-under PCT]`: line coverage of production code, with inline
+//!   `#[cfg(test)]` modules excluded.
 
 mod airgap;
+mod coverage;
 mod golden;
 
 use std::path::PathBuf;
@@ -22,7 +25,8 @@ fn main() -> ExitCode {
     let result = match args.first().map(String::as_str) {
         Some("check-airgap") => airgap::run(&root),
         Some("regen-golden") => golden::run(&root, args.iter().any(|a| a == "--check")),
-        _ => Err("usage: cargo xtask <check-airgap | regen-golden [--check]>".to_owned()),
+        Some("coverage") => coverage::run(&root, &args[1..]),
+        _ => Err("usage: cargo xtask <check-airgap | regen-golden [--check] | coverage <lcov.info> [--fail-under PCT]>".to_owned()),
     };
     match result {
         Ok(report) => {

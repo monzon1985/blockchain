@@ -9,3 +9,12 @@
 *.profraw
 *.profdata
 lcov.info
+
+# Files the README's local demo writes, if it is run from the project directory instead of the
+# temporary directory it suggests (`scripts/demo.sh` always uses a temporary directory).
+/mnemonic.txt
+/policy.json
+/unsigned.json
+/signed.json
+/u7702.json
+/s7702.json

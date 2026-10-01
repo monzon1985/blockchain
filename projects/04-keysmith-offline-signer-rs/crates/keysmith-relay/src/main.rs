@@ -108,7 +108,8 @@ struct PrepareArgs {
     /// An already-signed authorization (RLP hex from `keysmith sign-auth`); repeatable.
     #[arg(long = "auth", value_name = "RLP")]
     auths: Vec<String>,
-    /// A delegation the sender signs offline for itself, as CHAIN_ID:ADDRESS; repeatable.
+    /// A delegation the sender signs offline for itself, as CHAIN_ID:ADDRESS; repeatable. The
+    /// signer assigns nonces tx nonce + 1, + 2, ... in order, so only the last one stays in force.
     #[arg(long = "self-auth", value_name = "CHAIN_ID:ADDRESS")]
     self_auths: Vec<String>,
     /// Abort unless the node serves this chain id.
@@ -117,7 +118,8 @@ struct PrepareArgs {
     /// Legacy only: omit the EIP-155 chain id (the result is replayable on every chain).
     #[arg(long)]
     no_replay_protection: bool,
-    /// Note shown to the offline operator.
+    /// Free-form note for the offline operator. `keysmith sign` shows it escaped and labelled
+    /// as untrusted text, never as a description of what is signed.
     #[arg(long)]
     note: Option<String>,
     /// Write the envelope here instead of stdout (refuses to overwrite).

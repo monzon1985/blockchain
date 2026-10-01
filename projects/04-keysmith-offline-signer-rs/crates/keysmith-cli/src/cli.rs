@@ -132,6 +132,31 @@ pub struct KeyArgs {
     pub expect_address: Option<String>,
 }
 
+/// Which signing policy applies.
+///
+/// Without either flag the default policy applies: the empty policy `{}`, whose booleans
+/// deny contract creation, pre-EIP-155 legacy transactions and chainId-0 delegations.
+#[derive(Debug, Args)]
+pub struct PolicyArgs {
+    /// Policy file; any violation aborts before signing (default: the built-in deny-by-default
+    /// policy).
+    #[arg(long, value_name = "FILE")]
+    pub policy: Option<PathBuf>,
+    /// Apply no policy at all (only consensus checks): allows contract creation, pre-EIP-155
+    /// legacy transactions and chainId-0 delegations.
+    #[arg(long, conflicts_with = "policy")]
+    pub no_policy: bool,
+}
+
+/// Operator confirmation.
+#[derive(Debug, Args)]
+pub struct ConfirmArgs {
+    /// Sign without asking. The review is still printed to stderr first. Without this flag
+    /// keysmith asks for confirmation on the terminal and refuses when stdin is not a terminal.
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
 /// `keysmith derive`
 #[derive(Debug, Args)]
 pub struct DeriveArgs {
@@ -202,9 +227,12 @@ pub struct SignArgs {
     /// Signing key.
     #[command(flatten)]
     pub key: KeyArgs,
-    /// Policy file; any violation aborts before signing.
-    #[arg(long, value_name = "FILE")]
-    pub policy: Option<PathBuf>,
+    /// Signing policy.
+    #[command(flatten)]
+    pub policy: PolicyArgs,
+    /// Confirmation.
+    #[command(flatten)]
+    pub confirm: ConfirmArgs,
     /// Write the result to this file instead of stdout.
     #[arg(long, value_name = "FILE")]
     pub out: Option<PathBuf>,
@@ -241,9 +269,12 @@ pub struct SignAuthArgs {
     /// Signing key (the authority).
     #[command(flatten)]
     pub key: KeyArgs,
-    /// Policy file.
-    #[arg(long, value_name = "FILE")]
-    pub policy: Option<PathBuf>,
+    /// Signing policy (`allowedChainIds`, `allowedDelegates`, `allowAnyChainAuthorizations`).
+    #[command(flatten)]
+    pub policy: PolicyArgs,
+    /// Confirmation.
+    #[command(flatten)]
+    pub confirm: ConfirmArgs,
     /// JSON output (default prints the RLP hex, as `cast wallet sign-auth` does).
     #[arg(long)]
     pub json: bool,
@@ -273,6 +304,9 @@ pub struct SignMessageArgs {
     /// Signing key.
     #[command(flatten)]
     pub key: KeyArgs,
+    /// Confirmation.
+    #[command(flatten)]
+    pub confirm: ConfirmArgs,
 }
 
 /// `keysmith verify-message`
@@ -298,6 +332,13 @@ pub struct SignTypedDataArgs {
     /// Signing key.
     #[command(flatten)]
     pub key: KeyArgs,
+    /// Signing policy (`allowedChainIds`, `allowedVerifyingContracts`, `allowedSpenders`,
+    /// `maxPermitValue`).
+    #[command(flatten)]
+    pub policy: PolicyArgs,
+    /// Confirmation.
+    #[command(flatten)]
+    pub confirm: ConfirmArgs,
     /// Print digest and components as JSON.
     #[arg(long)]
     pub json: bool,
@@ -341,6 +382,13 @@ pub struct PermitArgs {
     /// Signing key (the owner).
     #[command(flatten)]
     pub key: KeyArgs,
+    /// Signing policy (`allowedChainIds`, `allowedVerifyingContracts`, `allowedSpenders`,
+    /// `maxPermitValue`).
+    #[command(flatten)]
+    pub policy: PolicyArgs,
+    /// Confirmation.
+    #[command(flatten)]
+    pub confirm: ConfirmArgs,
     /// JSON output.
     #[arg(long)]
     pub json: bool,

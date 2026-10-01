@@ -14,6 +14,7 @@
 //! gas_limit <= 2^24 on Osaka networks                         (EIP-7825)
 //! ```
 
+use crate::address::Address;
 use crate::tx::{Transaction, TxKind, TxType};
 use crate::u256::U256;
 use alloc::string::String;
@@ -184,7 +185,11 @@ fn finding(severity: Severity, code: &'static str, message: String) -> Finding {
 }
 
 /// Consensus-level validity checks and operator warnings.
-pub fn check_transaction(tx: &Transaction) -> Vec<Finding> {
+///
+/// `sender` is the transaction's signer when known (the signing key, or the recovered signer
+/// of a decoded transaction). It enables the EIP-7702 nonce rule for authorizations the sender
+/// signs for itself; see [`check_authorizations`].
+pub fn check_transaction(tx: &Transaction, sender: Option<&Address>) -> Vec<Finding> {
     use alloc::format;
     let mut out = Vec::new();
     let gas = intrinsic_gas(tx);
@@ -255,14 +260,45 @@ pub fn check_transaction(tx: &Transaction) -> Vec<Finding> {
             String::from("pre-EIP-155 legacy transaction: replayable on every chain"),
         ));
     }
-    if tx.kind() == TxKind::Call(crate::address::Address::ZERO) {
+    if tx.kind() == TxKind::Call(Address::ZERO) {
         out.push(finding(
             Severity::Warning,
             "zero-address-recipient",
             String::from("recipient is the zero address; value sent there is burned"),
         ));
     }
+    out.extend(check_authorizations(tx, sender));
+    out
+}
+
+/// EIP-7702 authorization-list checks.
+///
+/// A node processes the list in order and **silently skips** any tuple that fails its checks;
+/// the transaction still succeeds and the 25,000 gas per tuple is still charged. Each
+/// [`Severity::Error`] below flags a tuple that is skipped on every node, so the delegation the
+/// operator reviewed would quietly not happen:
+///
+/// * `authorization-wrong-chain`: `chainId` is neither 0 nor the transaction's chain id;
+/// * `authorization-nonce-max`: `nonce = 2^64 - 1`;
+/// * `authorization-invalid-signature`: no authority can be recovered (bad parity, high `s`);
+/// * `authorization-nonce-mismatch`: a tuple signed by `sender` whose nonce differs from the
+///   sender's nonce at that point, which is `tx.nonce + 1` (the sender's nonce is bumped before
+///   the list is processed) plus one for each earlier tuple of the sender;
+/// * `authorization-stale-nonce`: an authority that appears again without the next nonce
+///   (each applied tuple bumps its authority's nonce, so at most one of the two can apply).
+///
+/// Warnings: `authorization-any-chain` (`chainId = 0`, replayable on every chain) and
+/// `authorization-duplicate-authority` (only the authority's last delegation remains).
+pub fn check_authorizations(tx: &Transaction, sender: Option<&Address>) -> Vec<Finding> {
+    use alloc::format;
+    let mut out = Vec::new();
+    let tx_chain = tx.chain_id().map(U256::from_u64);
+    // The sender's account nonce when its next own tuple is processed.
+    let mut sender_next = tx.nonce().checked_add(1);
+    // Last tuple seen per authority: (authority, index, nonce).
+    let mut seen: Vec<(Address, usize, u64)> = Vec::new();
     for (i, auth) in tx.authorization_list().iter().enumerate() {
+        let mut skipped = false;
         if auth.chain_id.is_zero() {
             out.push(finding(
                 Severity::Warning,
@@ -272,6 +308,92 @@ pub fn check_transaction(tx: &Transaction) -> Vec<Finding> {
                     auth.address
                 ),
             ));
+        } else if Some(auth.chain_id) != tx_chain {
+            skipped = true;
+            out.push(finding(
+                Severity::Error,
+                "authorization-wrong-chain",
+                format!(
+                    "authorization #{i} is for chain {} but the transaction is for chain {}: \
+                     nodes skip it, so the delegation to {} would silently not happen",
+                    auth.chain_id,
+                    tx_chain.map_or_else(|| String::from("none"), |c| format!("{c}")),
+                    auth.address
+                ),
+            ));
+        }
+        if auth.nonce == u64::MAX {
+            skipped = true;
+            out.push(finding(
+                Severity::Error,
+                "authorization-nonce-max",
+                format!("authorization #{i} has nonce 2^64-1, which EIP-7702 always skips"),
+            ));
+        }
+        let authority = match auth.recover_authority() {
+            Ok(a) => a,
+            Err(e) => {
+                out.push(finding(
+                    Severity::Error,
+                    "authorization-invalid-signature",
+                    format!(
+                        "authorization #{i} (delegate {}) has no recoverable authority ({e}): nodes skip it",
+                        auth.address
+                    ),
+                ));
+                continue;
+            }
+        };
+        let previous = seen.iter().rposition(|(a, _, _)| *a == authority);
+        if sender == Some(&authority) {
+            if Some(auth.nonce) == sender_next {
+                if !skipped {
+                    sender_next = auth.nonce.checked_add(1);
+                }
+            } else {
+                out.push(finding(
+                    Severity::Error,
+                    "authorization-nonce-mismatch",
+                    format!(
+                        "authorization #{i} is signed by the sender {authority} with nonce {}, but the \
+                         sender's nonce will be {} when it is processed (tx nonce + 1, plus one per \
+                         earlier own authorization): the delegation to {} would silently not happen",
+                        auth.nonce,
+                        sender_next.map_or_else(|| String::from("2^64"), |n| format!("{n}")),
+                        auth.address
+                    ),
+                ));
+            }
+        } else if let Some(p) = previous {
+            let (_, j, k) = seen[p];
+            if k.checked_add(1) != Some(auth.nonce) {
+                out.push(finding(
+                    Severity::Error,
+                    "authorization-stale-nonce",
+                    format!(
+                        "authorization #{i} by {authority} has nonce {}, but its earlier \
+                         authorization #{j} has nonce {k} and bumps that account's nonce to {} if it \
+                         applies: at most one of the two can take effect",
+                        auth.nonce,
+                        k.saturating_add(1)
+                    ),
+                ));
+            }
+        }
+        if let Some(p) = previous {
+            let (_, j, _) = seen[p];
+            out.push(finding(
+                Severity::Warning,
+                "authorization-duplicate-authority",
+                format!(
+                    "{authority} authorizes more than once (#{j} and #{i}); each tuple costs 25000 \
+                     gas and only the last delegation (to {}) remains",
+                    auth.address
+                ),
+            ));
+            seen[p] = (authority, i, auth.nonce);
+        } else {
+            seen.push((authority, i, auth.nonce));
         }
     }
     out
@@ -285,8 +407,8 @@ pub fn has_errors(findings: &[Finding]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::address::Address;
-    use crate::authorization::SignedAuthorization;
+    use crate::authorization::{Authorization, SignedAuthorization};
+    use crate::keys::PrivateKey;
     use crate::tx::{AccessListItem, TxEip1559, TxEip2930, TxEip7702, TxLegacy};
 
     fn call_1559(input: Vec<u8>, gas_limit: u64) -> Transaction {
@@ -310,7 +432,7 @@ mod tests {
             (g.total, g.floor, g.minimum_gas_limit),
             (21_000, 21_000, 21_000)
         );
-        assert!(check_transaction(&call_1559(Vec::new(), 21_000)).is_empty());
+        assert!(check_transaction(&call_1559(Vec::new(), 21_000), None).is_empty());
     }
 
     #[test]
@@ -320,7 +442,7 @@ mod tests {
         assert_eq!(g.total, 22_600);
         assert_eq!(g.floor, 25_000);
         assert_eq!(g.minimum_gas_limit, 25_000);
-        let findings = check_transaction(&call_1559(alloc::vec![0xff; 100], 24_999));
+        let findings = check_transaction(&call_1559(alloc::vec![0xff; 100], 24_999), None);
         assert!(has_errors(&findings));
         assert_eq!(findings[0].code, "gas-below-intrinsic");
     }
@@ -345,32 +467,137 @@ mod tests {
         assert_eq!(g.initcode, 4);
         assert_eq!(g.access_list, 2_400 + 2 * 1_900);
         assert_eq!(g.total, 21_000 + 33 * 16 + 32_000 + 4 + 6_200);
-        let auth = SignedAuthorization {
-            chain_id: U256::ZERO,
+        let auth = signed_auth(0x31, 0, 0);
+        let set_code = set_code_tx(0, alloc::vec![auth]);
+        assert_eq!(intrinsic_gas(&set_code).total, 46_000);
+        assert_eq!(codes(&set_code, None), ["authorization-any-chain"]);
+    }
+
+    fn key(byte: u8) -> PrivateKey {
+        PrivateKey::from_bytes(&[byte; 32]).unwrap()
+    }
+
+    fn signed_auth(signer: u8, chain: u64, nonce: u64) -> SignedAuthorization {
+        Authorization {
+            chain_id: U256::from_u64(chain),
             address: Address([3; 20]),
-            nonce: 0,
-            y_parity: 0,
-            r: U256::ONE,
-            s: U256::ONE,
-        };
-        let set_code = Transaction::Eip7702(TxEip7702 {
+            nonce,
+        }
+        .sign(&key(signer))
+        .unwrap()
+    }
+
+    fn set_code_tx(nonce: u64, authorization_list: Vec<SignedAuthorization>) -> Transaction {
+        Transaction::Eip7702(TxEip7702 {
             chain_id: 1,
-            nonce: 0,
+            nonce,
             max_priority_fee_per_gas: 1,
             max_fee_per_gas: 1,
-            gas_limit: 46_000,
+            gas_limit: 21_000 + 25_000 * authorization_list.len() as u64,
             to: Address([4; 20]),
             value: U256::ZERO,
             input: Vec::new(),
             access_list: Vec::new(),
-            authorization_list: alloc::vec![auth],
-        });
-        assert_eq!(intrinsic_gas(&set_code).total, 46_000);
-        let codes: Vec<_> = check_transaction(&set_code)
+            authorization_list,
+        })
+    }
+
+    fn codes(tx: &Transaction, sender: Option<&Address>) -> Vec<&'static str> {
+        check_transaction(tx, sender)
             .iter()
             .map(|f| f.code)
-            .collect();
-        assert_eq!(codes, ["authorization-any-chain"]);
+            .collect()
+    }
+
+    /// Regression: two self-executed authorizations both signed at `tx.nonce + 1` passed every
+    /// check, although EIP-7702 bumps the authority's nonce after the first one and silently
+    /// skips the second (its delegation never happened, its 25,000 gas was still charged).
+    #[test]
+    fn sender_authorizations_must_follow_the_bumped_nonce() {
+        let sender = key(0x31).address();
+        // nonce + 1, then nonce + 2: both apply, the last delegation wins (warning only).
+        let ok = set_code_tx(
+            7,
+            alloc::vec![signed_auth(0x31, 1, 8), signed_auth(0x31, 1, 9)],
+        );
+        assert_eq!(
+            codes(&ok, Some(&sender)),
+            ["authorization-duplicate-authority"]
+        );
+        // The old behaviour: both at nonce + 1. The second one is skipped on every node.
+        let stale = set_code_tx(
+            7,
+            alloc::vec![signed_auth(0x31, 1, 8), signed_auth(0x31, 1, 8)],
+        );
+        let findings = check_transaction(&stale, Some(&sender));
+        assert!(has_errors(&findings));
+        assert_eq!(
+            findings.iter().map(|f| f.code).collect::<Vec<_>>(),
+            [
+                "authorization-nonce-mismatch",
+                "authorization-duplicate-authority"
+            ]
+        );
+        assert!(
+            findings[0].message.contains("#1"),
+            "{}",
+            findings[0].message
+        );
+        // A sponsor-style tuple (nonce = tx nonce) signed by the sender itself is always stale.
+        let sponsored_by_self = set_code_tx(7, alloc::vec![signed_auth(0x31, 1, 7)]);
+        assert_eq!(
+            codes(&sponsored_by_self, Some(&sender)),
+            ["authorization-nonce-mismatch"]
+        );
+        // Without a known sender the same tuple cannot be judged and is not flagged.
+        assert!(codes(&sponsored_by_self, None).is_empty());
+    }
+
+    #[test]
+    fn foreign_authorizations_that_are_always_skipped_are_errors() {
+        let sender = key(0x31).address();
+        // Another authority repeated without the next nonce: at most one applies.
+        let repeated = set_code_tx(
+            0,
+            alloc::vec![signed_auth(0x32, 1, 5), signed_auth(0x32, 1, 5)],
+        );
+        assert_eq!(
+            codes(&repeated, Some(&sender)),
+            [
+                "authorization-stale-nonce",
+                "authorization-duplicate-authority"
+            ]
+        );
+        let consecutive = set_code_tx(
+            0,
+            alloc::vec![signed_auth(0x32, 1, 5), signed_auth(0x32, 1, 6)],
+        );
+        assert_eq!(
+            codes(&consecutive, Some(&sender)),
+            ["authorization-duplicate-authority"]
+        );
+        // A chain id that is neither 0 nor the transaction's.
+        let wrong_chain = set_code_tx(0, alloc::vec![signed_auth(0x32, 5, 0)]);
+        assert_eq!(
+            codes(&wrong_chain, Some(&sender)),
+            ["authorization-wrong-chain"]
+        );
+        // nonce 2^64 - 1 is never valid.
+        let max = set_code_tx(0, alloc::vec![signed_auth(0x32, 1, u64::MAX)]);
+        assert_eq!(codes(&max, None), ["authorization-nonce-max"]);
+        // An unrecoverable signature (high s).
+        let mut high_s = signed_auth(0x32, 1, 0);
+        high_s.s = crate::keys::CURVE_ORDER.checked_sub(&high_s.s).unwrap();
+        high_s.y_parity ^= 1;
+        let bad = set_code_tx(0, alloc::vec![high_s]);
+        assert_eq!(codes(&bad, None), ["authorization-invalid-signature"]);
+        assert!(has_errors(&check_transaction(&bad, None)));
+        // Two different authorities, each once, on the right chain: nothing to report.
+        let clean = set_code_tx(
+            0,
+            alloc::vec![signed_auth(0x32, 1, 0), signed_auth(0x33, 0, 4)],
+        );
+        assert_eq!(codes(&clean, Some(&sender)), ["authorization-any-chain"]);
     }
 
     #[test]
@@ -387,7 +614,10 @@ mod tests {
             access_list: Vec::new(),
             authorization_list: Vec::new(),
         });
-        let codes: Vec<_> = check_transaction(&tx).iter().map(|f| f.code).collect();
+        let codes: Vec<_> = check_transaction(&tx, None)
+            .iter()
+            .map(|f| f.code)
+            .collect();
         assert_eq!(
             codes,
             [
@@ -407,7 +637,10 @@ mod tests {
             value: U256::ZERO,
             input: alloc::vec![0; MAX_INITCODE_SIZE + 1],
         });
-        let codes: Vec<_> = check_transaction(&legacy).iter().map(|f| f.code).collect();
+        let codes: Vec<_> = check_transaction(&legacy, None)
+            .iter()
+            .map(|f| f.code)
+            .collect();
         assert_eq!(codes, ["initcode-too-large", "no-replay-protection"]);
     }
 

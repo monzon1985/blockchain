@@ -136,10 +136,13 @@ impl Session {
         path
     }
 
-    /// Runs the real `keysmith` binary with the anvil mnemonic as key source.
+    /// Runs a signing command of the real `keysmith` binary with the anvil mnemonic as key
+    /// source. `--yes` stands in for the operator's confirmation (the test has no terminal);
+    /// the review is still printed to stderr.
     fn keysmith(&self, args: &[&str], signer: u32) -> std::process::Output {
         Command::new(env!("CARGO_BIN_EXE_keysmith"))
             .args(args)
+            .arg("--yes")
             .arg("--mnemonic-file")
             .arg(self.dir.path().join("mnemonic.txt"))
             .args(["--mnemonic-index", &signer.to_string()])
@@ -149,15 +152,32 @@ impl Session {
 
     /// Offline step: the unsigned envelope crosses the "air gap" as a file.
     fn sign_offline(&self, env: &UnsignedEnvelope, signer: u32) -> SignedEnvelope {
+        self.sign_offline_with(env, signer, &[])
+    }
+
+    /// [`Self::sign_offline`] with extra `keysmith sign` arguments (e.g. a policy file).
+    fn sign_offline_with(
+        &self,
+        env: &UnsignedEnvelope,
+        signer: u32,
+        extra: &[&str],
+    ) -> SignedEnvelope {
         let path = self.file("unsigned.json", &serde_json::to_string_pretty(env).unwrap());
         let path = path.to_str().unwrap().to_owned();
-        let out = self.keysmith(&["sign", "--envelope", &path], signer);
+        let mut args = vec!["sign", "--envelope", &path];
+        args.extend_from_slice(extra);
+        let out = self.keysmith(&args, signer);
         assert!(
             out.status.success(),
             "keysmith sign failed: {}",
             String::from_utf8_lossy(&out.stderr)
         );
         SignedEnvelope::from_json_str(std::str::from_utf8(&out.stdout).unwrap()).unwrap()
+    }
+
+    /// A policy file in the session directory; returns its path as a string.
+    fn policy(&self, json: &str) -> String {
+        self.file("policy.json", json).to_str().unwrap().to_owned()
     }
 
     fn send(&self, signed: &SignedEnvelope) -> Receipt {
@@ -178,9 +198,19 @@ impl Session {
 
     /// prepare (online) -> sign (offline binary) -> broadcast (online), returning both ends.
     fn round_trip(&self, req: &PrepareRequest, signer: u32) -> (SignedEnvelope, Receipt) {
+        self.round_trip_with(req, signer, &[])
+    }
+
+    /// [`Self::round_trip`] with extra `keysmith sign` arguments.
+    fn round_trip_with(
+        &self,
+        req: &PrepareRequest,
+        signer: u32,
+        extra: &[&str],
+    ) -> (SignedEnvelope, Receipt) {
         assert_eq!(req.from, addr(signer));
         let unsigned = prepare(&self.rpc, req).unwrap();
-        let signed = self.sign_offline(&unsigned, signer);
+        let signed = self.sign_offline_with(&unsigned, signer, extra);
         let receipt = self.send(&signed);
         assert_eq!(receipt.tx_type, req.tx_type.type_byte().unwrap_or(0));
         (signed, receipt)
@@ -218,11 +248,13 @@ fn every_transaction_type_is_mined_through_the_air_gap() {
         before.checked_add(&U256::from_u128(ETHER)).unwrap()
     );
 
-    // --- Legacy without replay protection (pre-EIP-155): flagged, but valid. ------------------
+    // --- Legacy without replay protection (pre-EIP-155): refused by the default policy, so the
+    // operator's policy has to allow it explicitly. ----------------------------------------------
     let mut req = PrepareRequest::new(TxType::Legacy, addr(6), Some(recipient));
     req.value = U256::ONE;
     req.replay_protected = false;
-    let (signed, receipt) = s.round_trip(&req, 6);
+    let unprotected = s.policy(r#"{"allowUnprotectedLegacy":true}"#);
+    let (signed, receipt) = s.round_trip_with(&req, 6, &["--policy", &unprotected]);
     assert_eq!(decoded(&signed).tx.chain_id(), None);
     assert_eq!(receipt.gas_used, 21_000);
 
@@ -248,11 +280,12 @@ fn every_transaction_type_is_mined_through_the_air_gap() {
         "revm applies the calldata floor keysmith computed"
     );
 
-    // --- EIP-1559 contract creation. ------------------------------------------------------------
+    // --- EIP-1559 contract creation (the default policy denies creations). ---------------------
     let deployer_nonce = s.nonce(&addr(0));
     let mut req = PrepareRequest::new(TxType::Eip1559, addr(0), None);
     req.input = hex::decode(INITCODE).unwrap();
-    let (_, receipt) = s.round_trip(&req, 0);
+    let creation = s.policy(r#"{"allowContractCreation":true}"#);
+    let (_, receipt) = s.round_trip_with(&req, 0, &["--policy", &creation]);
     let contract = Address::create(&addr(0), deployer_nonce);
     assert_eq!(receipt.contract_address, Some(contract));
     assert_eq!(receipt.to, None);
@@ -340,6 +373,133 @@ fn every_transaction_type_is_mined_through_the_air_gap() {
         s.rpc.storage_at(&sponsored, &U256::ZERO).unwrap(),
         word(0x33)
     );
+}
+
+/// Regression for EIP-7702 nonce handling, on chain.
+///
+/// Before the fix, `keysmith sign` signed every self-authorization at `tx.nonce + 1`. anvil
+/// mined such a transaction successfully, but applied only the first delegation (the second
+/// tuple's nonce was stale after the first bumped it) while charging for both. Now the
+/// self-authorizations carry consecutive nonces, both apply, and the last delegation is live.
+/// Sponsored tuples that a node would silently skip are refused offline instead.
+#[test]
+fn several_self_authorizations_all_apply_and_skippable_tuples_are_refused() {
+    let s = Session::start();
+    // Two delegate contracts with the e2e runtime (store calldata word 0 in slot 0).
+    let creation = s.policy(r#"{"allowContractCreation":true}"#);
+    let deploy = || {
+        let nonce = s.nonce(&addr(0));
+        let mut req = PrepareRequest::new(TxType::Eip1559, addr(0), None);
+        req.input = hex::decode(INITCODE).unwrap();
+        s.round_trip_with(&req, 0, &["--policy", &creation]);
+        Address::create(&addr(0), nonce)
+    };
+    let first = deploy();
+    let second = deploy();
+
+    let authority = addr(1);
+    let nonce_before = s.nonce(&authority);
+    let mut req = PrepareRequest::new(TxType::Eip7702, authority, Some(authority));
+    req.gas_limit = Some(200_000);
+    req.input = word(0x44).to_vec();
+    req.self_authorizations = vec![
+        SelfAuthorization {
+            chain_id: U256::from_u64(CHAIN_ID),
+            address: first,
+        },
+        SelfAuthorization {
+            chain_id: U256::from_u64(CHAIN_ID),
+            address: second,
+        },
+    ];
+    let (signed, _) = s.round_trip(&req, 1);
+    let nonces: Vec<u64> = decoded(&signed)
+        .tx
+        .authorization_list()
+        .iter()
+        .map(|a| a.nonce)
+        .collect();
+    assert_eq!(nonces, [nonce_before + 1, nonce_before + 2]);
+    assert_eq!(
+        s.rpc.code(&authority).unwrap(),
+        delegation_designator(&second),
+        "the second delegation applied too, so it is the one in force"
+    );
+    assert_eq!(
+        s.nonce(&authority),
+        nonce_before + 3,
+        "the transaction and BOTH authorizations bumped the nonce"
+    );
+    assert_eq!(
+        s.rpc.storage_at(&authority, &U256::ZERO).unwrap(),
+        word(0x44)
+    );
+
+    // A sponsor carrying two tuples of account 2 at the same nonce: a node would apply the
+    // first and silently skip the second. keysmith refuses to sign it.
+    let auth_nonce = s.nonce(&addr(2));
+    let a = sign_auth(&s, 2, &first, auth_nonce, "sponsor");
+    let b = sign_auth(&s, 2, &second, auth_nonce, "sponsor");
+    let mut req = PrepareRequest::new(TxType::Eip7702, addr(0), Some(addr(2)));
+    req.gas_limit = Some(200_000);
+    req.authorizations = vec![a, b];
+    let unsigned = prepare(&s.rpc, &req).unwrap();
+    let env = s.file("stale.json", &serde_json::to_string(&unsigned).unwrap());
+    let out = s.keysmith(&["sign", "--envelope", env.to_str().unwrap()], 0);
+    assert_eq!(out.status.code(), Some(3));
+    assert!(out.stdout.is_empty());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("at most one of the two can take effect"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    // A tuple for another chain is refused the same way.
+    let other_chain = sign_auth_on(&s, 2, &first, auth_nonce, 1);
+    req.authorizations = vec![other_chain];
+    let unsigned = prepare(&s.rpc, &req).unwrap();
+    let env = s.file(
+        "wrong-chain.json",
+        &serde_json::to_string(&unsigned).unwrap(),
+    );
+    let out = s.keysmith(&["sign", "--envelope", env.to_str().unwrap()], 0);
+    assert_eq!(out.status.code(), Some(3));
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("but the transaction is for chain 31337")
+    );
+    assert_eq!(
+        s.nonce(&addr(2)),
+        auth_nonce,
+        "nothing was mined for account 2"
+    );
+}
+
+/// `keysmith sign-auth` for an explicit chain id (sponsor executor); returns the decoded tuple.
+fn sign_auth_on(
+    s: &Session,
+    signer: u32,
+    delegate: &Address,
+    nonce: u64,
+    chain_id: u64,
+) -> SignedAuthorization {
+    let out = s.keysmith(
+        &[
+            "sign-auth",
+            "--chain-id",
+            &chain_id.to_string(),
+            "--address",
+            &delegate.to_checksum(),
+            "--nonce",
+            &nonce.to_string(),
+        ],
+        signer,
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let rlp = String::from_utf8(out.stdout).unwrap();
+    SignedAuthorization::decode(&hex::decode(rlp.trim()).unwrap()).unwrap()
 }
 
 /// `keysmith sign-auth` run as a separate offline step; returns the decoded tuple.

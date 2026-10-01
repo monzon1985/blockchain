@@ -387,12 +387,16 @@ fn sign_reproduces_cast_mktx_byte_for_byte() {
     let f = Fixture::new();
     let cases = doc["transactions"].as_array().unwrap();
     assert_eq!(cases.len(), 11);
+    // Two cases deploy contracts, which the default policy refuses.
+    let policy = f.file("creation.json", r#"{"allowContractCreation":true}"#);
     for case in cases {
         let envelope = golden_envelope(&f, case);
         let index = case["signerIndex"].as_u64().unwrap();
         let mut raw = keysmith();
-        raw.args(["sign", "--format", "raw", "--envelope"])
-            .arg(&envelope);
+        raw.args(["sign", "--yes", "--format", "raw", "--envelope"])
+            .arg(&envelope)
+            .arg("--policy")
+            .arg(&policy);
         with_key(&mut raw, &f, index);
         assert_eq!(
             stdout_of(&mut raw).trim(),
@@ -401,7 +405,10 @@ fn sign_reproduces_cast_mktx_byte_for_byte() {
             s(case, "name")
         );
         let mut json = keysmith();
-        json.args(["sign", "--envelope"]).arg(&envelope);
+        json.args(["sign", "--yes", "--envelope"])
+            .arg(&envelope)
+            .arg("--policy")
+            .arg(&policy);
         with_key(&mut json, &f, index);
         let signed = SignedEnvelope::from_json_str(&stdout_of(&mut json)).unwrap();
         assert_eq!(signed.hash, s(&case["cast"], "hash"));
@@ -420,7 +427,7 @@ fn sign_reads_stdin_writes_files_and_prints_a_review() {
     let envelope = std::fs::read_to_string(golden_envelope(&f, case)).unwrap();
     let out = f.path("signed.json");
     let mut cmd = keysmith();
-    cmd.args(["sign", "--envelope", "-", "--out"])
+    cmd.args(["sign", "--yes", "--envelope", "-", "--out"])
         .arg(&out)
         .write_stdin(envelope);
     with_key(&mut cmd, &f, 0);
@@ -445,7 +452,7 @@ fn refusals_exit_with_code_3_and_produce_nothing() {
     };
     let low_gas = f.file("low.json", &tx("20999", "1"));
     let mut cmd = keysmith();
-    cmd.args(["sign", "--envelope"]).arg(&low_gas);
+    cmd.args(["sign", "--yes", "--envelope"]).arg(&low_gas);
     with_key(&mut cmd, &f, 0);
     cmd.assert().code(3).stdout("").stderr(
         predicate::str::contains("REFUSED")
@@ -458,7 +465,7 @@ fn refusals_exit_with_code_3_and_produce_nothing() {
     let too_much = f.file("big.json", &tx("21000", "1000000000000000001"));
     let out = f.path("never.json");
     let mut cmd = keysmith();
-    cmd.args(["sign", "--envelope"])
+    cmd.args(["sign", "--yes", "--envelope"])
         .arg(&too_much)
         .arg("--policy")
         .arg(&policy)
@@ -475,7 +482,7 @@ fn refusals_exit_with_code_3_and_produce_nothing() {
     // Within policy: signs.
     let ok = f.file("ok.json", &tx("21000", "1000000000000000000"));
     let mut cmd = keysmith();
-    cmd.args(["sign", "--format", "raw", "--envelope"])
+    cmd.args(["sign", "--yes", "--format", "raw", "--envelope"])
         .arg(&ok)
         .arg("--policy")
         .arg(&policy);
@@ -484,7 +491,7 @@ fn refusals_exit_with_code_3_and_produce_nothing() {
     // A typo in the policy file is an error, not a silently disabled limit.
     let typo = f.file("typo.json", r#"{"maxValeuWei":"1"}"#);
     let mut cmd = keysmith();
-    cmd.args(["sign", "--envelope"])
+    cmd.args(["sign", "--yes", "--envelope"])
         .arg(&ok)
         .arg("--policy")
         .arg(&typo);
@@ -498,7 +505,7 @@ fn refusals_exit_with_code_3_and_produce_nothing() {
         &tx("21000", "1").replacen("\"tx\"", &format!("\"from\":\"{ANVIL_2}\",\"tx\""), 1),
     );
     let mut cmd = keysmith();
-    cmd.args(["sign", "--envelope"]).arg(&other);
+    cmd.args(["sign", "--yes", "--envelope"]).arg(&other);
     with_key(&mut cmd, &f, 0);
     cmd.assert()
         .code(1)
@@ -510,9 +517,11 @@ fn sign_auth_matches_cast_and_applies_the_self_executor_rule() {
     let doc = golden();
     let f = Fixture::new();
     for case in doc["authorizations"].as_array().unwrap() {
+        let any_chain = s(case, "chainId") == "0";
         let mut cmd = keysmith();
         cmd.args([
             "sign-auth",
+            "--yes",
             "--chain-id",
             s(case, "chainId"),
             "--address",
@@ -520,6 +529,10 @@ fn sign_auth_matches_cast_and_applies_the_self_executor_rule() {
             "--nonce",
             s(case, "nonce"),
         ]);
+        if any_chain {
+            // The default policy refuses chainId-0 delegations; cast's vector needs the escape.
+            cmd.arg("--no-policy");
+        }
         with_key(&mut cmd, &f, case["signerIndex"].as_u64().unwrap());
         let assert = cmd
             .assert()
@@ -538,6 +551,7 @@ fn sign_auth_matches_cast_and_applies_the_self_executor_rule() {
     let mut cmd = keysmith();
     cmd.args([
         "sign-auth",
+        "--yes",
         "--chain-id",
         "1",
         "--address",
@@ -554,24 +568,28 @@ fn sign_auth_matches_cast_and_applies_the_self_executor_rule() {
     assert_eq!(json["authorization"]["nonce"], "5");
     assert_eq!(json["executor"], "self");
     assert_eq!(json["authority"], ANVIL_0);
-    // The policy forbids any-chain delegations by default.
+    // The policy forbids any-chain delegations by default, with an empty policy file and with
+    // no policy file at all.
     let policy = f.file("p.json", "{}");
-    let mut cmd = keysmith();
-    cmd.args([
-        "sign-auth",
-        "--chain-id",
-        "0",
-        "--address",
-        s(chain1, "address"),
-        "--nonce",
-        "0",
-        "--policy",
-    ])
-    .arg(&policy);
-    with_key(&mut cmd, &f, 0);
-    cmd.assert()
-        .code(3)
-        .stderr(predicate::str::contains("[allowAnyChainAuthorizations]"));
+    for extra in [vec!["--policy", policy.to_str().unwrap()], vec![]] {
+        let mut cmd = keysmith();
+        cmd.args([
+            "sign-auth",
+            "--yes",
+            "--chain-id",
+            "0",
+            "--address",
+            s(chain1, "address"),
+            "--nonce",
+            "0",
+        ])
+        .args(&extra);
+        with_key(&mut cmd, &f, 0);
+        cmd.assert()
+            .code(3)
+            .stdout("")
+            .stderr(predicate::str::contains("[allowAnyChainAuthorizations]"));
+    }
 }
 
 #[test]
@@ -587,7 +605,7 @@ fn personal_sign_matches_cast_and_verifies() {
         };
         let index = case["signerIndex"].as_u64().unwrap();
         let mut cmd = keysmith();
-        cmd.arg("sign-message").args(&input);
+        cmd.args(["sign-message", "--yes"]).args(&input);
         with_key(&mut cmd, &f, index);
         let sig = stdout_of(&mut cmd);
         assert_eq!(
@@ -608,7 +626,8 @@ fn personal_sign_matches_cast_and_verifies() {
     // A file holding the same bytes signs identically.
     let file = f.file("msg.bin", "hello world");
     let mut cmd = keysmith();
-    cmd.args(["sign-message", "--message-file"]).arg(&file);
+    cmd.args(["sign-message", "--yes", "--message-file"])
+        .arg(&file);
     with_key(&mut cmd, &f, 0);
     assert_eq!(
         stdout_of(&mut cmd).trim(),
@@ -636,7 +655,7 @@ fn typed_data_and_permit_match_cast() {
     for case in doc["typedData"].as_array().unwrap() {
         let file = vectors_dir().join("typed-data").join(s(case, "file"));
         let mut cmd = keysmith();
-        cmd.args(["sign-typed-data", "--file"]).arg(&file);
+        cmd.args(["sign-typed-data", "--yes", "--file"]).arg(&file);
         with_key(&mut cmd, &f, case["signerIndex"].as_u64().unwrap());
         assert_eq!(
             stdout_of(&mut cmd).trim(),
@@ -661,6 +680,7 @@ fn typed_data_and_permit_match_cast() {
     let mut cmd = keysmith();
     cmd.args([
         "permit",
+        "--yes",
         "--token",
         "0x5FbDB2315678afecb367f032d93F642f64180aa3",
         "--name",
@@ -690,7 +710,8 @@ fn typed_data_and_permit_match_cast() {
     doc_mail["message"]["amount"] = Value::from("1000000");
     let tampered = f.file("tampered.json", &doc_mail.to_string());
     let mut cmd = keysmith();
-    cmd.args(["sign-typed-data", "--file"]).arg(&tampered);
+    cmd.args(["sign-typed-data", "--yes", "--file"])
+        .arg(&tampered);
     with_key(&mut cmd, &f, 0);
     cmd.assert()
         .code(1)
@@ -759,4 +780,346 @@ fn decode_accepts_envelopes_and_rejects_malleable_bytes() {
     assert_eq!(json["signature"]["lowS"], false);
     assert_eq!(json["signer"], Value::Null);
     assert!(json["signerError"].as_str().unwrap().contains("EIP-2"));
+}
+
+/// A minimal EIP-1559 envelope on chain 1; `tx_extra` and `top_extra` are spliced in as
+/// additional JSON members of `tx` and of the envelope.
+fn envelope_json(tx_extra: &str, top_extra: &str) -> String {
+    format!(
+        r#"{{"format":"keysmith/unsigned-tx@1"{top_extra},"tx":{{"type":"eip1559","chainId":"1","nonce":"0",
+           "gasLimit":"100000","maxFeePerGas":"30000000000","maxPriorityFeePerGas":"1000000000"{tx_extra}}}}}"#
+    )
+}
+
+fn stderr_of(assert: &assert_cmd::assert::Assert) -> String {
+    String::from_utf8(assert.get_output().stderr.clone()).unwrap()
+}
+
+/// Regression: the review used to be printed after the signature was made, with no way to
+/// decline. Now every signing command reviews, then asks, and a non-interactive caller that did
+/// not pass --yes gets the review and nothing else.
+#[test]
+fn signing_waits_for_confirmation_and_never_signs_unattended() {
+    let f = Fixture::new();
+    let env = f.file(
+        "env.json",
+        &envelope_json(&format!(r#","to":"{ANVIL_1}""#), ""),
+    );
+    let out = f.path("signed.json");
+    let mut cmd = keysmith();
+    cmd.args(["sign", "--envelope"])
+        .arg(&env)
+        .arg("--out")
+        .arg(&out);
+    with_key(&mut cmd, &f, 0);
+    // assert_cmd connects stdin to a pipe, not a terminal, so keysmith cannot ask.
+    cmd.assert().code(1).stdout("").stderr(
+        predicate::str::contains("--- keysmith sign: review (nothing is signed until you confirm)")
+            .and(predicate::str::contains("re-run with --yes")),
+    );
+    assert!(!out.exists(), "nothing may be written without confirmation");
+    let mail = vectors_dir().join("typed-data/mail.json");
+    let others: [Vec<String>; 4] = [
+        vec!["sign-message".into(), "--message".into(), "hi".into()],
+        [
+            "sign-auth",
+            "--chain-id",
+            "1",
+            "--address",
+            ANVIL_2,
+            "--nonce",
+            "0",
+        ]
+        .map(String::from)
+        .to_vec(),
+        vec![
+            "sign-typed-data".into(),
+            "--file".into(),
+            mail.to_str().unwrap().into(),
+        ],
+        [
+            "permit",
+            "--token",
+            ANVIL_2,
+            "--name",
+            "T",
+            "--chain-id",
+            "1",
+            "--spender",
+            ANVIL_1,
+            "--value",
+            "1",
+            "--nonce",
+            "0",
+            "--deadline",
+            "1",
+        ]
+        .map(String::from)
+        .to_vec(),
+    ];
+    for args in others {
+        let mut cmd = keysmith();
+        cmd.args(&args);
+        with_key(&mut cmd, &f, 0);
+        cmd.assert().code(1).stdout("").stderr(
+            predicate::str::contains(format!("--- keysmith {}: review", args[0]))
+                .and(predicate::str::contains("re-run with --yes")),
+        );
+    }
+}
+
+/// Regression: without --policy no policy applied at all, so contract creations, pre-EIP-155
+/// legacy transactions and chainId-0 delegations were signed with only a warning.
+#[test]
+fn the_default_policy_applies_without_a_policy_file() {
+    let f = Fixture::new();
+    let sign = |env: &PathBuf, extra: &[&str]| {
+        let mut cmd = keysmith();
+        cmd.args(["sign", "--yes", "--format", "raw", "--envelope"])
+            .arg(env)
+            .args(extra);
+        with_key(&mut cmd, &f, 0);
+        cmd.assert()
+    };
+    let create = f.file(
+        "create.json",
+        &envelope_json(r#","to":null,"input":"0x6000""#, ""),
+    );
+    sign(&create, &[]).code(3).stdout("").stderr(
+        predicate::str::contains("REFUSED")
+            .and(predicate::str::contains("[allowContractCreation]")),
+    );
+    sign(&create, &["--no-policy"]).success();
+    let legacy = f.file(
+        "legacy.json",
+        &format!(
+            r#"{{"format":"keysmith/unsigned-tx@1","tx":{{"type":"legacy","nonce":"0","gasLimit":"21000",
+               "gasPrice":"1000000000","to":"{ANVIL_1}"}}}}"#
+        ),
+    );
+    sign(&legacy, &[])
+        .code(3)
+        .stderr(predicate::str::contains("[allowUnprotectedLegacy]"));
+    sign(&legacy, &["--no-policy"]).success().stderr(
+        predicate::str::contains("no-replay-protection")
+            .and(predicate::str::contains("NONE (--no-policy)")),
+    );
+    let any_chain = f.file(
+        "any.json",
+        &format!(
+            r#"{{"format":"keysmith/unsigned-tx@1","tx":{{"type":"eip7702","chainId":"1","nonce":"0",
+               "gasLimit":"100000","maxFeePerGas":"2","maxPriorityFeePerGas":"1","to":"{ANVIL_0}"}},
+               "selfAuthorizations":[{{"chainId":"0","address":"{ANVIL_2}"}}]}}"#
+        ),
+    );
+    sign(&any_chain, &[])
+        .code(3)
+        .stderr(predicate::str::contains("[allowAnyChainAuthorizations]"));
+    let p = f.file("p.json", "{}");
+    sign(&create, &["--no-policy", "--policy", p.to_str().unwrap()]).code(2);
+}
+
+/// Regression: the review printed only "input 68 bytes", so an online machine could swap
+/// `transfer(alice, 1)` for `approve(attacker, MAX)` on an allowed token unnoticed, and the
+/// envelope note ("shown to the operator") was never printed at all.
+#[test]
+fn the_review_shows_calldata_authorities_and_the_untrusted_note() {
+    let f = Fixture::new();
+    let usdc = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+    let approve = format!("0x095ea7b3{:0>64}{}", "dead", "f".repeat(64));
+    // The note tries to forge a "findings none" line of its own.
+    let env = f.file(
+        "approve.json",
+        &envelope_json(
+            &format!(r#","to":"{usdc}","input":"{approve}""#),
+            r#","note":"pay alice 1 USDC\nfindings        none""#,
+        ),
+    );
+    let mut cmd = keysmith();
+    cmd.args(["sign", "--yes", "--envelope"]).arg(&env);
+    with_key(&mut cmd, &f, 0);
+    let review = stderr_of(&cmd.assert().success());
+    for expected in [
+        "selector 0x095ea7b3 = ERC-20 approve(address,uint256)".to_owned(),
+        format!(
+            "APPROVE 0x000000000000000000000000000000000000dEaD to spend {} (2^256-1: UNLIMITED) base units",
+            keysmith_core::U256::MAX
+        ),
+        format!("{:<16}0x095ea7b3", "calldata"),
+        format!("  {:0>64}", "dead"),
+        format!("  {}", "f".repeat(64)),
+        r#"UNTRUSTED text from the envelope author, not a description of what is signed: "pay alice 1 USDC\u{a}findings        none""#.to_owned(),
+    ] {
+        assert!(review.contains(&expected), "missing {expected:?} in\n{review}");
+    }
+    assert_eq!(
+        review.lines().filter(|l| l.starts_with("findings")).count(),
+        1,
+        "the note must not be able to add a review line:\n{review}"
+    );
+
+    // A type-4 transaction with an access list, a sponsored authorization, a self-executed one
+    // and calldata: every part of it appears in the review.
+    let doc = golden();
+    let case = doc["transactions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["name"] == "eip7702-sponsored-and-self-with-access-list")
+        .unwrap();
+    let path = golden_envelope(&f, case);
+    let mut env: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    env["note"] = Value::from("delegate to the batch executor");
+    env["tx"]["input"] = Value::from(format!(
+        "0xa9059cbb{:0>64}{:0>64}",
+        ANVIL_2[2..].to_ascii_lowercase(),
+        "64"
+    ));
+    let path = f.file("7702.json", &env.to_string());
+    let mut cmd = keysmith();
+    cmd.args(["sign", "--yes", "--envelope"]).arg(&path);
+    with_key(&mut cmd, &f, case["signerIndex"].as_u64().unwrap());
+    insta::assert_snapshot!("sign_review_eip7702", stderr_of(&cmd.assert().success()));
+}
+
+/// Regression: two self-authorizations were both signed at `tx.nonce + 1`, so the second was
+/// skipped on every node (see the anvil e2e for the on-chain proof).
+#[test]
+fn several_self_authorizations_are_signed_at_consecutive_nonces() {
+    let f = Fixture::new();
+    let env = f.file(
+        "two.json",
+        &format!(
+            r#"{{"format":"keysmith/unsigned-tx@1","tx":{{"type":"eip7702","chainId":"1","nonce":"4",
+               "gasLimit":"100000","maxFeePerGas":"2","maxPriorityFeePerGas":"1","to":"{ANVIL_0}"}},
+               "selfAuthorizations":[{{"chainId":"1","address":"{ANVIL_1}"}},{{"chainId":"1","address":"{ANVIL_2}"}}]}}"#
+        ),
+    );
+    let mut cmd = keysmith();
+    cmd.args(["sign", "--yes", "--format", "raw", "--envelope"])
+        .arg(&env);
+    with_key(&mut cmd, &f, 0);
+    let assert = cmd.assert().success();
+    assert!(stderr_of(&assert).contains("authorization-duplicate-authority"));
+    let raw = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    let signed =
+        keysmith_core::tx::SignedTransaction::decode(&hex::decode(raw.trim()).unwrap()).unwrap();
+    let auths = signed.tx.authorization_list();
+    assert_eq!(auths.iter().map(|a| a.nonce).collect::<Vec<_>>(), [5, 6]);
+    for a in auths {
+        assert_eq!(a.recover_authority().unwrap().to_checksum(), ANVIL_0);
+    }
+}
+
+/// Regression: sign-typed-data and permit printed only the signature and accepted no policy,
+/// so a dApp-supplied unlimited permit to any spender on any chain was signed blind.
+#[test]
+fn typed_data_is_reviewed_and_policy_checked_before_signing() {
+    let f = Fixture::new();
+    let mail = vectors_dir().join("typed-data/mail.json");
+    let mut cmd = keysmith();
+    cmd.args(["sign-typed-data", "--yes", "--file"]).arg(&mail);
+    with_key(&mut cmd, &f, 1);
+    insta::assert_snapshot!(
+        "sign_typed_data_review_mail",
+        stderr_of(&cmd.assert().success())
+    );
+    // allowedChainIds applies to the domain's chainId.
+    let chains = f.file("chains.json", r#"{"allowedChainIds":[31337]}"#);
+    let mut cmd = keysmith();
+    cmd.args(["sign-typed-data", "--yes", "--file"])
+        .arg(&mail)
+        .arg("--policy")
+        .arg(&chains);
+    with_key(&mut cmd, &f, 1);
+    cmd.assert().code(3).stdout("").stderr(
+        predicate::str::contains("[allowedChainIds]")
+            .and(predicate::str::contains("chain id 1 is not allowed")),
+    );
+
+    let token = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+    let policy = f.file(
+        "permit-policy.json",
+        &format!(
+            r#"{{"allowedChainIds":[31337],"allowedVerifyingContracts":["{token}"],
+               "allowedSpenders":["{ANVIL_2}"],"maxPermitValue":"1000000"}}"#
+        ),
+    );
+    let permit = |spender: &str, value: &str, extra: &[&str]| {
+        let mut cmd = keysmith();
+        cmd.args([
+            "permit",
+            "--yes",
+            "--token",
+            token,
+            "--name",
+            "Keysmith Test Token",
+            "--chain-id",
+            "31337",
+            "--spender",
+            spender,
+            "--value",
+            value,
+            "--nonce",
+            "0",
+            "--deadline",
+            "4102444800",
+        ])
+        .args(extra);
+        with_key(&mut cmd, &f, 0);
+        cmd.assert()
+    };
+    let max = keysmith_core::U256::MAX.to_string();
+    permit(ANVIL_1, &max, &["--policy", policy.to_str().unwrap()])
+        .code(3)
+        .stdout("")
+        .stderr(
+            predicate::str::contains("[allowedSpenders]")
+                .and(predicate::str::contains("[maxPermitValue]")),
+        );
+    // Within the policy it signs, after a review of every field.
+    let review =
+        stderr_of(&permit(ANVIL_2, "1000000", &["--policy", policy.to_str().unwrap()]).success());
+    for expected in [
+        "--- keysmith permit: review (nothing is signed until you confirm) ---".to_owned(),
+        "primary type    Permit".to_owned(),
+        format!("  spender (address): {ANVIL_2}"),
+        "  value (uint256): 1000000".to_owned(),
+        format!("  verifyingContract (address): {token}"),
+        "typed-data-far-deadline".to_owned(),
+    ] {
+        assert!(
+            review.contains(&expected),
+            "missing {expected:?} in\n{review}"
+        );
+    }
+    // Without a restricting policy an unlimited permit still signs, but it is flagged.
+    let review = stderr_of(&permit(ANVIL_1, &max, &[]).success());
+    assert!(review.contains("typed-data-max-uint"), "{review}");
+}
+
+#[cfg(unix)]
+#[test]
+fn secret_files_are_created_owner_only() {
+    use std::os::unix::fs::PermissionsExt;
+    let f = Fixture::new();
+    let mode = |p: &std::path::Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+    let phrase = f.path("phrase.txt");
+    keysmith()
+        .args(["mnemonic", "new", "--out"])
+        .arg(&phrase)
+        .assert()
+        .success();
+    assert_eq!(mode(&phrase), 0o600);
+    let pw = f.file("pw.txt", "correct horse battery staple\n");
+    let ks = f.path("ks.json");
+    let mut export = keysmith();
+    export
+        .args(["keystore", "export", "--scrypt-log-n", "10", "--out"])
+        .arg(&ks)
+        .arg("--new-password-file")
+        .arg(&pw);
+    with_key(&mut export, &f, 2);
+    export.assert().success();
+    assert_eq!(mode(&ks), 0o600);
 }

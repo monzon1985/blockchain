@@ -3,13 +3,19 @@
 //!
 //! Three checks, all of which must pass:
 //!
-//! 1. **Dependency graph.** `cargo tree -e normal,build --target all` for `keysmith-core` and
-//!    `keysmith-cli` must contain no crate from [`NETWORK_CRATES`] and no `tokio` with its `net`
-//!    feature. Build dependencies are included because build scripts run on the signing machine.
-//! 2. **Source scan.** No file under the signer crates' `src/` may reference `std::net` or socket
-//!    types (a hand-rolled HTTP client would not show up in the dependency graph).
+//! 1. **Dependency graph.** `cargo tree -e normal,build --target all --all-features` for
+//!    `keysmith-core` and `keysmith-cli` must contain no crate from [`NETWORK_CRATES`] and no
+//!    `tokio` with its `net` feature. Build dependencies are included because build scripts run
+//!    on the signing machine, and every feature is enabled so that a networking dependency
+//!    hidden behind an optional feature is still seen.
+//! 2. **Source scan.** No file under the signer crates' `src/` may reference `std::net`, socket
+//!    types, Unix sockets, FFI, or any `std::process` item other than [`ALLOWED_PROCESS_ITEMS`].
+//!    A hand-rolled HTTP client would not show up in the dependency graph, and spawning `curl`
+//!    or `ssh` would exfiltrate data without any networking crate.
 //! 3. **Positive control.** The same graph check run on `keysmith-relay` (the online half, which
-//!    really does use HTTP) must report violations; otherwise the check itself is broken.
+//!    really does use HTTP) must flag at least one **transitive** networking crate. The root
+//!    package's own name does not count: `cargo tree -p` always lists it, so it would satisfy a
+//!    weaker control even if the graph walk stopped reporting dependencies.
 
 use std::path::Path;
 use std::process::Command;
@@ -59,8 +65,9 @@ pub const NETWORK_CRATES: &[&str] = &[
     "websocket",
 ];
 
-/// Source patterns that indicate direct socket use.
+/// Source patterns that indicate socket use, process spawning or FFI.
 pub const FORBIDDEN_SOURCE_PATTERNS: &[&str] = &[
+    // Sockets.
     "std::net",
     "core::net",
     "TcpStream",
@@ -68,8 +75,26 @@ pub const FORBIDDEN_SOURCE_PATTERNS: &[&str] = &[
     "UdpSocket",
     "UnixStream",
     "UnixListener",
+    "UnixDatagram",
     "ToSocketAddrs",
+    "os::unix::net",
+    // Spawning another program (`curl`, `ssh`, `nc`, `powershell`) needs no networking crate.
+    "Command::new",
+    "os::unix::process",
+    "os::windows::process",
+    // FFI, e.g. a raw `socket(2)` call. Calling it would also need `unsafe`, which the
+    // workspace lints forbid; these catch the declaration itself.
+    "libc::",
+    "extern \"",
+    "#[link",
+    "windows_sys",
+    "winapi",
 ];
+
+/// The only `std::process` items the signer may name. Any other `process::` path, including a
+/// grouped import (`process::{...}`) or an alias, is reported, so `Command` cannot be smuggled
+/// in as `use std::process::Command as Run`.
+pub const ALLOWED_PROCESS_ITEMS: &[&str] = &["ExitCode", "exit"];
 
 /// Crates whose code runs on the air-gapped machine.
 pub const SIGNER_PATH: &[&str] = &["keysmith-core", "keysmith-cli"];
@@ -130,13 +155,41 @@ pub fn violations(entries: &[TreeEntry]) -> Vec<String> {
     found
 }
 
-/// Returns `(file, pattern)` for every forbidden pattern in `source`.
-pub fn scan_source(file: &str, source: &str) -> Vec<(String, &'static str)> {
-    FORBIDDEN_SOURCE_PATTERNS
+/// Returns `(file, pattern)` for every forbidden pattern in `source`, plus
+/// `(file, "process::<item>")` for every `std::process` path naming anything other than
+/// [`ALLOWED_PROCESS_ITEMS`].
+pub fn scan_source(file: &str, source: &str) -> Vec<(String, String)> {
+    let mut hits: Vec<(String, String)> = FORBIDDEN_SOURCE_PATTERNS
         .iter()
         .filter(|p| source.contains(*p))
-        .map(|p| (file.to_owned(), *p))
-        .collect()
+        .map(|p| (file.to_owned(), (*p).to_owned()))
+        .collect();
+    for (at, matched) in source.match_indices("process::") {
+        let rest = &source[at + matched.len()..];
+        let item: String = rest
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        if !ALLOWED_PROCESS_ITEMS.contains(&item.as_str()) {
+            let shown = if item.is_empty() {
+                rest.chars().take(1).collect::<String>()
+            } else {
+                item
+            };
+            hits.push((file.to_owned(), format!("process::{shown}")));
+        }
+    }
+    hits.sort();
+    hits.dedup();
+    hits
+}
+
+/// Networking crates reported for the positive control, excluding the control package itself:
+/// only crates the graph walk found **below** the root prove that it reports transitive
+/// dependencies.
+pub fn transitive_violations(entries: &[TreeEntry], root: &str) -> Vec<String> {
+    let below_root: Vec<TreeEntry> = entries.iter().filter(|e| e.name != root).cloned().collect();
+    violations(&below_root)
 }
 
 fn cargo_tree(root: &Path, package: &str) -> Result<Vec<TreeEntry>, String> {
@@ -152,6 +205,7 @@ fn cargo_tree(root: &Path, package: &str) -> Result<Vec<TreeEntry>, String> {
             "normal,build",
             "--target",
             "all",
+            "--all-features",
             "--prefix",
             "none",
             "--format",
@@ -190,7 +244,7 @@ pub fn run(root: &Path) -> Result<String, String> {
         let bad = violations(&entries);
         if bad.is_empty() {
             report.push_str(&format!(
-                "ok   {package}: {} crates in the normal+build graph (all targets), no networking crate\n",
+                "ok   {package}: {} crates in the normal+build graph (all targets, all features), no networking crate\n",
                 entries.len()
             ));
         } else {
@@ -212,7 +266,7 @@ pub fn run(root: &Path) -> Result<String, String> {
     }
     if hits.is_empty() {
         report.push_str(&format!(
-            "ok   source scan: {} files in the signer crates, no socket APIs\n",
+            "ok   source scan: {} files in the signer crates, no socket, process-spawning or FFI APIs\n",
             files.len()
         ));
     } else {
@@ -220,14 +274,15 @@ pub fn run(root: &Path) -> Result<String, String> {
             failures.push(format!("{file} references `{pattern}`"));
         }
     }
-    let control = violations(&cargo_tree(root, CONTROL)?);
+    let control = transitive_violations(&cargo_tree(root, CONTROL)?, CONTROL);
     if control.is_empty() {
         failures.push(format!(
-            "positive control failed: {CONTROL} shows no networking crate, so the check cannot detect one"
+            "positive control failed: no networking crate was found below {CONTROL}, so the \
+             graph walk cannot detect a transitive one"
         ));
     } else {
         report.push_str(&format!(
-            "ok   positive control: {CONTROL} is flagged ({})\n",
+            "ok   positive control: {CONTROL} is flagged through its dependencies ({})\n",
             control.join(", ")
         ));
     }
@@ -259,10 +314,75 @@ mod tests {
         assert_eq!(violations(&dirty), ["rustls", "tokio[net]", "ureq"]);
     }
 
+    fn patterns(source: &str) -> Vec<String> {
+        scan_source("x.rs", source)
+            .into_iter()
+            .map(|(_, p)| p)
+            .collect()
+    }
+
     #[test]
     fn source_scan_catches_raw_sockets() {
         assert!(scan_source("a.rs", "fn main() {}").is_empty());
         let hits = scan_source("b.rs", "use std::net::TcpStream;");
         assert_eq!(hits.len(), 2);
+        assert_eq!(
+            patterns("use std::os::unix::net::UnixDatagram;"),
+            ["UnixDatagram", "os::unix::net"]
+        );
+    }
+
+    /// Regression: the scan covered sockets only, so a signer that ran `curl` through
+    /// `std::process::Command` passed both the graph check and the scan.
+    #[test]
+    fn source_scan_catches_process_spawning_and_ffi() {
+        // Every spelling of "run another program" is caught, including aliases and groups.
+        for src in [
+            r#"std::process::Command::new("curl").arg(url).status();"#,
+            "use std::process::Command;",
+            "use std::process::{Command, ExitCode};",
+            "use std::process::Command as Run;",
+            "use std::process::Stdio;",
+            "use std::os::unix::process::CommandExt;",
+            "use std::os::windows::process::CommandExt;",
+        ] {
+            assert!(!scan_source("x.rs", src).is_empty(), "{src}");
+        }
+        assert_eq!(
+            patterns(r#"std::process::Command::new("ssh")"#),
+            ["Command::new", "process::Command"]
+        );
+        assert_eq!(patterns("use std::process::{ExitCode};"), ["process::{"]);
+        // FFI declarations.
+        assert_eq!(
+            patterns(r#"extern "C" { fn socket(d: i32, t: i32, p: i32) -> i32; }"#),
+            ["extern \""]
+        );
+        assert_eq!(patterns("let fd = libc::socket(2, 1, 0);"), ["libc::"]);
+        assert_eq!(patterns("#[link(name = \"ws2_32\")]"), ["#[link"]);
+        // What the signer legitimately uses stays allowed.
+        for ok in [
+            "use std::process::ExitCode;",
+            "fn main() -> std::process::ExitCode { std::process::exit(3) }",
+            "extern crate alloc;",
+            "pub enum Command { Sign }",
+            "Command::Sign(args) => run(args),",
+        ] {
+            assert!(scan_source("x.rs", ok).is_empty(), "{ok}");
+        }
+    }
+
+    /// Regression: `keysmith-relay` is itself in [`NETWORK_CRATES`] and `cargo tree -p` always
+    /// lists the root package, so the old control passed even if the graph walk had reported
+    /// no dependency at all.
+    #[test]
+    fn positive_control_needs_a_transitive_crate() {
+        let root_only = parse_tree("keysmith-relay v0.1.0 (C:\\x)|\n");
+        assert_eq!(violations(&root_only), ["keysmith-relay"]);
+        assert!(transitive_violations(&root_only, CONTROL).is_empty());
+        let full = parse_tree(
+            "keysmith-relay v0.1.0 (C:\\x)|\nureq v3.4.2|json,rustls\nrustls v0.23.45|ring\n",
+        );
+        assert_eq!(transitive_violations(&full, CONTROL), ["rustls", "ureq"]);
     }
 }

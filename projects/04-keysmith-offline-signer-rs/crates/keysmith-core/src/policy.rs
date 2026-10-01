@@ -4,6 +4,8 @@
 //! A policy is a JSON file kept on the air-gapped machine. Every numeric or list constraint is
 //! optional (absent = unrestricted); every boolean permission defaults to **deny**. Unknown keys
 //! are rejected, so a typo such as `"maxValeuWei"` cannot silently disable a limit.
+//! [`Policy::default`] (the empty policy `{}`) is what the `keysmith` CLI applies when no policy
+//! file is given, so the deny-by-default booleans always hold unless `--no-policy` is passed.
 //!
 //! ```json
 //! {
@@ -15,12 +17,20 @@
 //!   "allowContractCreation": false,
 //!   "allowedDelegates": ["0x..."],
 //!   "allowAnyChainAuthorizations": false,
-//!   "allowUnprotectedLegacy": false
+//!   "allowUnprotectedLegacy": false,
+//!   "allowedVerifyingContracts": ["0x..."],
+//!   "allowedSpenders": ["0x..."],
+//!   "maxPermitValue": "1000000000"
 //! }
 //! ```
+//!
+//! Transactions are checked by [`Policy::check_transaction`], EIP-7702 tuples by
+//! [`Policy::check_authorization`], and EIP-712 documents (including ERC-2612 permits) by
+//! [`Policy::check_typed_data`].
 
 use crate::address::Address;
 use crate::authorization::Authorization;
+use crate::eip712::{Eip712Error, Field, FieldValue, TypedData};
 use crate::gas::fee_summary;
 use crate::tx::{Transaction, TxKind};
 use crate::u256::U256;
@@ -59,6 +69,19 @@ pub struct Policy {
     /// Permit pre-EIP-155 legacy transactions (no replay protection).
     #[serde(default)]
     pub allow_unprotected_legacy: bool,
+    /// Contracts an EIP-712 domain may name as `verifyingContract` (typed data and permits).
+    /// When set, a domain without a `verifyingContract` is refused too.
+    #[serde(default)]
+    pub allowed_verifying_contracts: Option<Vec<Address>>,
+    /// Addresses a typed-data message may name in a top-level `spender` member (ERC-2612
+    /// `Permit`, Permit2 `PermitSingle` / `PermitBatch` / `PermitTransferFrom`, DAI-style
+    /// permits).
+    #[serde(default)]
+    pub allowed_spenders: Option<Vec<Address>>,
+    /// Maximum `value` of an ERC-2612 `Permit` (primary type `Permit` with a top-level
+    /// `value`), in token base units.
+    #[serde(default)]
+    pub max_permit_value: Option<U256>,
 }
 
 /// A policy rule that a request breaks.
@@ -162,6 +185,71 @@ impl Policy {
             out.extend(self.check_authorization(&auth.authorization()));
         }
         out
+    }
+
+    /// Checks an EIP-712 document (the `keysmith sign-typed-data` and `keysmith permit` paths):
+    ///
+    /// * `allowedChainIds`: the domain's `chainId` must be allowed; a domain without one is
+    ///   refused, because its signature is valid on every chain;
+    /// * `allowedVerifyingContracts`: the domain's `verifyingContract` must be listed;
+    /// * `allowedSpenders`: a top-level `spender` address in the message must be listed;
+    /// * `maxPermitValue`: an ERC-2612 `Permit.value` must not exceed the limit.
+    pub fn check_typed_data(&self, td: &TypedData) -> Result<Vec<Violation>, Eip712Error> {
+        let mut out = Vec::new();
+        if let Some(ids) = &self.allowed_chain_ids {
+            match td.domain_chain_id() {
+                Some(id) if id.to_u64().is_some_and(|id| ids.contains(&id)) => {}
+                Some(id) => out.push(violation(
+                    "allowedChainIds",
+                    format!("typed-data domain chain id {id} is not allowed"),
+                )),
+                None => out.push(violation(
+                    "allowedChainIds",
+                    "the typed-data domain has no chainId (valid on every chain)".into(),
+                )),
+            }
+        }
+        if let Some(list) = &self.allowed_verifying_contracts {
+            match td.domain_verifying_contract() {
+                Some(c) if list.contains(&c) => {}
+                Some(c) => out.push(violation(
+                    "allowedVerifyingContracts",
+                    format!("verifying contract {c} is not on the allow-list"),
+                )),
+                None => out.push(violation(
+                    "allowedVerifyingContracts",
+                    "the typed-data domain names no verifyingContract".into(),
+                )),
+            }
+        }
+        let fields = td.message_fields()?;
+        let top = |name: &str| fields.iter().find(|f| f.path == name);
+        if let Some(list) = &self.allowed_spenders
+            && let Some(Field {
+                value: FieldValue::Address(spender),
+                ..
+            }) = top("spender")
+            && !list.contains(spender)
+        {
+            out.push(violation(
+                "allowedSpenders",
+                format!("spender {spender} is not on the allow-list"),
+            ));
+        }
+        if let Some(max) = &self.max_permit_value
+            && td.primary_type() == "Permit"
+            && let Some(Field {
+                value: FieldValue::Uint(value),
+                ..
+            }) = top("value")
+            && value > max
+        {
+            out.push(violation(
+                "maxPermitValue",
+                format!("permit value {value} exceeds the limit {max}"),
+            ));
+        }
+        Ok(out)
     }
 
     /// Checks an EIP-7702 authorization tuple.
@@ -335,5 +423,77 @@ mod tests {
             rules(&p.check_authorization(&huge.authorization())),
             ["allowedChainIds"]
         );
+    }
+
+    fn permit_doc(
+        chain: Option<u64>,
+        contract: Option<&str>,
+        spender: &str,
+        value: &str,
+    ) -> TypedData {
+        let mut domain = serde_json::json!({"name": "Token", "version": "1"});
+        if let Some(c) = chain {
+            domain["chainId"] = serde_json::json!(c);
+        }
+        if let Some(c) = contract {
+            domain["verifyingContract"] = serde_json::json!(c);
+        }
+        TypedData::from_value(&serde_json::json!({
+            "types": {"Permit": [
+                {"name": "owner", "type": "address"}, {"name": "spender", "type": "address"},
+                {"name": "value", "type": "uint256"}, {"name": "nonce", "type": "uint256"},
+                {"name": "deadline", "type": "uint256"}]},
+            "primaryType": "Permit",
+            "domain": domain,
+            "message": {"owner": "0x0101010101010101010101010101010101010101", "spender": spender,
+                        "value": value, "nonce": "0", "deadline": "1"}
+        }))
+        .unwrap()
+    }
+
+    /// Regression: typed data and permits were never policy-checked, so a dApp-supplied
+    /// unlimited permit to an arbitrary spender on any chain was signed as long as it parsed.
+    #[test]
+    fn typed_data_rules() {
+        const TOKEN: &str = "0x0303030303030303030303030303030303030303";
+        const FRIEND: &str = "0x0404040404040404040404040404040404040404";
+        const ATTACKER: &str = "0x0505050505050505050505050505050505050505";
+        let p = Policy::from_json_str(&format!(
+            r#"{{"allowedChainIds":[1],"allowedVerifyingContracts":["{TOKEN}"],
+                "allowedSpenders":["{FRIEND}"],"maxPermitValue":"1000"}}"#
+        ))
+        .unwrap();
+        let check = |td: &TypedData| rules(&p.check_typed_data(td).unwrap());
+        assert!(check(&permit_doc(Some(1), Some(TOKEN), FRIEND, "1000")).is_empty());
+        assert_eq!(
+            check(&permit_doc(Some(5), Some(ATTACKER), ATTACKER, "1001")),
+            [
+                "allowedChainIds",
+                "allowedVerifyingContracts",
+                "allowedSpenders",
+                "maxPermitValue"
+            ]
+        );
+        // A domain without chainId or verifyingContract cannot satisfy an allow-list.
+        assert_eq!(
+            check(&permit_doc(None, None, FRIEND, "1")),
+            ["allowedChainIds", "allowedVerifyingContracts"]
+        );
+        // The empty (default) policy constrains no typed data.
+        assert!(
+            Policy::default()
+                .check_typed_data(&permit_doc(None, None, ATTACKER, "1"))
+                .unwrap()
+                .is_empty()
+        );
+        // maxPermitValue is specific to ERC-2612 `Permit`; allowedSpenders to a `spender`.
+        let mail = TypedData::from_value(&serde_json::json!({
+            "types": {"Mail": [{"name": "value", "type": "uint256"}]},
+            "primaryType": "Mail",
+            "domain": {"chainId": 1, "verifyingContract": TOKEN},
+            "message": {"value": "99999"}
+        }))
+        .unwrap();
+        assert!(check(&mail).is_empty());
     }
 }

@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -76,12 +76,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.98.1"
-          components: clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -92,18 +91,39 @@ jobs:
         with:
           version: v1.8.3
 
-      - name: Golden vectors are current (re-run cast 1.8.3 and compare with the committed file)
+      - name: Golden vectors are current (cast must be 1.8.3; re-run it and compare with the committed file)
         run: cargo xtask regen-golden --check
 
       - name: anvil --hardfork osaka end-to-end (every tx type, EIP-7702, ecrecover, cast keystores)
         run: cargo test --locked -p keysmith-cli --features anvil-e2e -- --test-threads=1
+
+      - name: README demo (keysmith-relay and keysmith binaries against anvil --port 0)
+        run: bash scripts/demo.sh
+
+  supply-chain:
+    name: Supply chain · cargo-deny (advisories, bans, sources, licenses)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.1"
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny@0.20.2
+
+      - name: cargo deny (RustSec advisories, duplicate/wildcard bans, crates.io only, permissive licences)
+        run: cargo deny --locked check advisories bans sources licenses
 
   coverage:
     name: Coverage · cargo-llvm-cov (gate 90 % lines)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -119,7 +139,13 @@ jobs:
         with:
           tool: cargo-llvm-cov@0.9.1
 
-      - name: Line coverage of keysmith-core, keysmith-cli and keysmith-relay (tests and xtask excluded)
-        run: >
-          cargo llvm-cov --locked --workspace --summary-only --fail-under-lines 90
-          --ignore-filename-regex '(xtask|[\\/]tests[\\/])'
+      - name: Instrumented test run
+        run: cargo llvm-cov --locked --workspace --no-report
+
+      - name: llvm-cov summary (all instrumented lines, inline unit-test modules included)
+        run: cargo llvm-cov report --summary-only --ignore-filename-regex '(xtask|[\\/]tests[\\/])'
+
+      - name: "Production line coverage (tests/, xtask and inline #[cfg(test)] modules excluded), gate 90 %"
+        run: |
+          cargo llvm-cov report --lcov --output-path lcov.info --ignore-filename-regex '(xtask|[\\/]tests[\\/])'
+          cargo xtask coverage lcov.info --fail-under 90
