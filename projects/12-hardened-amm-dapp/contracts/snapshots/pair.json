@@ -1,0 +1,12 @@
+{
+  "burn_canonical": "135330",
+  "burn_hardened": "125146",
+  "getReserves_canonical": "2504",
+  "getReserves_hardened": "2670",
+  "mint_canonical": "115061",
+  "mint_hardened": "106358",
+  "swap_canonical": "107266",
+  "swap_hardened": "100236",
+  "sync_canonical": "90302",
+  "sync_hardened": "83930"
+}

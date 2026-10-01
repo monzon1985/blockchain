@@ -1,0 +1,91 @@
+# Hardened constant-product AMM. Monorepo defaults: solc 0.8.37 / osaka.
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+evm_version = "osaka"
+optimizer = true
+# An AMM pair is called millions of times and deployed once per token pair: optimise for runtime gas.
+optimizer_runs = 1_000_000
+via_ir = false
+# Deterministic bytecode on every OS (no metadata hash, no CBOR trailer). The router derives pair
+# addresses from the pair init-code hash, and the gas snapshot must match between Windows and Linux CI.
+bytecode_hash = "none"
+cbor_metadata = false
+auto_detect_remappings = false
+ignored_warnings_from = ["dependencies", "node_modules"]
+deny = "warnings"
+# The differential suite deploys the canonical Uniswap v2 bytecode from the npm build artifacts.
+# The local deploy script writes the deployment manifest consumed by the dApp.
+# Named gas snapshots (`vm.snapshotGas*` in GasBench -> snapshots/*.json) are compared, never rewritten: any `forge test`
+# fails if the hardened-vs-canonical table drifts. Inherited by every profile. To re-record after an intended change:
+# `forge test --match-contract GasBench --gas-snapshot-check false`.
+gas_snapshot_check = true
+fs_permissions = [
+    { access = "read", path = "./node_modules/@uniswap/v2-core/build" },
+    { access = "read-write", path = "./deployments" },
+]
+remappings = [
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "solady/=dependencies/solady-0.1.26/src/",
+]
+
+[profile.default.fuzz]
+runs = 1_000
+seed = "0x12a33"
+
+[profile.default.invariant]
+runs = 128
+depth = 64
+fail_on_revert = true
+show_metrics = true
+
+# CI: same fixed seed, deeper campaigns.
+[profile.ci.fuzz]
+runs = 5_000
+seed = "0x12a33"
+
+[profile.ci.invariant]
+runs = 256
+depth = 100
+fail_on_revert = true
+show_metrics = true
+
+# Slither (crytic-compile) runs `forge clean` on the active profile: keep its artifacts apart.
+[profile.slither]
+out = "out-slither"
+cache_path = "cache-slither"
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+quote_style = "double"
+number_underscore = "thousands"
+sort_imports = true
+
+[lint]
+lint_on_build = false
+# Tests, mocks and scripts are not production code.
+ignore = ["test/**", "script/**"]
+# Project-wide exclusions (each inline `forge-lint: disable-next-line` carries its own justification):
+# - calls-loop / require-revert-in-loop: a multi-hop route calls one pair per hop and must revert as a whole
+#   if any hop is invalid; all-or-nothing is the intended semantics, and no hop can block another user.
+# - block-timestamp: the router compares block.timestamp with user deadlines; that is the purpose of a deadline,
+#   and a few seconds of proposer leeway cannot turn an expired transaction into a valid one for longer.
+exclude_lints = ["calls-loop", "require-revert-in-loop", "block-timestamp"]
+
+[soldeer]
+remappings_generate = false
+remappings_regenerate = false
+recursive_deps = false
+
+[dependencies]
+forge-std = "1.16.2"
+"@openzeppelin-contracts" = "5.7.0"
+solady = "0.1.26"

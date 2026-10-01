@@ -1,0 +1,13 @@
+{
+  "name": "hardened-amm-contracts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Differential-fuzzing oracle for the hardened AMM: the canonical Uniswap v2 core build artifacts.",
+  "license": "GPL-3.0-or-later",
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@uniswap/v2-core": "1.0.1"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "addLiquidity_existingPair": "144476",
+  "removeLiquidity": "143495",
+  "removeLiquidityWithPermit": "174923",
+  "swapExactTokensForTokens_1hop": "125668",
+  "swapExactTokensForTokens_2hop": "209041",
+  "swapSupportingFeeOnTransfer_1hop": "126304",
+  "swapTokensForExactTokens_1hop": "126185"
+}

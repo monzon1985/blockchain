@@ -1,0 +1,13 @@
+# Next.js / TypeScript generated
+next-env.d.ts
+*.tsbuildinfo
+# Playwright and e2e artefacts
+test-results/
+playwright-report/
+blob-report/
+.e2e/
+# Local deployment manifests (written by scripts/dev.mjs)
+deployments/*.json
+# Written by `next dev` when it detects an AI coding agent: tool instructions, not project documentation
+AGENTS.md
+CLAUDE.md

@@ -1,0 +1,273 @@
+name: "12 · Hardened AMM + Swap dApp"
+
+on:
+  push:
+    paths:
+      - "projects/12-hardened-amm-dapp/**"
+      - ".github/workflows/12-hardened-amm-dapp.yml"
+  pull_request:
+    paths:
+      - "projects/12-hardened-amm-dapp/**"
+      - ".github/workflows/12-hardened-amm-dapp.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same pull request supersedes the running check; runs on main always finish, so the README
+# badge reports a result instead of "cancelled".
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: projects/12-hardened-amm-dapp
+    shell: bash
+
+env:
+  FOUNDRY_VERSION: v1.8.3
+  NODE_VERSION: "24"
+  UV_VERSION: "0.12.20"
+  MEDUSA_VERSION: v1.5.1
+  # sha256 of medusa-linux-x64.tar.gz in the crytic/medusa v1.5.1 release (the digest GitHub publishes for the asset).
+  MEDUSA_SHA256: ddfe1517ae9028ef9fc331b00f5a6a9d5406f3fcd11a715d60c6b6fb3e4546d3
+  SLITHER_VERSION: "0.11.6"
+  CRYTIC_COMPILE_VERSION: "0.4.2"
+  CONTRACTS: projects/12-hardened-amm-dapp/contracts
+  WEB: projects/12-hardened-amm-dapp/web
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  contracts:
+    name: Contracts (fmt, build, lint, test, gas, coverage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: projects/12-hardened-amm-dapp/contracts
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.CONTRACTS }}/package-lock.json
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.CONTRACTS }}/dependencies
+          key: soldeer-12-${{ hashFiles('projects/12-hardened-amm-dapp/contracts/soldeer.lock') }}
+
+      - name: Install the differential oracle (canonical Uniswap v2-core build artifacts, locked)
+        run: npm ci
+
+      - name: Install Solidity dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Format
+        run: forge fmt --check
+
+      - name: Build
+        run: forge build
+
+      - name: Lint
+        run: forge lint
+
+      # foundry.toml sets gas_snapshot_check = true for every profile: GasBench compares the named snapshots in
+      # snapshots/ with what it measures and fails on any difference, without rewriting the committed files.
+      - name: Gas snapshots (the hardened-vs-canonical table in snapshots/ and .gas-snapshot)
+        run: |
+          forge test --match-contract GasBench --gas-snapshot-check true
+          forge snapshot --check --match-contract GasBench
+
+      - name: Test (CI profile, fixed fuzz seed, deeper fuzz and invariant campaigns)
+        env:
+          FOUNDRY_PROFILE: ci
+        run: forge test
+
+      - name: Coverage of src/ (100 % of lines and branches, as published in the README)
+        run: |
+          # Coverage builds without the optimizer: it must neither check nor rewrite the committed gas snapshots.
+          forge coverage --gas-snapshot-check false --gas-snapshot-emit false --report summary --report lcov \
+            --no-match-coverage "(test|script|dependencies)"
+          awk -F: '/^LF:/{lf+=$2} /^LH:/{lh+=$2} /^BRF:/{bf+=$2} /^BRH:/{bh+=$2} END {
+            printf "Lines of src/: %d/%d, branches: %d/%d\n", lh, lf, bh, bf;
+            if (lf == 0 || lh < lf || bh < bf) exit 1 }' lcov.info
+
+      - name: No step rewrote the committed gas numbers
+        run: git diff --exit-code -- snapshots .gas-snapshot
+
+  medusa:
+    name: Medusa stateful fuzzing (300 s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: projects/12-hardened-amm-dapp/contracts
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install crytic-compile
+        run: |
+          uv tool install "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Medusa (official release, checksum verified)
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL -o medusa.tar.gz \
+            "https://github.com/crytic/medusa/releases/download/${MEDUSA_VERSION}/medusa-linux-x64.tar.gz"
+          echo "${MEDUSA_SHA256}  medusa.tar.gz" | sha256sum -c -
+          mkdir -p medusa-bin "$HOME/.local/bin" && tar -xzf medusa.tar.gz -C medusa-bin
+          install -m 0755 "$(find medusa-bin -type f -name medusa | head -n 1)" "$HOME/.local/bin/medusa"
+          "$HOME/.local/bin/medusa" --version
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.CONTRACTS }}/dependencies
+          key: soldeer-12-${{ hashFiles('projects/12-hardened-amm-dapp/contracts/soldeer.lock') }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.CONTRACTS }}/package-lock.json
+
+      - name: Install dependencies (npm + Soldeer, locked; same tree as the test job)
+        run: |
+          npm ci
+          forge soldeer install
+
+      # Time-boxed and unseeded (Medusa's random seed): the call count varies between runs and machines; a failure
+      # prints the shrunk call sequence to reproduce it.
+      - name: Fuzz (9 property tests + 13 handler actions in assertion mode)
+        run: medusa fuzz --config medusa.json --timeout 300
+
+  slither:
+    name: Slither
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: projects/12-hardened-amm-dapp/contracts
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install Slither
+        run: |
+          uv tool install "slither-analyzer==${SLITHER_VERSION}" --with "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.CONTRACTS }}/dependencies
+          key: soldeer-12-${{ hashFiles('projects/12-hardened-amm-dapp/contracts/soldeer.lock') }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.CONTRACTS }}/package-lock.json
+
+      - name: Install dependencies (npm + Soldeer, locked; same tree as the test job)
+        run: |
+          npm ci
+          forge soldeer install
+
+      - name: Analyze src/ (fails on any untriaged finding)
+        env:
+          FOUNDRY_PROFILE: slither
+        run: slither . --config-file slither.config.json --fail-pedantic
+
+  web:
+    name: dApp (typecheck, lint, vitest on anvil, build, Playwright on anvil)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: projects/12-hardened-amm-dapp/web
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.WEB }}/package-lock.json
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.CONTRACTS }}/dependencies
+          key: soldeer-12-${{ hashFiles('projects/12-hardened-amm-dapp/contracts/soldeer.lock') }}
+
+      # Only what the dApp uses: src/ (ABIs for @wagmi/cli) and script/ (the anvil deploy). The test harnesses are
+      # built and run by the contracts job.
+      - name: Build the contracts and the deploy script
+        working-directory: ${{ env.CONTRACTS }}
+        run: |
+          forge soldeer install
+          forge build src script
+
+      - name: Install (locked)
+        run: npm ci
+
+      - name: Generated ABIs and hooks are up to date (@wagmi/cli Foundry plugin)
+        run: npm run wagmi:check
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint and format
+        run: npm run lint
+
+      - name: Unit + anvil differential tests (vitest)
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: End-to-end (Playwright, fresh anvil, next start on the build above)
+        env:
+          E2E_SKIP_BUILD: "1"
+        run: npm run test:e2e
+
+      - name: Keep the Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-12
+          path: ${{ env.WEB }}/test-results
+          if-no-files-found: ignore

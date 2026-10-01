@@ -1,0 +1,10 @@
+{
+  "filter_paths": "(dependencies/|test/|script/|node_modules/)",
+  "compile_force_framework": "foundry",
+  "foundry_compile_all": false,
+  "foundry_out_directory": "out-slither",
+  "exclude_informational": false,
+  "exclude_low": false,
+  "exclude_medium": false,
+  "exclude_high": false
+}
