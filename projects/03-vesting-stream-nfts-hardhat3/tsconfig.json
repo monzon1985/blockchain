@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "lib": ["es2023"],
+    "module": "node20",
+    "target": "es2023",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"],
+    "verbatimModuleSyntax": true
+  },
+  "include": ["hardhat.config.ts", "ignition/**/*.ts", "scripts/**/*.ts", "test/**/*.ts", "artifacts/**/*.d.ts"]
+}

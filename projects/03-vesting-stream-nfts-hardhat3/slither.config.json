@@ -1,0 +1,7 @@
+{
+  "filter_paths": "node_modules",
+  "solc_remaps": "@openzeppelin/=node_modules/@openzeppelin/ solady/=node_modules/solady/",
+  "solc_args": "--optimize --optimize-runs 10000 --evm-version osaka",
+  "detectors_to_exclude": "timestamp,assembly,naming-convention",
+  "fail_on": "pedantic"
+}

@@ -1,0 +1,36 @@
+{
+  "name": "Vesting Stream #7",
+  "description": "DEMO vesting stream. The owner of this NFT can withdraw the vested tokens. Token address: 0x5FbDB2315678afecb367f032d93F642f64180aa3. Token symbols are chosen by the token deployer and can impersonate other assets: always verify the token address.",
+  "image": "<test/golden/tranched-32.svg>",
+  "attributes": [
+    {
+      "trait_type": "Shape",
+      "value": "Tranched"
+    },
+    {
+      "trait_type": "Status",
+      "value": "Streaming"
+    },
+    {
+      "trait_type": "Token",
+      "value": "DEMO"
+    },
+    {
+      "trait_type": "Token address",
+      "value": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    },
+    {
+      "trait_type": "Cancelable",
+      "value": "Yes"
+    },
+    {
+      "trait_type": "Deposited",
+      "value": "8,000"
+    },
+    {
+      "display_type": "boost_percentage",
+      "trait_type": "Vested",
+      "value": 68
+    }
+  ]
+}

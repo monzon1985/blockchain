@@ -1,0 +1,36 @@
+{
+  "name": "Vesting Stream #9",
+  "description": "<b>\"Q&A's\"</b> vesting stream. The owner of this NFT can withdraw the vested tokens. Token address: 0xa513E6E4b8f2a923D98304ec87F64353C4D5C853. Token symbols are chosen by the token deployer and can impersonate other assets: always verify the token address.",
+  "image": "<test/golden/hostile-symbol.svg>",
+  "attributes": [
+    {
+      "trait_type": "Shape",
+      "value": "Linear"
+    },
+    {
+      "trait_type": "Status",
+      "value": "Streaming"
+    },
+    {
+      "trait_type": "Token",
+      "value": "<b>\"Q&A's\"</b>"
+    },
+    {
+      "trait_type": "Token address",
+      "value": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"
+    },
+    {
+      "trait_type": "Cancelable",
+      "value": "Yes"
+    },
+    {
+      "trait_type": "Deposited",
+      "value": "777"
+    },
+    {
+      "display_type": "boost_percentage",
+      "trait_type": "Vested",
+      "value": 75
+    }
+  ]
+}

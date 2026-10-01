@@ -1,0 +1,9 @@
+# Hardhat 3 build output and caches
+/artifacts
+/cache
+/coverage
+/types
+# Ignition journals of local deployments
+/ignition/deployments/chain-31337
+# Output of `npm run demo`
+/demo-out

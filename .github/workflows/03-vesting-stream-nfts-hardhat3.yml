@@ -1,0 +1,160 @@
+name: "3 · Vesting Stream NFTs (Hardhat 3)"
+
+on:
+  push:
+    paths:
+      - "projects/03-vesting-stream-nfts-hardhat3/**"
+      - ".github/workflows/03-vesting-stream-nfts-hardhat3.yml"
+  pull_request:
+    paths:
+      - "projects/03-vesting-stream-nfts-hardhat3/**"
+      - ".github/workflows/03-vesting-stream-nfts-hardhat3.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/03-vesting-stream-nfts-hardhat3
+    # Explicit `shell: bash` runs with `-eo pipefail`, so a failing command piped into `tee` fails the step.
+    shell: bash
+
+env:
+  NODE_VERSION: "24"
+  FOUNDRY_VERSION: v1.8.3
+  UV_VERSION: "0.12.20"
+  SLITHER_VERSION: "0.11.6"
+  CRYTIC_COMPILE_VERSION: "0.4.2"
+  SOLC_SELECT_VERSION: "1.2.0"
+  SOLC_VERSION: "0.8.37"
+  LOCKFILE: projects/03-vesting-stream-nfts-hardhat3/package-lock.json
+
+jobs:
+  hardhat:
+    name: Build, lint, tests, invariants, coverage, gas, demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.LOCKFILE }}
+
+      # Only used for `forge fmt --check` on the Solidity sources; the project itself is built and tested by Hardhat 3.
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Install (locked)
+        run: npm ci
+
+      - name: Toolchain versions
+        run: |
+          node --version
+          npx hardhat --version
+          forge --version
+
+      - name: Build (solc 0.8.37, EVM osaka)
+        run: npx hardhat build
+
+      - name: Typecheck (strict)
+        run: npx tsc --noEmit
+
+      - name: Lint (ESLint, typescript-eslint strict type-checked)
+        run: npm run lint
+
+      - name: Format (Prettier for TypeScript, forge fmt for Solidity)
+        run: |
+          npm run format:check
+          npm run fmt:sol:check
+
+      - name: Test (Solidity unit, fuzz and invariant suites, node:test integration, golden files, gas budget)
+        run: npx hardhat test
+
+      - name: Deeper campaign (ci profile, fixed seed, 5,000 fuzz runs, 256 x 128 invariant calls)
+        run: npx hardhat test solidity --test-profile ci
+
+      - name: Solidity test gas snapshot (.gas-snapshot)
+        run: npx hardhat test solidity --snapshot-check
+
+      - name: Coverage of production contracts (gate 100 % lines, as published in the README)
+        run: |
+          npx hardhat test --coverage
+          node scripts/check-coverage.ts 100 | tee coverage.txt
+          { echo "### Line coverage"; echo '```'; cat coverage.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Gas table (gas-table.json must be reproduced exactly)
+        run: |
+          npm run gas:check | tee gas.txt
+          { echo "### Gas"; grep -E '^\|' gas.txt; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Ignition demo (deploy, batch-create, time travel, cancel, render)
+        run: npm run demo
+
+      - name: No committed file was rewritten (golden files, gas table, snapshot)
+        run: git diff --exit-code -- .
+
+  slither:
+    name: Slither (zero findings, pedantic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.LOCKFILE }}
+
+      - name: Install (locked; Slither resolves imports from node_modules)
+        run: npm ci
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install Slither and solc
+        run: |
+          uv tool install "slither-analyzer==${SLITHER_VERSION}" --with "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          uv tool install "solc-select==${SOLC_SELECT_VERSION}"
+          bin_dir="$(uv tool dir --bin)"
+          echo "$bin_dir" >> "$GITHUB_PATH"
+          export PATH="$bin_dir:$PATH"
+          solc-select install "${SOLC_VERSION}"
+          solc-select use "${SOLC_VERSION}"
+          solc --version
+          slither --version
+
+      - name: Analyze (any finding fails; exclusions and inline suppressions are triaged in docs/static-analysis.md)
+        run: npm run slither
+
+  mutation:
+    name: Mutation spot-check (every injected bug must fail the suite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.LOCKFILE }}
+
+      - name: Install (locked)
+        run: npm ci
+
+      - name: Inject 21 bugs one at a time (scripts/mutation.ts)
+        run: npm run mutation
+
+      - name: Sources restored after the campaign
+        run: git diff --exit-code -- .
