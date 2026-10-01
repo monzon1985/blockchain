@@ -11,6 +11,7 @@ import {
   MONTH,
   Shape,
   T0,
+  YEAR,
   evenMilestones,
   linearParams,
   milestoneParams,
@@ -112,6 +113,22 @@ export async function buildGoldenScenario(connection: Connection) {
     hostile.address,
     linearParams({ recipient: carol.account.address, deposit: 777n * E18, start: T0, end: T0 + 10 * MONTH }),
   ]);
+  // Dust: a non-zero amount below 0.0001 tokens is displayed as `<0.0001`, which is markup unless escaped.
+  await at(T0 + 180);
+  await vesting.write.createBatch([
+    demoToken.address,
+    [
+      // 10,000 DEMO over four years, rendered one second after its start: 0.00008 DEMO streamed and withdrawable.
+      linearParams({
+        recipient: bob.account.address,
+        deposit: 10_000n * E18,
+        start: RENDER_TIME - 1,
+        end: RENDER_TIME - 1 + 4 * YEAR,
+      }),
+      // 100 DEMO over two months, canceled one second before the end: a dust refund, displayed for good.
+      linearParams({ recipient: carol.account.address, deposit: 100n * E18, start: T0, end: T0 + 2 * MONTH }),
+    ],
+  ]);
 
   const ids = {
     linearCliff: 1n,
@@ -123,10 +140,14 @@ export async function buildGoldenScenario(connection: Connection) {
     tranched32: 7n,
     linearDepleted: 8n,
     hostileSymbol: 9n,
+    linearDust: 10n,
+    canceledDust: 11n,
   } as const;
 
   await at(T0 + MONTH + DAY);
   await vesting.write.withdrawMax([ids.linearDepleted, alice.account.address], { account: alice.account });
+  await at(T0 + 2 * MONTH - 1);
+  await vesting.write.cancel([ids.canceledDust]);
   await at(T0 + 5 * MONTH);
   await vesting.write.withdraw([ids.linearCliff, alice.account.address, 20_000n * E6], { account: alice.account });
   await at(T0 + 5 * MONTH + 60);

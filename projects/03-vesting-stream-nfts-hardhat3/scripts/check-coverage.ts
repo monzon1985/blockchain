@@ -4,12 +4,14 @@
  * coverage of the production contracts (everything under `contracts/` except the test-only `contracts/mocks/`,
  * which `hardhat.config.ts` already excludes from instrumentation) is below the threshold.
  *
- *   node scripts/check-coverage.ts [minPercent=90]
+ *   node scripts/check-coverage.ts [minPercent=100]
+ *
+ * `npm run coverage:check` (README and CI alike) passes 100 explicitly: the published gate is 100 % of lines.
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-const minimum = Number(process.argv[2] ?? 90);
+const minimum = Number(process.argv[2] ?? 100);
 const lcovPath = path.join(import.meta.dirname, "..", "coverage", "lcov.info");
 const lcov = await readFile(lcovPath, "utf8");
 

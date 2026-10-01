@@ -15,7 +15,7 @@
     "test:nodejs": "hardhat test nodejs",
     "test:ci": "hardhat test solidity --test-profile ci",
     "coverage": "hardhat test --coverage",
-    "coverage:check": "node scripts/check-coverage.ts",
+    "coverage:check": "node scripts/check-coverage.ts 100",
     "snapshot": "hardhat test solidity --snapshot",
     "snapshot:check": "hardhat test solidity --snapshot-check",
     "gas:check": "hardhat run scripts/gas-check.ts",

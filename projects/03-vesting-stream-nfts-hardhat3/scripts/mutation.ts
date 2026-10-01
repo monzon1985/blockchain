@@ -9,6 +9,13 @@
  * Each mutant replaces one exact source fragment (which must occur exactly once). The original file is backed up under
  * `cache/mutation-backup/` before it is touched and restored afterwards, also on Ctrl+C; a backup left behind by a
  * killed run is restored on the next start. A mutant that does not compile is reported as invalid and fails the run.
+ *
+ * A mutant can also name a `guard`: one test file that must catch it on its own, because the README cites that file as
+ * the protection against this bug class. This keeps such a claim honest even when other suites also kill the mutant
+ * (for example, M08 must fail the invariant suite, not only the unit tests, or INV-5 would be vacuous).
+ *
+ * Every command runs exactly as in the baseline: the Solidity suites with the `mutation` test profile (the default
+ * profile plus a finite per-call gas limit), then the node:test suites.
  */
 import { spawnSync } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync } from "node:fs";
@@ -21,6 +28,8 @@ interface Mutant {
   bug: string;
   find: string;
   replace: string;
+  /** Test file (`.sol` or `.ts`) that must fail on this mutant when run alone. */
+  guard?: string;
 }
 
 const ROOT = path.join(import.meta.dirname, "..");
@@ -83,6 +92,8 @@ const MUTANTS: Mutant[] = [
     bug: "deposit check only rejects an empty transfer, so short deliveries are accepted",
     find: "if (received != amount) revert",
     replace: "if (received == 0) revert",
+    // INV-5 is documented as rejecting fee-on-transfer and share-rounding tokens: the stateful suite alone must see it.
+    guard: "test/solidity/invariant/VestingInvariants.t.sol",
   },
   {
     id: "M09",
@@ -177,6 +188,30 @@ const MUTANTS: Mutant[] = [
     find: "fraction = remainder / 10 ** (decimals - FRACTION_DIGITS);",
     replace: "fraction = (remainder + 10 ** (decimals - FRACTION_DIGITS) - 1) / 10 ** (decimals - FRACTION_DIGITS);",
   },
+  {
+    id: "M22",
+    file: "contracts/StreamRenderer.sol",
+    bug: "amounts are written into the SVG without XML escaping (dust renders as `<0.0001`)",
+    find: "bytes(LibString.escapeHTML(amount)),",
+    replace: "bytes(amount),",
+  },
+  // Dropping only the 64/63 factor (keeping HOOK_CALL_OVERHEAD) is not listed: with the current constants it is an
+  // equivalent mutant. The 5,000 gas overhead covers the 1,587 gas the factor adds plus the few hundred gas the call
+  // setup costs, so the hook still receives its full stipend, which is what the boundary test in Cancel.t.sol checks.
+  {
+    id: "M23",
+    file: "contracts/VestingStreams.sol",
+    bug: "the hook gas reservation ignores the 63/64 rule and the call overhead",
+    find: "uint256 gasRequired = (RECIPIENT_HOOK_GAS * 64) / 63 + HOOK_CALL_OVERHEAD;",
+    replace: "uint256 gasRequired = RECIPIENT_HOOK_GAS;",
+  },
+  {
+    id: "M24",
+    file: "contracts/VestingStreams.sol",
+    bug: "no gas is reserved for the hook call itself (HOOK_CALL_OVERHEAD = 0)",
+    find: "uint256 internal constant HOOK_CALL_OVERHEAD = 5000;",
+    replace: "uint256 internal constant HOOK_CALL_OVERHEAD = 0;",
+  },
 ];
 
 /** Hardhat's CLI entry point, run directly with this Node binary so a timeout kills the real process (no shell). */
@@ -243,13 +278,20 @@ for (const m of mutants) {
   if (occurrences !== 1) throw new Error(`${m.id}: fragment found ${occurrences} times in ${m.file}`);
 }
 
-console.log("Baseline: the unmutated suite must pass.");
-for (const args of [["build"], ["test"]]) {
-  const result = run(args);
+/** The Solidity suites (or one test file of them) with the mutation profile. */
+const solidity = (...files: string[]) => run(["test", "solidity", ...files, "--test-profile", "mutation"]);
+/** The node:test suites (or one test file of them). */
+const nodejs = (...files: string[]) => run(["test", "nodejs", ...files]);
+
+console.log("Baseline: the unmutated sources must build and pass every suite, with the same commands as the mutants.");
+for (const [label, command] of [
+  ["build", () => run(["build"])],
+  ["test solidity --test-profile mutation", () => solidity()],
+  ["test nodejs", () => nodejs()],
+] as const) {
+  const result = command();
   if (!result.ok) {
-    console.error(
-      `baseline \`hardhat ${args.join(" ")}\` ${result.timedOut ? "timed out" : "failed"}:\n${result.tail}`,
-    );
+    console.error(`baseline \`hardhat ${label}\` ${result.timedOut ? "timed out" : "failed"}:\n${result.tail}`);
     process.exit(1);
   }
 }
@@ -272,11 +314,18 @@ for (const m of mutants) {
     );
     let outcome: "killed" | "survived" | "invalid" = "survived";
     let by = "-";
-    const solidity = () => run(["test", "solidity", "--test-profile", "mutation"]);
-    const nodejs = () => run(["test", "nodejs"]);
     if (!run(["build"]).ok) {
       outcome = "invalid";
       by = "does not compile";
+    } else if (m.guard !== undefined) {
+      // The named suite alone must fail; otherwise the claim that it guards this bug class is false.
+      const guard = m.guard.endsWith(".sol") ? solidity(m.guard) : nodejs(m.guard);
+      if (!guard.ok) {
+        outcome = "killed";
+        by = `${path.basename(m.guard)}${guard.timedOut ? " (timeout)" : ""}`;
+      } else {
+        by = `${path.basename(m.guard)} passed`;
+      }
     } else {
       const sol = solidity();
       if (!sol.ok) {
@@ -291,7 +340,7 @@ for (const m of mutants) {
       }
     }
     results.push({ mutant: m, outcome, by });
-    console.log(`${m.id} ${outcome.toUpperCase().padEnd(8)} ${by.padEnd(17)} ${m.file}: ${m.bug}`);
+    console.log(`${m.id} ${outcome.toUpperCase().padEnd(8)} ${by.padEnd(26)} ${m.file}: ${m.bug}`);
   } finally {
     await writeFile(target, original);
     await rm(BACKUP_DIR, { recursive: true, force: true });

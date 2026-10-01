@@ -15,6 +15,24 @@ function isForbiddenXmlCodeUnit(code: number): boolean {
   return (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) || code === 0xfffe || code === 0xffff;
 }
 
+/** XML 1.0 `Char` production: the code points a character reference may name. */
+function isXmlChar(code: number): boolean {
+  return (
+    code === 0x09 ||
+    code === 0x0a ||
+    code === 0x0d ||
+    (code >= 0x20 && code <= 0xd7ff) ||
+    (code >= 0xe000 && code <= 0xfffd) ||
+    (code >= 0x10000 && code <= 0x10ffff)
+  );
+}
+
+/**
+ * The only references a document without a DTD may contain: the five predefined entities and numeric character
+ * references. Anything else after `&` (`&nbsp;`, `&foo;`, a bare `&`) is not well-formed XML.
+ */
+const REFERENCE = /&(?:amp|lt|gt|quot|apos|#([0-9]+)|#x([0-9A-Fa-f]+));/y;
+
 export interface Attribute {
   trait_type: string;
   value: string | number;
@@ -46,9 +64,11 @@ export function decodeTokenUri(uri: string): DecodedTokenUri {
 
 /**
  * Asserts that `svg` is a well-formed XML document. fast-xml-validator (the syntax validator split out of
- * fast-xml-parser by the same author) checks tag balance, attribute quoting, entity syntax and illegal control
- * characters, and is told to also reject `]]>` in text, `--` in comments and a raw `<` inside attribute values.
- * An independent code-unit scan re-checks the XML 1.0 character range on top.
+ * fast-xml-parser by the same author) checks tag balance, attribute quoting and illegal control characters, and is
+ * told to also reject `]]>` in text, `--` in comments and a raw `<` inside attribute values. Two independent scans run
+ * on top, because the validator accepts any `&name;` with a word-character name: every `&` must start a predefined or
+ * numeric reference to an allowed character, and every UTF-16 code unit must be in the XML 1.0 character range. (The
+ * renderer emits no comments, CDATA sections or processing instructions, where `&` would be literal text.)
  */
 export function assertWellFormedSvg(svg: string): void {
   assert.doesNotThrow(
@@ -57,6 +77,19 @@ export function assertWellFormedSvg(svg: string): void {
   );
   for (let i = 0; i < svg.length; i++) {
     assert.ok(!isForbiddenXmlCodeUnit(svg.charCodeAt(i)), `SVG contains a character XML 1.0 forbids at index ${i}`);
+  }
+  for (let i = svg.indexOf("&"); i !== -1; i = svg.indexOf("&", i + 1)) {
+    REFERENCE.lastIndex = i;
+    const match = REFERENCE.exec(svg);
+    assert.ok(
+      match !== null,
+      `'&' at index ${i} does not start a predefined or numeric reference: ${svg.slice(i, i + 12)}`,
+    );
+    const [reference, decimal, hex] = match;
+    if (decimal !== undefined || hex !== undefined) {
+      const code = decimal !== undefined ? Number.parseInt(decimal, 10) : Number.parseInt(hex ?? "", 16);
+      assert.ok(isXmlChar(code), `${reference} references a character XML 1.0 forbids`);
+    }
   }
   for (const match of svg.matchAll(/="([^"]*)"/g)) {
     const value = match[1] ?? "";

@@ -2,7 +2,8 @@
 /**
  * Deterministic gas table. Replays a fixed scenario on a fresh simulated chain (every transaction pinned to an
  * explicit timestamp), measures `gasUsed` of create / withdraw / cancel / renounce / transfer and the
- * `eth_estimateGas` of `tokenURI`, and compares the result with the committed `gas-table.json`.
+ * `eth_estimateGas` of `tokenURI` (including the rendering stress case), and compares the result with the committed
+ * `gas-table.json`.
  *
  *   npm run gas:check    # fails on any difference
  *   npm run gas:update   # rewrites gas-table.json
@@ -15,6 +16,7 @@ import { encodeFunctionData, type Hash } from "viem";
 
 import { DAY, E18, MONTH, Shape, T0, evenMilestones, linearParams, milestoneParams } from "../test/support/params.js";
 import { deployAll } from "../test/support/scenario.js";
+import { createStressStreams } from "../test/support/stress.js";
 
 const TABLE_PATH = path.join(import.meta.dirname, "..", "gas-table.json");
 /** `npm run gas:update` (or UPDATE_GAS_TABLE=1) rewrites the table; npm sets `npm_lifecycle_event` on every OS. */
@@ -178,6 +180,12 @@ for (const [label, milestones] of [
     }),
   );
 }
+
+// Rendering stress case (see test/support/stress.ts): 32 tranches / 16 segments, 39-digit amounts, withdrawn and
+// canceled, a 16-character symbol that expands under escaping. gas-budget.test.ts asserts the budget on the same case.
+const stress = await createStressStreams(connection, vesting.address);
+await estimateTokenUri("tokenURI: stress, canceled tranched x32 (eth_estimateGas)", stress.tranched);
+await estimateTokenUri("tokenURI: stress, canceled segmented x16 (eth_estimateGas)", stress.segmented);
 
 // Runtime bytecode sizes (EIP-170 limit: 24,576 bytes).
 for (const [label, address] of [

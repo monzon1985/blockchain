@@ -29,6 +29,8 @@
   "bench: store x32 milestones via SSTORE2": 245401,
   "bench: read x32 milestones from slots (eth_estimateGas)": 104269,
   "bench: read x32 milestones via SSTORE2 (eth_estimateGas)": 43814,
+  "tokenURI: stress, canceled tranched x32 (eth_estimateGas)": 1218147,
+  "tokenURI: stress, canceled segmented x16 (eth_estimateGas)": 979659,
   "runtime size: VestingStreams (bytes)": 18341,
   "runtime size: StreamRenderer (bytes)": 16686
 }

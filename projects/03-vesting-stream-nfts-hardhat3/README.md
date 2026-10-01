@@ -16,29 +16,34 @@ lost or stranded.
   <img src="test/golden/segmented-canceled.svg" width="260" alt="Piecewise-linear stream canceled at 25 %">
 </p>
 
-<sub>Three of the nine golden files: the exact bytes `tokenURI` returns for the deterministic test scenario.</sub>
+<sub>Three of the eleven golden files: the exact bytes `tokenURI` returns for the deterministic test scenario.</sub>
 
 ## What's interesting here
 
 - **Value conservation is checked, not assumed.** Eight stateful invariants, including
   `deposited == withdrawn + refunded + remaining` per stream and `balance == Σ remaining + donations` per token, run
   against random sequences of create, batch-create, withdraw, operator withdraw, cancel, renounce, NFT transfer,
-  donation and time warps (256 runs x 128 calls in CI, `failOnRevert` on). The tokens are hostile on purpose
-  (USDT-style no-return-value, ERC-777-style callbacks, fee-on-transfer, stETH-style share rounding), so are the
-  actors (a re-entrant contract, reverting and gas-burning hooks). Every run ends by draining all streams and
+  donation and time warps (256 runs x 128 calls in CI, `failOnRevert` on). Streams use hostile tokens on purpose
+  (USDT-style no-return-value, ERC-777-style callbacks), and from every reachable state the handler also tries to
+  create streams of a fee-on-transfer and of an stETH-style share-rounding token, which must be rejected. The actors
+  are hostile too (a re-entrant contract, reverting and gas-burning hooks). Every run ends by draining all streams and
   requiring the contract to hold exactly the donations.
-- **The NFT art is a tested rendering pipeline.** 9 byte-exact golden SVG and JSON fixtures; 166 hostile token
-  symbols (16 hand-picked payloads plus 150 seeded random byte strings) rendered and checked with a strict XML
-  validator and `JSON.parse`; a worst-case `tokenURI` (32 tranches, a 16-character symbol that expands under
-  escaping, amounts near `2^128 / 33`) costs **1,110,749 gas** in `eth_estimateGas` against a 3,000,000 budget.
+- **The NFT art is a tested rendering pipeline.** 11 byte-exact golden SVG and JSON fixtures, dust amounts included;
+  166 hostile token symbols (16 hand-picked payloads plus 150 seeded random byte strings) rendered and checked with
+  an XML well-formedness check (fast-xml-validator plus entity-reference and character-range scans) and `JSON.parse`.
+  A rendering stress case (32 tranches, 39-digit amounts, withdrawn and canceled, a 16-character symbol that grows
+  six-fold under XML escaping) costs **1,218,147 gas** in `eth_estimateGas` against a 3,000,000 budget, pinned in the
+  gas table; 24 seeded random streams stay under the budget too.
 - **SSTORE2 instead of storage slots for milestones.** Writing 16 milestones costs **163,502 gas instead of 418,462
   (-61 %)**, 32 milestones **245,401 instead of 788,254 (-69 %)**, and reading 16 back costs 35,285 instead of
   63,997 (-45 %), all measured by the committed gas table. The static SVG fragments live in SSTORE2 too.
 - **`createBatch` pulls tokens once and checks the exact balance delta.** 115,358 gas per stream in a batch of ten
   versus 160,991 for a single `create` (-28 %); fee-on-transfer and short-delivering rebasing tokens are rejected with
   `UnsupportedToken(token, expected, received)`.
-- **144 tests (113 Solidity tests run by Hardhat 3's EDR runner, 31 `node:test` + viem), 100.00 % line coverage of the
-  production contracts (455/455), 21/21 injected bugs killed by the suite, 0 Slither findings at pedantic level.**
+- **158 tests (117 Solidity tests run by Hardhat 3's EDR runner, 41 `node:test` + viem), 100.00 % line coverage of the
+  production contracts (455/455), 24/24 injected bugs killed by the suite, 0 Slither findings at pedantic level**
+  (3 detectors excluded and 7 inline suppressions, each justified in
+  [`docs/static-analysis.md`](docs/static-analysis.md)).
 
 ## Overview
 
@@ -143,7 +148,7 @@ balance deltas and keeps its own ghost accounting, independently of the contract
 | INV-2 | Per token, the contract's balance equals the sum of what every stream still holds plus plain donations: no token is created, lost or silently kept (strictly stronger than `Σ remaining <= balance`). | `invariant_solvencyPerToken` |
 | INV-3 | `withdrawn <= streamed <= deposit`, `withdrawable == streamed - withdrawn`, a canceled stream's streamed amount is frozen at `deposit - refunded`, and a refund exists only after a cancel. | `invariant_streamedBounds` |
 | INV-4 | The streamed amount of every stream never decreases as time moves forward, across cancellations. | `invariant_streamedNonDecreasing` |
-| INV-5 | No stream is credited with more tokens than the contract received (fee-on-transfer and share-rounding rebasing tokens are rejected). | `invariant_noShortDeliveryAccepted` |
+| INV-5 | No stream is credited with more tokens than the contract received. Every creation measures the balance delta, and from every reachable state the handler tries a fee-on-transfer and a share-rounding rebasing token (inside a snapshot that is rolled back, so their balances never drift into the other invariants); a short delivery must always be rejected. | `invariant_noShortDeliveryAccepted` |
 | INV-6 | Only the NFT owner or an approved operator can withdraw; the right moves with the NFT. | `invariant_noUnauthorizedWithdrawal` |
 | INV-7 | No re-entrant call from a token callback or a cancel hook ever succeeds. | `invariant_noReentrancy` |
 | INV-8 | Nothing is ever stranded: after the last schedule ends, the NFT owners drain every stream, every stream is `Depleted`, and the contract holds exactly the donations. | `afterInvariant` |
@@ -156,7 +161,7 @@ Stateless properties (fuzzed with `bound()`, 256 runs locally, 5,000 in CI):
 | Tranched curve: exactly the sum of the past tranches | [`testFuzz_tranched_exactSumOfPastTranches`](test/solidity/unit/StreamMath.t.sol) |
 | Segmented curve: bounded, non-decreasing, equal to the cumulative sum at every milestone, floor of the interpolation inside a segment | [`testFuzz_segmented_properties`](test/solidity/unit/StreamMath.t.sol) |
 | Withdrawing in arbitrary chunks never takes more than what vested | [`testFuzz_withdraw_chunksNeverExceedStreamed`](test/solidity/unit/Withdraw.t.sol) |
-| Rendering never reverts for any shape, schedule, amount, decimals, time or cancel state | [`testFuzz_renderingNeverReverts`](test/solidity/unit/Renderer.t.sol) |
+| Rendering never reverts and produces well-formed markup (dust amounts included) for any shape, schedule, amount, decimals, time or cancel state | [`testFuzz_renderingNeverReverts`](test/solidity/unit/Renderer.t.sol) |
 | Sanitized symbols are 1 to 16 printable ASCII characters; XML and JSON escaping leave no raw markup or quote and round-trip | [`testFuzz_sanitize_*`, `testFuzz_xml_*`, `testFuzz_json_*`](test/solidity/unit/Libraries.t.sol) |
 | The milestone codec round-trips | [`testFuzz_codec_roundTrip`](test/solidity/unit/Libraries.t.sol) |
 
@@ -187,15 +192,19 @@ The full threat model, with every threat mapped to the OWASP Smart Contract Top 
 enforce its mitigation, is in [`docs/threat-model.md`](docs/threat-model.md). Static analysis triage is in
 [`docs/static-analysis.md`](docs/static-analysis.md). Highlights:
 
-- **Re-entrancy (SC08):** `ReentrancyGuardTransient` on every state-changing entry point, effects before
-  interactions, `_mint` instead of `_safeMint` so creation hands no control flow to the recipient.
+- **Re-entrancy (SC08):** `ReentrancyGuardTransient` on every entry point that moves tokens or changes stream state
+  (`create`, `createBatch`, `withdraw`, `withdrawMax`, `cancel`, `renounceCancelability`), effects before interactions,
+  `_mint` instead of `_safeMint` so creation hands no control flow to the recipient.
 - **Hook griefing (SC06):** the hook runs inside `try/catch` with exactly 100,000 gas; `catch {}` copies no revert data
   (a hook reverting with 150 kB of data is never copied into the caller's memory); `cancel` reverts with
   `InsufficientGasForHook` unless
-  `100,000 * 64 / 63 + 5,000` gas is left, so the sender cannot starve the hook through the 63/64 rule.
+  `100,000 * 64 / 63 + 5,000` gas is left, so the sender cannot starve the hook through the 63/64 rule. A test
+  binary-searches the smallest gas limit with which `cancel` succeeds and requires the hook to get its full stipend
+  there.
 - **Hostile tokens (SC02, SC07):** exact balance-delta check on every deposit; `SafeERC20` for no-return tokens;
   symbol and decimals read with a 50,000 gas cap and a 64-byte limit, then sanitized and escaped per context.
-- **Input validation (SC05):** 23 custom errors, each carrying the offending values, each with a revert test.
+- **Input validation (SC05):** 23 custom errors, carrying the offending values where there are any, each with a
+  revert test.
 
 Known limitations (details in the threat model):
 
@@ -236,12 +245,12 @@ Known limitations (details in the threat model):
 ## Testing
 
 ```bash
-npx hardhat test                               # 113 Solidity + 31 node:test (default profile)
+npx hardhat test                               # 117 Solidity + 41 node:test (default profile)
 npx hardhat test solidity --test-profile ci    # 5,000 fuzz runs, 256 x 128 invariant calls
-npx hardhat test solidity --snapshot-check     # .gas-snapshot of every Solidity test
-npx hardhat test --coverage && npm run coverage:check
+npx hardhat test solidity --snapshot-check     # .gas-snapshot of every unit and fuzz test
+npx hardhat test --coverage && npm run coverage:check   # gate: 100 % of lines, as in CI
 npm run gas:check                              # deterministic gas table vs gas-table.json
-npm run mutation                               # 21 injected bugs, each must fail the suite
+npm run mutation                               # 24 injected bugs, each must fail the suite
 npm run slither                                # needs slither 0.11.6 + solc 0.8.37 on PATH
 ```
 
@@ -249,20 +258,21 @@ npm run slither                                # needs slither 0.11.6 + solc 0.8
 |---|---|---:|---|
 | [`Create.t.sol`](test/solidity/unit/Create.t.sol) | Hardhat Solidity | 23 | All three shapes, `createBatch` with one transfer, every validation error, fee-on-transfer, rebasing and no-return tokens |
 | [`Withdraw.t.sol`](test/solidity/unit/Withdraw.t.sol) | Hardhat Solidity | 14 | Owner, approved and operator withdrawals, the right following the NFT, every revert, chunked-withdrawal fuzz |
-| [`Cancel.t.sol`](test/solidity/unit/Cancel.t.sol) | Hardhat Solidity | 19 | Refund and freeze, rounding, renounce, six hostile-hook tests, gas starvation, re-entrancy from hooks and token callbacks |
+| [`Cancel.t.sol`](test/solidity/unit/Cancel.t.sol) | Hardhat Solidity | 20 | Refund and freeze, rounding, renounce, six hostile-hook tests, gas starvation and the gas reservation at its boundary, re-entrancy from hooks and token callbacks |
 | [`ViewsAndAdmin.t.sol`](test/solidity/unit/ViewsAndAdmin.t.sol) | Hardhat Solidity | 15 | Status lifecycle, schedule views, ERC-165, renderer replacement, two-step ownership |
-| [`StreamMath.t.sol`](test/solidity/unit/StreamMath.t.sol) | Hardhat Solidity | 11 | Curve edge cases and 3 fuzzed curve properties |
+| [`StreamMath.t.sol`](test/solidity/unit/StreamMath.t.sol) | Hardhat Solidity | 12 | Curve edge cases, 3 fuzzed curve properties, and a check that the milestone generator spans the `uint128` range |
 | [`Libraries.t.sol`](test/solidity/unit/Libraries.t.sol) | Hardhat Solidity | 11 | Formatting, sanitizing, escaping, codec; 4 fuzz properties |
-| [`Renderer.t.sol`](test/solidity/unit/Renderer.t.sol) | Hardhat Solidity | 10 | SSTORE2 fragments, hostile `symbol()` / `decimals()`, rendering-never-reverts fuzz |
+| [`Renderer.t.sol`](test/solidity/unit/Renderer.t.sol) | Hardhat Solidity | 12 | SSTORE2 fragments, hostile `symbol()` / `decimals()`, escaped dust amounts, rendering fuzz (never reverts, markup always well-formed) and its markup checker |
 | [`DemoToken.t.sol`](test/solidity/unit/DemoToken.t.sol) | Hardhat Solidity | 3 | The Ignition demo token |
 | [`VestingInvariants.t.sol`](test/solidity/invariant/VestingInvariants.t.sol) | Hardhat Solidity | 7 (+ `afterInvariant`) | INV-1 to INV-8 |
-| [`golden.test.ts`](test/integration/golden.test.ts) | node:test + viem | 12 | 9 byte-exact SVG + JSON fixtures, statuses, decimals, hostile symbol |
-| [`escaping.test.ts`](test/integration/escaping.test.ts) | node:test + viem | 5 | 16 corpus + 150 seeded random symbols through fast-xml-validator and `JSON.parse`; the oracle itself rejects 6 malformed documents |
-| [`gas-budget.test.ts`](test/integration/gas-budget.test.ts) | node:test + viem | 4 | `tokenURI` under 3,000,000 gas in `eth_estimateGas` and in a capped `eth_call` |
-| [`differential.test.ts`](test/integration/differential.test.ts) | node:test + viem | 4 | `DecimalFormat.formatUnits` against viem's `formatUnits` on 219 inputs, the three curves against exact `bigint` references on 300 seeded random schedules |
+| [`golden.test.ts`](test/integration/golden.test.ts) | node:test + viem | 15 | 11 byte-exact SVG + JSON fixtures, statuses, decimals, dust amounts, hostile symbol |
+| [`escaping.test.ts`](test/integration/escaping.test.ts) | node:test + viem | 5 | 16 corpus + 150 seeded random symbols through the XML well-formedness check and `JSON.parse`; the oracle itself rejects 12 malformed documents (undefined entities and forbidden character references included) |
+| [`gas-budget.test.ts`](test/integration/gas-budget.test.ts) | node:test + viem | 5 | `tokenURI` under 3,000,000 gas in `eth_estimateGas` for the two stress cases and 24 seeded random streams, and in a capped `eth_call` (also with a gas-burning `symbol()`) |
+| [`differential.test.ts`](test/integration/differential.test.ts) | node:test + viem | 4 | `DecimalFormat.formatUnits` against viem's `formatUnits` on 219 inputs, the three curves against exact `bigint` references on 300 seeded random schedules spread over the whole `uint40` time range |
 | [`lifecycle.test.ts`](test/integration/lifecycle.test.ts) | node:test + viem | 4 | Events, one-transfer batches, `networkHelpers` time travel, NFT transfer, cancel, hooks |
 | [`ignition.test.ts`](test/integration/ignition.test.ts) | node:test + viem | 2 | Both Ignition modules on the EDR simulated network |
-| **Total** | | **144** | |
+| [`prng.test.ts`](test/integration/prng.test.ts) | node:test | 6 | The seeded generator behind the property tests: ranges wider than 2^32, bounds, determinism |
+| **Total** | | **158** | |
 
 Settings and determinism:
 
@@ -278,15 +288,17 @@ The simulated chain starts at a pinned genesis date and every scenario transacti
 timestamp, so golden files and the gas table are byte-for-byte reproducible on any machine.
 
 **Coverage** (`npx hardhat test --coverage`, production contracts, `contracts/mocks/` excluded): 100.00 % of lines
-(455/455) and 100.00 % of statements, gated at 100 % in CI. Hardhat's coverage reports lines and statements, not
-branches; every custom error has a dedicated revert test.
+(455/455) and 100.00 % of statements, gated at 100 % by `npm run coverage:check`, locally and in CI. Hardhat's
+coverage reports lines and statements, not branches; every custom error has a dedicated revert test.
 
-**Mutation spot-check** ([`scripts/mutation.ts`](scripts/mutation.ts)): 21 realistic bugs injected one at a time
+**Mutation spot-check** ([`scripts/mutation.ts`](scripts/mutation.ts)): 24 realistic bugs injected one at a time
 (cliff ignored, rounding up, off-by-one tranche unlock, missing cancel freeze, missing authorization, accumulator bug
-in `createBatch`, missing re-entrancy guard, hook without stipend or gas reservation, missing XML or JSON escaping,
-control characters let through, ...): **21/21 killed**, 20 by the Solidity suites and 1 (unescaped JSON) by the
-`node:test` metadata checks. A baseline run must pass first, and a mutant that does not compile fails the campaign
-instead of counting as killed. It takes 17 to 22 minutes locally and runs as its own CI job.
+in `createBatch`, missing re-entrancy guard, hook without stipend, a missing or weakened hook gas reservation, missing
+XML or JSON escaping of the symbol, unescaped dust amounts, control characters let through, ...): **24/24 killed**, 22
+by the Solidity suites, 1 (unescaped JSON) by the `node:test` metadata checks, and 1 (a deposit check that accepts
+short deliveries) by the invariant suite on its own: that mutant names the invariant suite as its guard, so INV-5 is
+proven not to be vacuous. A baseline run with the same commands must pass first, and a mutant that does not compile
+fails the campaign instead of counting as killed. It takes 8 to 13 minutes locally and runs as its own CI job.
 
 ## Gas
 
@@ -316,6 +328,8 @@ From [`gas-table.json`](gas-table.json), produced by [`scripts/gas-check.ts`](sc
 | `tokenURI`: tranched x32 | 965,112 |
 | `tokenURI`: segmented x16 | 736,675 |
 | `tokenURI`: canceled tranched x12 | 736,119 |
+| `tokenURI`: stress case, canceled tranched x32 ([`stress.ts`](test/support/stress.ts)) | 1,218,147 |
+| `tokenURI`: stress case, canceled segmented x16 | 979,659 |
 | Runtime size: `VestingStreams` / `StreamRenderer` (bytes) | 18,341 / 16,686 |
 
 Baseline comparison (same milestones, [`MilestoneStorageBench`](contracts/mocks/MilestoneStorageBench.sol)):
@@ -327,8 +341,8 @@ Baseline comparison (same milestones, [`MilestoneStorageBench`](contracts/mocks/
 | Read 16 (`eth_estimateGas`) | 63,997 | 35,285 | -44.9 % |
 | Read 32 (`eth_estimateGas`) | 104,269 | 43,814 | -58.0 % |
 
-The per-test gas of every Solidity test is also committed in [`.gas-snapshot`](.gas-snapshot) and checked with
-`npx hardhat test solidity --snapshot-check`.
+The per-test gas of every Solidity unit and fuzz test (invariants excluded) is also committed in
+[`.gas-snapshot`](.gas-snapshot) and checked with `npx hardhat test solidity --snapshot-check`.
 
 ## Getting started
 
@@ -376,8 +390,8 @@ deliberate change; `npm run snapshot` rewrites `.gas-snapshot`.
 ├── test/
 │   ├── solidity/                   # unit, fuzz and invariant tests (Hardhat 3 Solidity tests)
 │   ├── integration/                # node:test + viem suites
-│   ├── golden/                     # 9 committed SVG + JSON fixtures
-│   └── support/                    # scenario, params, metadata decoding, seeded PRNG
+│   ├── golden/                     # 11 committed SVG + JSON fixtures
+│   └── support/                    # scenario, stress case, params, metadata decoding, seeded PRNG
 ├── docs/                           # threat model, static analysis triage
 ├── gas-table.json  .gas-snapshot   # committed gas baselines
 └── hardhat.config.ts  package.json  slither.config.json  eslint.config.js
@@ -391,11 +405,14 @@ deliberate change; `npm run snapshot` rewrites `.gas-snapshot`.
   only for `forge fmt`. Slither compiles the contracts with plain `solc` because crytic-compile 0.4.2 cannot read
   Hardhat 3 build-info files.
 - **Coverage** is reported for lines and statements only (Hardhat 3 does not report branches).
-- **No external fuzzer.** Medusa or Echidna campaigns would need a crytic-compile-compatible build; the invariant suite
-  runs in Hardhat's own runner.
+- **No external fuzzer (out of scope).** The stateful suite runs in Hardhat's own runner. The handler is a forge-std
+  `Test` built on forge-std helpers and cheatcodes (`vm.snapshotState` / `vm.revertToState`, `makeAddr`, `bound`), so
+  a Medusa or Echidna campaign would need a separate harness written against what those fuzzers support; it is listed
+  as future work.
 - **Not deployed.** The Ignition modules have only been exercised on the in-process EDR network.
 - Future work: an EIP-2612 / Permit2 creation path; stream creation from a Merkle root; a formal proof of the curve
-  properties (e.g. Halmos on `StreamMath`); an optional allowlist mode for regulated issuers.
+  properties (e.g. Halmos on `StreamMath`); a Medusa campaign on a dedicated harness; an optional allowlist mode for
+  regulated issuers.
 
 ## References
 

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // @ts-check
 import js from "@eslint/js";
+import { defineConfig, globalIgnores } from "eslint/config";
 import tseslint from "typescript-eslint";
 
-export default tseslint.config(
-  { ignores: ["node_modules/", "artifacts/", "cache/", "coverage/", "types/", "demo-out/", "ignition/deployments/"] },
+export default defineConfig(
+  globalIgnores(["node_modules/", "artifacts/", "cache/", "coverage/", "types/", "demo-out/", "ignition/deployments/"]),
   js.configs.recommended,
-  ...tseslint.configs.strictTypeChecked,
+  tseslint.configs.strictTypeChecked,
   {
     languageOptions: {
       parserOptions: {
@@ -33,6 +34,6 @@ export default tseslint.config(
   },
   {
     files: ["eslint.config.js"],
-    ...tseslint.configs.disableTypeChecked,
+    extends: [tseslint.configs.disableTypeChecked],
   },
 );

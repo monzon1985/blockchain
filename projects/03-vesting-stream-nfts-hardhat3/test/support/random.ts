@@ -20,9 +20,26 @@ export class Rng {
     return (z ^ (z >>> 16)) >>> 0;
   }
 
-  /** Uniform integer in `[min, max]`. */
+  /**
+   * Uniform integer in `[min, max]`. Works for any range of safe integers, including ranges wider than 2^32 (uint40
+   * timestamps): the offset is drawn with as many 32-bit words as the range needs, by rejection sampling, so there is
+   * no modulo bias either.
+   */
   int(min: number, max: number): number {
-    return min + (this.next() % (max - min + 1));
+    if (!Number.isSafeInteger(min) || !Number.isSafeInteger(max) || min > max) {
+      throw new RangeError(`int(${min}, ${max}): the bounds must be safe integers with min <= max`);
+    }
+    return min + Number(this.below(BigInt(max) - BigInt(min) + 1n));
+  }
+
+  /** Uniform bigint in `[0, n)`, by rejection sampling over the bit length of `n`. */
+  below(n: bigint): bigint {
+    if (n <= 0n) throw new RangeError(`below(${n}): the bound must be positive`);
+    const bits = n.toString(2).length;
+    for (;;) {
+      const candidate = this.bigint(bits);
+      if (candidate < n) return candidate;
+    }
   }
 
   /** Uniform bigint with `bits` random bits. */
@@ -33,8 +50,9 @@ export class Rng {
   }
 
   pick<T>(items: readonly T[]): T {
-    const item = items[this.next() % items.length];
-    if (item === undefined) throw new Error("pick from empty list");
+    if (items.length === 0) throw new Error("pick from empty list");
+    const item = items[this.int(0, items.length - 1)];
+    if (item === undefined) throw new Error("index out of range");
     return item;
   }
 }

@@ -98,12 +98,18 @@ describe("untrusted token symbols (escaping fuzz against XML and JSON parsers)",
     }
   });
 
-  it("the well-formedness oracle itself rejects the documents an unescaped symbol would produce", () => {
+  it("the well-formedness oracle itself rejects the documents an unescaped symbol or amount would produce", () => {
     const wrap = (body: string) => `<svg xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
-    assertWellFormedSvg(wrap('<text x="1">100 A&amp;B &lt;&gt; &quot;&#39;</text>'));
+    assertWellFormedSvg(wrap('<text x="1">&lt;0.0001 A&amp;B &lt;&gt; &quot;&#39;&apos; &#x41;&#65;</text>'));
     const broken = [
       wrap("<text>100 <script>alert(1)</script></text>x<b>"), // unbalanced markup
       wrap("<text>100 Q&A</text>"), // bare ampersand
+      wrap("<text><0.0001 MOCK</text>"), // unescaped dust amount
+      wrap("<text>100 &foo;</text>"), // undefined entity (fast-xml-validator alone accepts it)
+      wrap("<text>100 &nbsp;</text>"), // HTML entity, undefined in XML without a DTD
+      wrap('<text x="&bogus;">100</text>'), // undefined entity in an attribute
+      wrap("<text>100 &#1;</text>"), // reference to a character XML 1.0 forbids
+      wrap("<text>100 &#xFFFE;</text>"), // reference to a non-character
       wrap('<text x="<">100</text>'), // raw '<' in an attribute
       wrap("<text>100 ]]></text>"), // CDATA terminator in text
       wrap(`<text>100 ${String.fromCharCode(1)}</text>`), // control character (0x01) in text

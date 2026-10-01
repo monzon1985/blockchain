@@ -5,13 +5,20 @@ import { describe, it } from "node:test";
 import { network } from "hardhat";
 import { decodeFunctionResult, encodeFunctionData, toHex } from "viem";
 
-import { DAY, Shape, T0, evenMilestones, milestoneParams } from "../support/params.js";
+import { assertWellFormedSvg, decodeTokenUri } from "../support/metadata.js";
+import { DAY, Shape, YEAR, linearParams, milestoneParams, type CreateParams } from "../support/params.js";
+import { Rng, runs } from "../support/random.js";
+import { MAX_UINT128, STRESS_SYMBOL, createStressStreams } from "../support/stress.js";
 
-/** Budget from the spec: rendering the worst-case stream must stay under 3,000,000 gas in `eth_estimateGas`. */
+/** Budget from the spec: rendering must stay under 3,000,000 gas in `eth_estimateGas`. */
 const TOKEN_URI_GAS_BUDGET = 3_000_000n;
 
+/** RawSymbolToken.SymbolMode */
+const Mode = { AbiString: 0, BurnGas: 3 } as const;
+
 describe("tokenURI gas budget (eth_estimateGas)", async () => {
-  const { viem, networkHelpers } = await network.create();
+  const connection = await network.create();
+  const { viem, networkHelpers } = connection;
   const publicClient = await viem.getPublicClient();
   const [sender, recipient] = await viem.getWalletClients();
   assert.ok(sender !== undefined && recipient !== undefined);
@@ -19,31 +26,8 @@ describe("tokenURI gas budget (eth_estimateGas)", async () => {
 
   const renderer = await viem.deployContract("StreamRenderer");
   const vesting = await viem.deployContract("VestingStreams", [renderer.address, sender.account.address]);
-  // A 16-character symbol made of characters that all expand when escaped, and odd decimals.
-  const token = await viem.deployContract("RawSymbolToken", [toHex(`<&>"'<&>"'<&>"'<&`), 17]);
-  await token.write.mint([sender.account.address, 10n ** 40n]);
-  await token.write.approve([vesting.address, 10n ** 40n]);
-
-  // Amounts just below uint128 / 32 per milestone give the longest formatted numbers.
-  const big = (2n ** 128n - 1n) / 33n;
-  await vesting.write.createBatch([
-    token.address,
-    [
-      milestoneParams({
-        recipient: recipient.account.address,
-        shape: Shape.Segmented,
-        start: T0,
-        milestones: evenMilestones(16, big, T0, 7 * DAY),
-      }),
-      milestoneParams({
-        recipient: recipient.account.address,
-        shape: Shape.Tranched,
-        start: T0,
-        milestones: evenMilestones(32, big, T0, 3 * DAY),
-      }),
-    ],
-  ]);
-  await networkHelpers.time.increaseTo(T0 + 50 * DAY); // mid-schedule: every curve point and the marker are live
+  // The exact gas of these two streams is pinned in gas-table.json by `npm run gas:check` (scripts/gas-check.ts).
+  const stress = await createStressStreams(connection, vesting.address);
 
   async function estimateTokenUri(streamId: bigint): Promise<bigint> {
     return publicClient.estimateGas({
@@ -64,30 +48,87 @@ describe("tokenURI gas budget (eth_estimateGas)", async () => {
     return decodeFunctionResult({ abi: vesting.abi, functionName: "tokenURI", data });
   }
 
-  it("worst-case 16-segment stream renders under 3,000,000 gas", async () => {
-    const gas = await estimateTokenUri(1n);
-    console.log(`      tokenURI(16 segments) eth_estimateGas = ${gas}`);
+  it("stress case: a canceled 32-tranche stream with 39-digit amounts renders under 3,000,000 gas", async () => {
+    const gas = await estimateTokenUri(stress.tranched);
+    assert.ok(gas < TOKEN_URI_GAS_BUDGET, `tokenURI used ${gas} gas`);
+    const { svg } = decodeTokenUri(await vesting.read.tokenURI([stress.tranched]));
+    assertWellFormedSvg(svg);
+    // The stress inputs really are in the art: escaped symbol, 39-digit rows, cancel marker and date.
+    assert.ok(svg.includes(`${"&quot;".repeat(16)}</text>`), "symbol escaped 16 times");
+    assert.ok(svg.includes("REFUNDED") && svg.includes("| CANCELED "), "canceled art");
+    assert.ok(/>\d{3}(,\d{3}){12} /.test(svg), "no 39-digit amount row");
+  });
+
+  it("stress case: a canceled 16-segment stream with 39-digit amounts renders under 3,000,000 gas", async () => {
+    const gas = await estimateTokenUri(stress.segmented);
     assert.ok(gas < TOKEN_URI_GAS_BUDGET, `tokenURI used ${gas} gas`);
   });
 
-  it("worst-case 32-tranche stream renders under 3,000,000 gas", async () => {
-    const gas = await estimateTokenUri(2n);
-    console.log(`      tokenURI(32 tranches) eth_estimateGas = ${gas}`);
-    assert.ok(gas < TOKEN_URI_GAS_BUDGET, `tokenURI used ${gas} gas`);
+  it("the 32-tranche stress stream also renders in an eth_call capped at the budget", async () => {
+    const uri = await callTokenUriWithBudget(stress.tranched);
+    assert.ok(uri.startsWith("data:application/json;base64,") && uri.length > 1_000);
   });
 
   it("a token whose symbol() burns all forwarded gas still renders with the budget as the call's gas limit", async () => {
     // eth_estimateGas refuses to estimate here (by design, EDR reports that an inner call runs out of gas no matter
     // the limit), so the budget is enforced directly as the gas limit of the eth_call.
-    await token.write.setSymbol(["0x", 3]); // SymbolMode.BurnGas
-    const uri = await callTokenUriWithBudget(1n);
-    assert.ok(uri.includes("base64,"));
-    await token.write.setSymbol([toHex("SYM"), 0]);
+    await stress.token.write.setSymbol(["0x", Mode.BurnGas]);
+    try {
+      for (const id of [stress.tranched, stress.segmented]) {
+        assert.ok(decodeTokenUri(await callTokenUriWithBudget(id)).svg.includes(" UNKNOWN</text>"));
+      }
+    } finally {
+      await stress.token.write.setSymbol([toHex(STRESS_SYMBOL), Mode.AbiString]);
+    }
   });
 
-  it("the 32-tranche stream also renders in an eth_call capped at the budget", async () => {
-    const uri = await callTokenUriWithBudget(2n);
-    assert.ok(uri.startsWith("data:application/json;base64,") && uri.length > 1_000);
-    assert.ok(big * 32n <= 2n ** 128n - 1n, "precondition: the 32 tranches fit in a uint128 deposit");
+  it(`${runs(24)} seeded random streams (shape, size, amounts, decimals, symbol, withdrawals, cancel) stay under the budget`, async () => {
+    const rng = new Rng(0x6a5b);
+    const token = await viem.deployContract("RawSymbolToken", ["0x", 18]);
+    await token.write.mint([caller, 2n ** 255n]);
+    await token.write.approve([vesting.address, 2n ** 255n]);
+    const symbolChars = ["<", "&", ">", '"', "'", "A", "z", "9", " "];
+    for (let i = 0; i < runs(24); i++) {
+      await token.write.setDecimals([rng.pick([0, 0, 2, 6, 8, 17, 18, 24, 36, 77, 255]), false]);
+      const symbol = Array.from({ length: rng.int(0, 20) }, () => rng.pick(symbolChars)).join("");
+      await token.write.setSymbol([toHex(symbol), Mode.AbiString]);
+
+      const start = (await networkHelpers.time.latest()) + 10;
+      const duration = rng.int(2, 4 * YEAR);
+      const shape = rng.pick([Shape.LinearCliff, Shape.Tranched, Shape.Segmented]);
+      let params: CreateParams;
+      if (shape === Shape.LinearCliff) {
+        const cliff = rng.int(0, 1) === 0 ? 0 : start + rng.int(1, duration - 1);
+        const deposit = 1n + rng.below(MAX_UINT128);
+        params = linearParams({ recipient: recipient.account.address, deposit, start, cliff, end: start + duration });
+      } else {
+        const count = rng.int(1, shape === Shape.Tranched ? 32 : 16);
+        const step = Math.max(1, Math.floor(duration / count));
+        // Each amount is at most MAX_UINT128 / count, so the deposit always fits in a uint128.
+        const milestones = Array.from({ length: count }, (_, k) => ({
+          amount: 1n + rng.below(MAX_UINT128 / BigInt(count)),
+          timestamp: start + step * (k + 1),
+        }));
+        params = milestoneParams({ recipient: recipient.account.address, shape, start, milestones });
+      }
+      await vesting.write.create([token.address, params]);
+      const id = (await vesting.read.nextStreamId()) - 1n;
+
+      await networkHelpers.time.increase(rng.int(10, duration + DAY));
+      const withdrawable = await vesting.read.withdrawableAmountOf([id]);
+      if (withdrawable > 0n && rng.int(0, 1) === 1) {
+        await vesting.write.withdraw([id, recipient.account.address, 1n + rng.below(withdrawable)], {
+          account: recipient.account,
+        });
+      }
+      if ((await vesting.read.refundableAmountOf([id])) > 0n && rng.int(0, 1) === 1) {
+        await vesting.write.cancel([id]);
+      }
+      await networkHelpers.time.increase(rng.int(1, YEAR));
+
+      const gas = await estimateTokenUri(id);
+      assert.ok(gas < TOKEN_URI_GAS_BUDGET, `stream ${id}: tokenURI used ${gas} gas`);
+      assertWellFormedSvg(decodeTokenUri(await vesting.read.tokenURI([id])).svg);
+    }
   });
 });

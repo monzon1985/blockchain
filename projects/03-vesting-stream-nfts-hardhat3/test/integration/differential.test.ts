@@ -8,6 +8,9 @@ import { formatUnits } from "viem";
 import type { Milestone } from "../support/params.js";
 import { Rng, runs } from "../support/random.js";
 
+/** Largest `uint40`: timestamps are stored as `uint40`, so the curves must be exact over the whole range. */
+const UINT40_MAX = 2 ** 40 - 1;
+
 /**
  * Independent reference for `DecimalFormat.formatUnits`, built on viem's canonical `formatUnits` (exact decimal
  * string) and then truncated to four fractional digits with thousands separators.
@@ -84,27 +87,34 @@ describe("differential tests against independent TypeScript references", async (
     }
   });
 
-  it(`linear curve matches the exact rational floor on ${runs(200)} random schedules`, async () => {
+  it(`linear curve matches the exact rational floor on ${runs(200)} random schedules over the uint40 range`, async () => {
+    let latestStart = 0;
     for (let i = 0; i < runs(200); i++) {
       const deposit = rng.bigint(rng.int(1, 128));
-      const start = rng.int(1, 2 ** 38);
+      const start = rng.int(1, UINT40_MAX - 2 ** 30 - 1000);
       const end = start + rng.int(1, 2 ** 30);
       const cliff = rng.int(0, 1) === 0 || end - start < 2 ? 0 : rng.int(start + 1, end - 1);
       const t = rng.int(Math.max(0, start - 1000), end + 1000);
+      latestStart = Math.max(latestStart, start);
       const onChain = await harness.read.linear([deposit, start, cliff, end, t]);
       assert.equal(onChain, referenceLinear(deposit, BigInt(start), BigInt(cliff), BigInt(end), BigInt(t)));
     }
+    assert.ok(latestStart > 2 ** 32, `no schedule started after 2^32 (2106); latest start ${latestStart}`);
   });
 
-  it(`segmented curve matches the reference on ${runs(100)} random 1-16 segment schedules`, async () => {
+  it(`segmented and tranched curves match the references on ${runs(100)} random 1-16 milestone schedules`, async () => {
+    let latestStart = 0;
     for (let i = 0; i < runs(100); i++) {
-      const start = rng.int(1, 2 ** 36);
+      // 16 segments of at most 10,000,000 s each still end inside the uint40 range.
+      const start = rng.int(1, UINT40_MAX - 16 * 10_000_000 - 10);
+      latestStart = Math.max(latestStart, start);
       let ts = start;
       const segments: Milestone[] = Array.from({ length: rng.int(1, 16) }, () => {
         ts += rng.int(1, 10_000_000);
-        return { amount: rng.int(0, 4) === 0 ? 0n : rng.bigint(rng.int(1, 120)), timestamp: ts };
+        // Up to 124 bits each: 16 of them still sum below 2^128, as `_validateMilestones` requires of a deposit.
+        return { amount: rng.int(0, 4) === 0 ? 0n : rng.bigint(rng.int(1, 124)), timestamp: ts };
       });
-      const t = rng.int(start - 10, ts + 10);
+      const t = rng.int(Math.max(0, start - 10), ts + 10);
       const onChain = await harness.read.segmented([segments, start, t]);
       assert.equal(onChain, referenceSegmented(segments, BigInt(start), BigInt(t)));
       const tranched = await harness.read.tranched([segments, t]);
@@ -113,6 +123,7 @@ describe("differential tests against independent TypeScript references", async (
         segments.filter((s) => s.timestamp <= t).reduce((sum, s) => sum + s.amount, 0n),
       );
     }
+    assert.ok(latestStart > 2 ** 32, `no schedule started after 2^32 (2106); latest start ${latestStart}`);
   });
 
   it("formatBps renders two decimals", async () => {

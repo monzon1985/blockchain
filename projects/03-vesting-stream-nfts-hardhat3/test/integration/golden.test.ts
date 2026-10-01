@@ -57,6 +57,8 @@ describe("tokenURI golden files", async () => {
       tranched32: "Streaming",
       linearDepleted: "Depleted",
       hostileSymbol: "Streaming",
+      linearDust: "Streaming",
+      canceledDust: "Canceled",
     };
     for (const [name, status] of Object.entries(expected)) {
       const { metadata } = decodeTokenUri(await vesting.read.tokenURI([ids[name as keyof typeof ids]]));
@@ -76,6 +78,19 @@ describe("tokenURI golden files", async () => {
     const fraction = (streamed % 1_000_000n) / 100n;
     const formatted = `${whole.toLocaleString("en-US")}${fraction === 0n ? "" : `.${fraction.toString().padStart(4, "0").replace(/0+$/, "")}`} mUSD`;
     assert.ok(texts.includes(formatted), `streamed row ${formatted} not in ${texts.join(" | ")}`);
+  });
+
+  it("escapes dust amounts, displayed as `<0.0001`, in the SVG", async () => {
+    const live = decodeTokenUri(await vesting.read.tokenURI([ids.linearDust])).svg;
+    // STREAMED and WITHDRAWABLE rows: 0.00008 DEMO, one second into a four-year stream.
+    assert.equal(svgTexts(live).filter((t) => t === "<0.0001 DEMO").length, 2, "streamed and withdrawable rows");
+    const canceled = decodeTokenUri(await vesting.read.tokenURI([ids.canceledDust])).svg;
+    // REFUNDED row: canceled one second before the end of a 100 DEMO, two-month stream.
+    assert.ok(svgTexts(canceled).includes("<0.0001 DEMO"), "refunded row");
+    for (const svg of [live, canceled]) {
+      assert.ok(svg.includes(">&lt;0.0001 DEMO</text>"), "dust row is not escaped");
+      assert.ok(!svg.includes("<0.0001"), "raw '<0.0001' in the SVG");
+    }
   });
 
   it("escapes a hostile symbol in both the SVG and the JSON", async () => {
