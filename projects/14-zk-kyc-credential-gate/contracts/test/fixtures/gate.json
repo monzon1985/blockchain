@@ -1,0 +1,33 @@
+{
+  "chainId": "31337",
+  "gateAddress": "0x000000000000000000000000000000000000A11A",
+  "gateBAddress": "0x000000000000000000000000000000000000b22B",
+  "actionId": "0x00f823a679eba79d29732ecc84fe40aa4aabe8d26403adec4e0f8d03acbbbab4",
+  "epochDuration": "2592000",
+  "timestamp": "1790683200",
+  "epoch": "690",
+  "appScope": "0x2245b9906b4f3815aecaabc8f2b73854af1fef658075ea372bee5734b5957cb",
+  "appScopeB": "0xe24afadad55f534c1252ec47caf542e4b0b11676532d700c0cf13747d5796e5",
+  "recipient": "0x0000000000000000000000000000000000000B0B",
+  "currentDate": "20260929",
+  "issuerRoot": "0x81ab622e5b383655568e1ba74f1b692bf424efc6b947ac5d7a597d7eb56cc30",
+  "revocationRoot": "0x2c0066e10a72abd2b33c3b214cb3e81bcb1b6e30961cd23c202b18673bf2543",
+  "sanctioned": [
+    "408",
+    "364",
+    "760",
+    "192",
+    "0",
+    "0",
+    "0",
+    "0",
+    "0",
+    "0",
+    "0",
+    "0",
+    "0",
+    "0",
+    "0",
+    "0"
+  ]
+}

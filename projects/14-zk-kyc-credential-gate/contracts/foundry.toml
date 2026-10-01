@@ -1,0 +1,48 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 200
+# Generated snarkjs verifiers live in contracts/generated/ and are reached via
+# the remapping below. They are excluded from `forge fmt` because that command
+# only scans src/test/script.
+remappings = [
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "generated/=generated/",
+]
+fs_permissions = [{access = "read", path = "./test/fixtures"}]
+gas_reports = ["ZkGate", "CredentialVerifier", "CredentialVerifierPlonk", "BaselineCommittedListVerifier"]
+
+[soldeer]
+remappings_generate = false
+
+[dependencies]
+forge-std = "1.16.2"
+"@openzeppelin-contracts" = "5.7.0"
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+
+[fuzz]
+runs = 256
+
+[invariant]
+runs = 64
+depth = 32
+
+[profile.ci.fuzz]
+runs = 512
+seed = "0x1400"
+
+[profile.ci.invariant]
+runs = 128
+depth = 48

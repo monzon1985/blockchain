@@ -1,0 +1,9 @@
+{
+  "filter_paths": "generated|dependencies|test|script",
+  "exclude_dependencies": true,
+  "solc_remaps": [
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "generated/=generated/"
+  ]
+}

@@ -1,0 +1,5 @@
+GasBench:test_Gas_BaselineGroth16Verify7Signals() (gas: 253013)
+GasBench:test_Gas_Groth16Verify() (gas: 361898)
+GasBench:test_Gas_PlonkVerify() (gas: 310753)
+GasBench:test_Gas_RegisterGroth16() (gas: 515989)
+GasBench:test_Gas_RegisterPlonk() (gas: 472663)

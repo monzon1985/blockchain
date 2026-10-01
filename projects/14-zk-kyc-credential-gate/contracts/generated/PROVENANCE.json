@@ -1,0 +1,94 @@
+{
+  "note": "DETERMINISTIC DEV CEREMONY - NOT PRODUCTION SECURE. Phase 1 is a single public beacon (no secret contribution), so the toxic waste is derivable by anyone. Regenerate with `npm run setup:dev`; `npm run setup:dev -- --check` fails if a fresh run differs from this file.",
+  "package": "zk-kyc-credential-gate@0.1.0",
+  "snarkjs": "0.7.6",
+  "ptauPower": 16,
+  "ceremony": {
+    "ptauBeaconName": "zk-kyc dev phase-1 beacon v2",
+    "ptauBeaconHash": "f32a6fad17e22c20cb8b57a81b01a6fbf7eb32cafe3781cca6a6b7279f4c84fa",
+    "zkeyBeaconName": "zk-kyc dev phase-2 beacon v2",
+    "zkeyBeaconHash": "f32a6fad17e22c20cb8b57a81b01a6fbf7eb32cafe3781cca6a6b7279f4c84fa",
+    "beaconIterExp": 10
+  },
+  "ptauFinalSha256": "50c9e6723dd3595f4bc8c6b01efa7ffe0b1da488cf26b4a1abfaa4a33f92b079",
+  "circuits": {
+    "credential": {
+      "kind": "production",
+      "r1csSha256": "59ee09aeccf1708b906649126a6378d6748d46e8386abd16a21894a8e1d7056b",
+      "groth16": {
+        "zkeySha256": "796953190b5b9095b66269223b2c2d5ad3935bd1428ee4989f634f44f3d2e3e6",
+        "vkeySha256": "377966a493c68d9b8097f1869927152e9ea3965adfa23dddd8e441727d3f5c6c",
+        "verifier": "CredentialVerifier.sol",
+        "verifierContract": "CredentialVerifier",
+        "verifierSha256": "788fed846d5e0dd4ae386ba00af0aac0509d67ad94b42e85416e69faff3a486c"
+      },
+      "plonk": {
+        "zkeySha256": "5bf64617a349176edfe53ce1f0b91b62b653ea0de8af01f9da99fbdf618d5968",
+        "vkeySha256": "60a06f710d433305a5799f1765e333e2303da5ea9dda27730d73777e08c118fb",
+        "verifier": "CredentialVerifierPlonk.sol",
+        "verifierContract": "CredentialVerifierPlonk",
+        "verifierSha256": "76c6f5ef61b5509ca51d41d9ed0d3f0dd93325664ff3ab3c11ffaf0813681835"
+      }
+    },
+    "nullifier_unconstrained": {
+      "kind": "zoo",
+      "r1csSha256": "c8cfdd225907ebf966e13b4a4db607a56a0933d57bc7915238aa768021c4a708",
+      "groth16": {
+        "zkeySha256": "1c52e619c3e5646b4949cfd661845e31ef385e8f17391f48bd3afad93b178103",
+        "vkeySha256": "c4032dc0ae7b558aea817fd23725ca2d89c70bd3d4e848ca991af1d9c1c51b0d",
+        "verifier": "ZooNullifierUnconstrainedVerifier.sol",
+        "verifierContract": "ZooNullifierUnconstrainedVerifier",
+        "verifierSha256": "cf2787a5ff4f557e31ebdf1706857a4d3196cdd26176df9a2c192f8889845873"
+      },
+      "plonk": null
+    },
+    "age_no_rangecheck": {
+      "kind": "zoo",
+      "r1csSha256": "0697653b7e4d99224636f55279cbc634a8f9279221c26addbdb37666e519d39e",
+      "groth16": {
+        "zkeySha256": "67a4a329ce14361693cd98fd434ff40cdd7ecf0835cc1c30ef14501ecc0f8c97",
+        "vkeySha256": "9d8715d6695755b7c419b700741d45ef27777a10b41fc4528482a4ff539861aa",
+        "verifier": "ZooAgeNoRangeCheckVerifier.sol",
+        "verifierContract": "ZooAgeNoRangeCheckVerifier",
+        "verifierSha256": "340d8666620b60ac062e23355cbb36a123a71e9db7833de7d4455d8a94fea3a0"
+      },
+      "plonk": null
+    },
+    "merkle_selector_nonboolean": {
+      "kind": "zoo",
+      "r1csSha256": "643355b4c814bdfe756cd925762bbd06fd7d9ec77dca339647390d68d600379b",
+      "groth16": {
+        "zkeySha256": "06f96f8085d4b1f65cf9577a8b7942515a5418dcd969031e18a534ebe4267f1f",
+        "vkeySha256": "e7b6f33dd70719db23ac9a2698f5f15776fe7441bf2a19c734c69ee62f65abcf",
+        "verifier": "ZooMerkleSelectorVerifier.sol",
+        "verifierContract": "ZooMerkleSelectorVerifier",
+        "verifierSha256": "b0279a96a31e9db164bb78b0e9d528bd6f67403f2782d619908875aaf006ae40"
+      },
+      "plonk": null
+    },
+    "nullifier_no_scope": {
+      "kind": "zoo",
+      "r1csSha256": "f8694b6daddeaa04d929a3f80122094a39a06325a2b8739cf0371f23a7ab0adb",
+      "groth16": {
+        "zkeySha256": "5b2dee3f6cccef468dff122c1eee4523df9bb085c52315768dcd7a3a5e9db184",
+        "vkeySha256": "a9b2ce60bf346bbba252e1a2fff9317dbc9fddb67e1a56e97e9012a5af818f1d",
+        "verifier": "ZooNullifierNoScopeVerifier.sol",
+        "verifierContract": "ZooNullifierNoScopeVerifier",
+        "verifierSha256": "32f4ebfab09a80830d60017723f0294e387606af6dfe4bbf8beb719992c7e26e"
+      },
+      "plonk": null
+    },
+    "baseline_committed_list": {
+      "kind": "bench",
+      "r1csSha256": "2b3d5541ba9da1dd38a7d8d8774ec7dbab332b9dab00a61888766be3467d9eff",
+      "groth16": {
+        "zkeySha256": "cefde924e66c5e50566fce02ac8bc9d217a8e7fade11e857d2b8dc0a0c18e3b1",
+        "vkeySha256": "e1bba3c3d6b9fae887134165b1c2913e9cbcbd3f8fc4e2386b0b4e655164bf38",
+        "verifier": "BaselineCommittedListVerifier.sol",
+        "verifierContract": "BaselineCommittedListVerifier",
+        "verifierSha256": "80491957e6ee291fb557ea4b3a19edfd099069427018949923aeb1e4dcfea20a"
+      },
+      "plonk": null
+    }
+  }
+}

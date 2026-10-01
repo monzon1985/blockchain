@@ -1,0 +1,7 @@
+{
+  "groth16_verify_22_signals": "328509",
+  "groth16_verify_7_signals_baseline": "228804",
+  "plonk_verify_22_signals": "276635",
+  "register_groth16": "479338",
+  "register_plonk": "435263"
+}

@@ -1,0 +1,11 @@
+{
+  "$comment": "Machine-readable circomspect triage for `npm run lint:circuits`. Each entry suppresses ONE finding: same rule, file path suffix, and `match` text on the flagged line. Unused entries fail the gate. Policy and rule references: circuits/CIRCOMSPECT.md.",
+  "suppressions": [
+    {
+      "ruleId": "CS0017",
+      "file": "circuits/lib/credential_core.circom",
+      "match": "signal recipientSquare",
+      "justification": "Deliberate single-use dummy constraint (Semaphore signal-hash-square pattern): recipientSquare <== recipient * recipient exists only to put the public input `recipient` into an explicit quadratic constraint. It is fully determined by `recipient`, carries no information and is intentionally never read."
+    }
+  ]
+}

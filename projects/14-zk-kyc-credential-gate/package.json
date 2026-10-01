@@ -1,0 +1,46 @@
+{
+  "name": "zk-kyc-credential-gate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zero-knowledge KYC credential gate (Circom + Groth16/PLONK + Solidity) with a zoo of under-constrained circuit bugs and their forged proofs.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "circuits:build": "node scripts/build-circuits.mjs",
+    "setup:dev": "node scripts/setup-dev.mjs",
+    "test": "mocha",
+    "zoo": "node scripts/zoo.ts",
+    "lint:circuits": "node scripts/lint-circuits.mjs",
+    "fixtures": "node scripts/fixtures.ts",
+    "bench": "node scripts/bench.ts",
+    "demo": "node scripts/demo-anvil.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "issuer": "node src/cli/issuer.ts",
+    "prover": "node src/cli/prover.ts",
+    "holder": "node src/cli/holder.ts",
+    "world": "node src/cli/world.ts"
+  },
+  "dependencies": {
+    "@iden3/binfileutils": "0.0.12",
+    "circomlib": "2.0.5",
+    "circomlibjs": "0.1.7",
+    "ffjavascript": "0.3.1",
+    "snarkjs": "0.7.6",
+    "viem": "2.57.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.1",
+    "@types/mocha": "10.0.10",
+    "@types/node": "24.19.0",
+    "circom_tester": "0.0.24",
+    "eslint": "9.39.1",
+    "globals": "16.5.0",
+    "mocha": "11.7.5",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.46.4"
+  }
+}
