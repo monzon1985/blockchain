@@ -294,11 +294,12 @@ interface IOracleRouter is IPriceOracle {
     /// @notice Diagnostic view: the time-weighted average the fallback would start from right now.
     /// @dev Not a price source. It ignores the primary's health, the deviation breaker and the asset's mode;
     ///      `tryGetPrice` and `getPrice` are the only pricing entry points. It does honor the sequencer: while the
-    ///      sequencer is down, unreadable or in its grace period it returns `(false, 0)`, like every pricing path.
+    ///      sequencer is down, unreadable or in its grace period it returns `(false, 0)`, like every pricing path,
+    ///      and afterwards it reports nothing observed before the sequencer's last recovery.
     /// @param asset The asset.
     /// @param intent Rounding direction.
     /// @return available Whether the sequencer is healthy, the ring covers a full window since its last restart and
-    ///         its newest observation is at most one window old.
+    ///         its newest observation is at most one window old and was recorded after the sequencer last came up.
     /// @return price The 1e18-normalized average, zero when unavailable.
     function consultTwap(address asset, Intent intent) external view returns (bool available, uint256 price);
 

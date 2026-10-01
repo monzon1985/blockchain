@@ -132,11 +132,18 @@ export const CODE_MUTANTS = [
     to: "if (config.mode == Mode.Soft && config.secondary.feed != address(0) && false) {",
   },
   {
+    id: "twap-served-after-outage",
+    what: "the fallback serves a pre-outage TWAP once the grace period is over",
+    file: "src/OracleRouter.sol",
+    from: "if (window == 0 || ring.newestAge(currentTime) > upFor) return",
+    to: "if (window == 0 || (ring.newestAge(currentTime) > upFor && false)) return",
+  },
+  {
     id: "consult-ignores-sequencer",
     what: "consultTwap reports a TWAP during a sequencer outage",
     file: "src/OracleRouter.sol",
-    from: "if (window != 0 && sequencerStatus == Status.OK) {",
-    to: "if (window != 0 && (sequencerStatus == Status.OK || true)) {",
+    from: "(Status sequencerStatus, uint256 upFor,) = _checkSequencer();",
+    to: "(Status sequencerStatus, uint256 upFor) = (Status.OK, type(uint256).max);",
   },
 ];
 

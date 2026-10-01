@@ -19,8 +19,9 @@ import {AuthorityUtils} from "@openzeppelin/contracts/access/manager/AuthorityUt
 ///         (`OUT_OF_BOUNDS`).
 ///      3. Soft mode only, primary `STALE` only: the TWAP of validated observations (`FALLBACK_USED`) if the ring
 ///         covers a full window of at least 30 minutes since its last restart and its newest observation is at most
-///         one window old. The ring restarts whenever keepers were silent for longer than `min(heartbeat, twapWindow)`
-///         or a sequencer outage happened since the previous observation, so no answer is carried across a gap.
+///         one window old and was recorded after the sequencer last came up. The ring restarts whenever keepers were
+///         silent for longer than `min(heartbeat, twapWindow)` or a sequencer outage happened since the previous
+///         observation, so no answer is carried across a gap or an outage.
 ///      4. Secondary feed, if configured: validated like the primary. Unhealthy -> strict fails with its status,
 ///         soft ignores it. Healthy but more than `maxDeviationBps` away -> strict fails with `DEVIATION`, soft
 ///         quotes the conservative side (min for `Collateral`, max for `Debt`) with status `DEVIATION`.
@@ -148,10 +149,10 @@ contract OracleRouter is IOracleRouter, AccessManaged {
     function consultTwap(address asset, Intent intent) external view returns (bool available, uint256 price) {
         AssetConfig storage config = _configured(asset);
         uint32 window = config.twapWindow;
-        (Status sequencerStatus,,) = _checkSequencer();
+        (Status sequencerStatus, uint256 upFor,) = _checkSequencer();
         if (window != 0 && sequencerStatus == Status.OK) {
             uint256 delta;
-            (available, delta) = _rings[asset].consult(_now32(), window);
+            (available, delta) = _twap(asset, window, upFor);
             if (available) price = PriceMath.averageToWad(delta, window, config.primary.decimals, intent);
         }
     }
@@ -283,28 +284,40 @@ contract OracleRouter is IOracleRouter, AccessManaged {
             );
             (price, status, failure) = _crossCheck(asset, config, spot, intent);
         } else if (status == Status.STALE && config.mode == Mode.Soft) {
-            (price, status, failure) = _fallback(asset, config, intent, failure);
+            (price, status, failure) = _fallback(asset, config, intent, upFor, failure);
         }
     }
 
     /// @dev Step 3: the TWAP fallback for a stale primary in soft mode. Returns the primary's own `STALE` failure
-    ///      unchanged when the TWAP is disabled, too short or expired.
-    function _fallback(address asset, AssetConfig storage config, Intent intent, Failure memory staleFailure)
-        private
-        view
-        returns (uint256, Status, Failure memory)
-    {
+    ///      unchanged when the TWAP is disabled, too short, expired or older than the sequencer's last recovery.
+    function _fallback(
+        address asset,
+        AssetConfig storage config,
+        Intent intent,
+        uint256 upFor,
+        Failure memory staleFailure
+    ) private view returns (uint256, Status, Failure memory) {
         uint32 window = config.twapWindow;
-        if (window == 0) return (0, Status.STALE, staleFailure);
-        (bool available, uint256 delta) = _rings[asset].consult(_now32(), window);
+        (bool available, uint256 delta) = _twap(asset, window, upFor);
         if (!available) return (0, Status.STALE, staleFailure);
-        uint8 decimals = config.primary.decimals;
         Candidate memory twap = Candidate(
-            PriceMath.averageToWad(delta, window, decimals, Intent.Collateral),
-            PriceMath.averageToWad(delta, window, decimals, intent),
+            PriceMath.averageToWad(delta, window, config.primary.decimals, Intent.Collateral),
+            PriceMath.averageToWad(delta, window, config.primary.decimals, intent),
             Status.FALLBACK_USED
         );
         return _crossCheck(asset, config, twap, intent);
+    }
+
+    /// @dev The ring's TWAP over `window` (unavailable when the TWAP is disabled), provided its newest observation was
+    ///      recorded after the sequencer last came up (`upFor` seconds ago; `type(uint256).max` on L1). `_observable`
+    ///      restarts the history at the first observation after an outage; this rule covers the time before that
+    ///      observation, so nothing observed before an outage is ever served after it, even when the outage and its
+    ///      grace period fit in one window.
+    function _twap(address asset, uint32 window, uint256 upFor) private view returns (bool available, uint256 delta) {
+        ObservationRing.Ring storage ring = _rings[asset];
+        uint32 currentTime = _now32();
+        if (window == 0 || ring.newestAge(currentTime) > upFor) return (available, delta);
+        return ring.consult(currentTime, window);
     }
 
     /// @dev Step 4, first half: asks the secondary for a vote. An unhealthy secondary fails a strict asset and is

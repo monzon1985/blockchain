@@ -521,7 +521,7 @@ contract OracleSystem {
     }
 
     /// @dev TWAP from the ghost log: the last 64 observations since the last break, window ending at the newest,
-    ///      fresh and fully covered.
+    ///      fresh, fully covered, and newer than the sequencer's last status change.
     function _referenceTwap(uint256 routerIndex, uint256 i, IPriceOracle.Intent intent)
         internal
         view
@@ -536,6 +536,8 @@ contract OracleSystem {
         uint256 window = _assets[i].twapWindow;
         uint256 newest = log[n - 1].timestamp;
         if (block.timestamp - newest > window || newest - log[oldest].timestamp < window) return (false, 0);
+        // Nothing observed before the sequencer's last status change is served after it (the outage rule).
+        if (newest < sequencer.startedAt()) return (false, 0);
         uint256 sum = _windowSum(log, oldest, newest - window);
         uint256 denominator = window * 10 ** _assets[i].primaryDecimals;
         Math.Rounding rounding = intent == IPriceOracle.Intent.Debt ? Math.Rounding.Ceil : Math.Rounding.Floor;

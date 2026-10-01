@@ -13,8 +13,8 @@ cbor_metadata = false
 auto_detect_remappings = false
 ignored_warnings_from = ["dependencies"]
 deny = "warnings"
-# The reachability walk (test/invariant) checks all ten properties after each of its 600 steps: about 1.9 billion gas,
-# above the 2^30 default.
+# The reachability walk (test/invariant) checks all ten properties after each of its 600 steps: about 2.1 billion gas
+# (2.4 billion under coverage instrumentation), above the 2^30 default.
 gas_limit = 4_000_000_000
 # - README.md: test/matrix/FailureMatrix.t.sol parses the failure-mode tables and executes every cell.
 # - script/config: deployment configs read by script/DeployOracleRouter.s.sol (and its test).

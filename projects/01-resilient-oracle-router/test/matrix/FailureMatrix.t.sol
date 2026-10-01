@@ -558,13 +558,15 @@ contract FailureMatrixTest is RouterTestBase {
     /// @dev Time-weighted mean of the ghost log over the window ending at the newest observation. The log is never
     ///      trimmed; the usable history starts after the last break (a silence longer than one heartbeat or one
     ///      window, or a sequencer recovery between two observations) and must cover a full window that ended at most
-    ///      one window ago, otherwise the reference model has no TWAP to offer and a cell claiming one is wrong.
+    ///      one window ago, after the sequencer's last recovery; otherwise the reference model has no TWAP to offer
+    ///      and a cell claiming one is wrong.
     function _twap(IPriceOracle.Intent intent) internal view returns (uint256) {
         uint256 n = ghostTimes.length;
         uint256 first = _historyStart();
         uint256 to = ghostTimes[n - 1];
         assertTrue(
-            n - first >= 2 && to - ghostTimes[first] >= TWAP_WINDOW && block.timestamp - to <= TWAP_WINDOW,
+            n - first >= 2 && to - ghostTimes[first] >= TWAP_WINDOW && block.timestamp - to <= TWAP_WINDOW
+                && to >= sequencer.startedAt(),
             "the reference model has a TWAP to offer"
         );
         uint256 from = to - TWAP_WINDOW;

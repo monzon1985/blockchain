@@ -393,6 +393,49 @@ contract TwapFallbackTest is RouterTestBase {
         _assertQuoteBoth(soft, 2000e18, IPriceOracle.Status.FALLBACK_USED);
     }
 
+    /// @notice Nothing observed before an outage is served after it, even when no keeper has recorded since the
+    ///         recovery (so the ring never restarted): the fallback refuses a window whose newest observation predates
+    ///         the sequencer's last recovery, and `consultTwap` reports nothing.
+    /// @dev Regression for the release gate's finding: a 10-minute outage plus its 1-hour grace period fits in the
+    ///      4-hour window, and the soft router used to answer `(2000e18, FALLBACK_USED)` from the pre-outage history.
+    function test_SequencerOutage_PreOutageTwapIsNeverServed() public {
+        OracleRouter soft = _fourHourWindowRouter();
+        (bool available, uint256 price) = soft.consultTwap(ASSET, COLLATERAL);
+        assertTrue(available, "before the outage: a full window");
+        assertEq(price, 2000e18);
+
+        sequencer.setDown();
+        vm.warp(T0 + 250 minutes);
+        sequencer.setUp();
+        vm.warp(T0 + 310 minutes + 1); // grace over; the newest observation (T0 + 240 min) is 70 minutes old
+        primary.setBehavior(MockAggregatorV3.Behavior.Revert);
+        _assertQuoteBoth(soft, 0, IPriceOracle.Status.STALE);
+        vm.expectRevert(abi.encodeWithSelector(IOracleRouter.FeedUnavailable.selector, address(primary)));
+        soft.getPrice(ASSET, DEBT);
+        (available, price) = soft.consultTwap(ASSET, COLLATERAL);
+        assertFalse(available, "after the outage: unavailable");
+        assertEq(price, 0);
+    }
+
+    /// @notice Control for the outage rule: on L1 (no sequencer feed) there is no outage to respect, and the same
+    ///         70-minute silence is bridged.
+    function test_L1Router_FallbackIgnoresTheOutageRule() public {
+        IOracleRouter.AssetParams memory p = _primaryOnlyParams(IOracleRouter.Mode.Soft);
+        p.primary.heartbeat = 1 days;
+        p.twapWindow = 4 hours;
+        OracleRouter l1 = _deployRouter(address(0), p);
+        for (uint256 m = 0; m <= 240; m += 10) {
+            vm.warp(T0 + m * 1 minutes);
+            l1.recordObservation(ASSET);
+        }
+        vm.warp(T0 + 310 minutes + 1);
+        primary.setBehavior(MockAggregatorV3.Behavior.Revert);
+        _assertQuoteBoth(l1, 2000e18, IPriceOracle.Status.FALLBACK_USED);
+        (bool available, uint256 price) = l1.consultTwap(ASSET, DEBT);
+        assertTrue(available);
+        assertEq(price, 2000e18);
+    }
+
     /// @notice The gap limit is the shorter of the primary heartbeat and the TWAP window, and a gap of exactly that
     ///         length is still bridged.
     function test_MaxGap_IsTheShorterOfHeartbeatAndWindow() public {

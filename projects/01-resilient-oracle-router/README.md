@@ -21,18 +21,18 @@ TWAP fallback, intent-directed rounding, and a non-reverting status API so consu
   live in one contract ([`OracleSystem.sol`](test/invariant/OracleSystem.sol)) that Foundry (64 x 100 locally,
   256 x 100 in CI) and Medusa both drive. The handler is shaped so the fallback properties actually run: every
   full-depth Foundry run must evaluate them in at least one `FALLBACK_USED` state (`afterInvariant`), and in the CI
-  campaign every run evaluated P7 in at least 3 such states (median 28 per 100-call run). A fixed 600-step walk
+  campaign the median run evaluated P7 in 27 such states (minimum 1 per 100-call run). A fixed 600-step walk
   checks all ten properties after every step, reaches all nine statuses and evaluates P7 in 185 `FALLBACK_USED`
   states.
-- **Every injected bug is caught.** A mutation spot-check injects 17 realistic oracle bugs (one-second grace
+- **Every injected bug is caught.** A mutation spot-check injects 18 realistic oracle bugs (one-second grace
   off-by-one, one-basis-point breaker slack, TWAP that never expires, TWAP carried across a recording gap or a
-  sequencer outage, collateral rounded up, ...) into a copy of the code: **17/17 killed**, plus **5/5** README-drift
-  mutants killed by the executable matrix.
-- **100 % coverage of `src/`** (273/273 lines, 102/102 branches, 33/33 functions), gated at 95 % lines in CI;
-  **0 Slither findings** at `--fail-pedantic`; 183 Foundry tests, 10,000 fuzz runs per fuzz test in CI.
+  sequencer outage, a pre-outage TWAP served after the grace period, collateral rounded up, ...) into a copy of the
+  code: **18/18 killed**, plus **5/5** README-drift mutants killed by the executable matrix.
+- **100 % coverage of `src/`** (276/276 lines, 102/102 branches, 34/34 functions), gated at 95 % lines in CI;
+  **0 Slither findings** at `--fail-pedantic`; 185 Foundry tests, 10,000 fuzz runs per fuzz test in CI.
 - **Hardening has a price, and it is measured:** a full quote (sequencer + primary + secondary) costs 67,509 gas
   against 22,378 for the usual hand-rolled staleness check (+45,131); a TWAP fallback over a full 64-slot ring costs
-  79,543.
+  80,163.
 
 ## Overview
 
@@ -70,7 +70,7 @@ flowchart LR
     S -- yes --> P{Primary valid?<br/>positive, fresh,<br/>complete round, in bounds}
     P -- ZERO / NEGATIVE /<br/>OUT_OF_BOUNDS --> F2[fail, both modes]
     P -- STALE, strict --> F3[STALE]
-    P -- STALE, soft --> T{TWAP ring covers a<br/>window since its last<br/>restart, newest obs at<br/>most a window old?}
+    P -- STALE, soft --> T{TWAP ring covers a<br/>window since its last<br/>restart, newest obs at<br/>most a window old and<br/>after the last<br/>sequencer recovery?}
     T -- no --> F3
     T -- yes --> B
     P -- OK --> B{Secondary witness<br/>within maxDeviationBps?}
@@ -87,7 +87,7 @@ flowchart LR
 
 | Component | Responsibility | Key external calls |
 |---|---|---|
-| [`OracleRouter`](src/OracleRouter.sol) | Pricing pipeline, both APIs, observation recording (`OK` answers only, cross-checked whenever a witness is configured; gap limit `min(heartbeat, twapWindow, sequencer uptime)`), delayed configuration, router-side delay floor | `latestRoundData()` on the sequencer, primary and secondary feeds (return-data-bounded `staticcall`); `canCall` / `consumeScheduledOp` on the AccessManager |
+| [`OracleRouter`](src/OracleRouter.sol) | Pricing pipeline, both APIs, observation recording (`OK` answers only, cross-checked whenever a witness is configured; gap limit `min(heartbeat, twapWindow, sequencer uptime)`), a fallback that never serves a window older than the sequencer's last recovery, delayed configuration, router-side delay floor | `latestRoundData()` on the sequencer, primary and secondary feeds (return-data-bounded `staticcall`); `canCall` / `consumeScheduledOp` on the AccessManager |
 | [`FeedReader`](src/libraries/FeedReader.sol) | Reads a feed without ever reverting: raw `staticcall`, copies at most 160 bytes | the feed |
 | [`ObservationRing`](src/libraries/ObservationRing.sol) | 64-slot ring of `(uint32 timestamp, uint224 cumulative)`; exact TWAP with interpolation; restarts instead of carrying an answer across a gap longer than `maxGap`; wrap-tolerant `unchecked` arithmetic | none |
 | [`PriceMath`](src/libraries/PriceMath.sol) | 0-36 decimals to 1e18 with intent rounding; single-rounding TWAP normalization; deviation in basis points (rounded up, saturating) | none |
@@ -192,12 +192,12 @@ its measured counts, history restarts included. Measured with the fixed seed `0x
 | Campaign | States checked | `FALLBACK_USED` (P7) | TWAP vs witness `DEVIATION` | P8 premise held | Fallback refused (soft `STALE`) | History restarts |
 |---|---:|---:|---:|---:|---:|---:|
 | Walk, 600 steps (`forge test --match-test test_WalkReachesEveryStatus -vv`) | 600 | 185 | 59 | 239 | 420 | 130 |
-| Foundry default, 64 x 100: per run, minimum / median | 100 per run | 2 / 28 | 0 / 4 | 11 / 32 | 31 / 65 | 4 / 14 |
-| Foundry CI, 256 x 100: per run, minimum / median | 100 per run | 3 / 28 | 0 / 5 | 5 / 34 | 17 / 63 | 4 / 14 |
+| Foundry default, 64 x 100: per run, minimum / median | 100 per run | 3 / 29 | 0 / 4 | 8 / 34 | 28 / 61 | 2 / 14 |
+| Foundry CI, 256 x 100: per run, minimum / median | 100 per run | 1 / 27 | 0 / 5 | 5 / 31 | 26 / 64 | 2 / 14 |
 
 The per-run rows come from `ORACLE_CAMPAIGN_STATS=true` (one line per full-depth run; Foundry called `afterInvariant`
-on 65 and 257 full-depth runs for its reported 64 and 256). A TWAP-vs-witness disagreement occurred in 56 of the 65
-default runs and 220 of the 257 CI runs.
+on 65 and 257 full-depth runs for its reported 64 and 256). A TWAP-vs-witness disagreement occurred in 54 of the 65
+default runs and 222 of the 257 CI runs.
 
 Additional properties checked by fuzzing: normalization equals `mulDiv(answer, 1e18, 10^decimals)` rounded by intent
 for every decimals value 0-36, with round-trip error below one unit ([`Normalization.fuzz.t.sol`](test/fuzz/Normalization.fuzz.t.sol));
@@ -216,14 +216,16 @@ dies) is in [`docs/threat-model.md`](docs/threat-model.md); static-analysis tria
   exactly like the pinned feed did.
 - **Sequencer outages are never bridged**, and a sequencer feed that is unreadable, uninitialized (`startedAt == 0`)
   or reports anything but `0` counts as down. No TWAP averages across an outage either: the first observation after
-  the sequencer recovers restarts the history.
+  the sequencer recovers restarts the history, and until then the fallback refuses any window whose newest
+  observation predates the recovery, even when the outage and its grace period fit inside one window.
 - **The fallback cannot serve ancient data:** the TWAP only averages answers the router itself served as `OK` (and,
   when the asset has a witness, that the witness confirmed); it never carries an answer across a silence longer than
   `min(heartbeat, twapWindow)`, so every second it averages lies within the last two windows and is priced by an
   answer validated at most that long before; its window ends at the newest observation, it expires one window later,
   and it still faces the deviation breaker.
-- **`consultTwap` is a diagnostic view, not a price:** it ignores the breaker and the mode, and returns nothing while
-  the sequencer is down or in its grace period. `tryGetPrice` and `getPrice` are the only pricing entry points.
+- **`consultTwap` is a diagnostic view, not a price:** it ignores the breaker and the mode, returns nothing while
+  the sequencer is down or in its grace period, and afterwards reports nothing observed before the recovery.
+  `tryGetPrice` and `getPrice` are the only pricing entry points.
 - **Feeds cannot make `tryGetPrice` revert** by reverting, returning short data or return-bombing.
 - **Configuration is slow and public; tightening is instant.** The 2-day delay is enforced by the router itself, not
   only by the AccessManager's configuration.
@@ -262,7 +264,10 @@ threat model.
   answer in force: never longer than one primary heartbeat (by then the feed must have published again), never longer
   than one window (a single interval would fill it), and never across a sequencer outage. An observation after a longer
   silence restarts the ring (as cheap as a first observation) rather than trying to average around a hole; the
-  trade-off is liveness right after the silence, which is when an old average is least trustworthy anyway.
+  trade-off is liveness right after the silence, which is when an old average is least trustworthy anyway. The
+  fallback applies the outage rule on its own as well (a window whose newest observation predates the sequencer's last
+  recovery is refused), because the ring only restarts when a keeper next records; this costs one extra ring read
+  (+620 gas on the fallback path).
 - **Only witnessed answers are stored.** A soft asset still serves its primary alone while the witness is dead, but
   keepers cannot record it, so the TWAP never contains an answer the breaker did not see. The keeper pays one extra
   feed read for it.
@@ -287,7 +292,7 @@ slither . --config-file slither.config.json --fail-medium
 # Optional: per-run statistics of the invariant campaign (one line per run, in demo-out/)
 ORACLE_CAMPAIGN_STATS=true FOUNDRY_PROFILE=ci forge test --match-contract OracleRouterInvariantTest
 node --test scripts/check-coverage.test.mjs scripts/mutation-spot-check.test.mjs   # the scripts' own tests
-node scripts/mutation-spot-check.mjs         # 17 code mutants + 5 README mutants (about 16 minutes)
+node scripts/mutation-spot-check.mjs         # 18 code mutants + 5 README mutants (about 12-16 minutes)
 bash script/local-demo.sh                    # end-to-end demo on anvil (free port)
 ```
 
@@ -296,7 +301,7 @@ bash script/local-demo.sh                    # end-to-end demo on anvil (free po
 | Unit, table-driven | `ValidationTest` ([`Validation.t.sol`](test/unit/Validation.t.sol)): Foundry table tests (10 failure rows, run once on the primary and once on the secondary) plus exact custom-error arguments | 20 |
 | Unit | `SequencerTest` ([`Sequencer.t.sol`](test/unit/Sequencer.t.sol)): down, unreadable, uninitialized, grace-period boundaries | 9 |
 | Unit | `DeviationTest` ([`Deviation.t.sol`](test/unit/Deviation.t.sol)): breaker threshold to the wei, conservative side per intent | 10 |
-| Unit | `TwapFallbackTest` ([`TwapFallback.t.sol`](test/unit/TwapFallback.t.sol)): window coverage, expiry, ring rollover, history restarts after keeper gaps and sequencer outages (the review's three proofs of concept), witness rule, `consultTwap` during outages, observation rules | 31 |
+| Unit | `TwapFallbackTest` ([`TwapFallback.t.sol`](test/unit/TwapFallback.t.sol)): window coverage, expiry, ring rollover, history restarts after keeper gaps and sequencer outages (the review's three proofs of concept), no pre-outage TWAP after the grace period (and its L1 control), witness rule, `consultTwap` during outages, observation rules | 33 |
 | Unit, table-driven | `ConfigTest` ([`Config.t.sol`](test/unit/Config.t.sol)): a 14-row table of invalid configurations, constructor, events, reconfiguration | 10 |
 | Unit | `GovernanceTest` ([`Governance.t.sol`](test/unit/Governance.t.sol)): 2-day delay, router-side floor, guardian veto and `forceStrict` | 11 |
 | Unit | `ObservationRingTest`, `PriceMathTest`, `FeedReaderTest` ([`Libraries.t.sol`](test/unit/Libraries.t.sol)): gap rule boundaries, wrap-around, rounding, short and oversized return data | 12 + 5 + 5 |
@@ -305,13 +310,14 @@ bash script/local-demo.sh                    # end-to-end demo on anvil (free po
 | Fuzz | `NormalizationFuzzTest`, `BreakerFuzzTest`, `TwapFuzzTest` ([`test/fuzz/`](test/fuzz)) | 4 + 2 + 1 |
 | Invariant | `OracleRouterInvariantTest` (the ten properties, with per-run non-vacuity checks) and `OracleSystemReachabilityTest` (600-step walk, all ten properties after every step, all nine statuses) | 1 + 1 |
 | Gas | `GasBench`, `GasBenchFallback`, `GasBenchSequencerDown` ([`GasBench.t.sol`](test/gas/GasBench.t.sol)) | 9 |
-| **Total** | **20 suites** (`forge test`: 183 passed, 0 failed, 0 skipped) | **183** |
+| **Total** | **20 suites** (`forge test`: 185 passed, 0 failed, 0 skipped) | **185** |
 
 Outside Foundry: Medusa checks the same ten properties (10 property tests; its assertion mode is off, because the
-handler carries no `assert` post-conditions and every check is a property). A local 180 s run (2026-10-01) made
-25,560 calls in 254 sequences with 0 failures. A second 180 s run with lcov coverage (25,384 calls) executed the
-success path of `OracleRouter._fallback` 14,120 times and the ring's restart branch 4,312 times; before the handler was
-reshaped, a 150 s run reached that success path 9 times. The coverage gate and the mutation script's helpers have
+handler carries no `assert` post-conditions and every check is a property). The local 180 s gate run on the final
+code (2026-10-01, on a shared, loaded machine) made 17,210 calls in 171 sequences with 0 failures; an earlier run on
+an idle machine made 25,560. A second 180 s run with lcov coverage (15,868 calls) executed the success path of
+`OracleRouter._fallback` 8,237 times and the ring's restart branch 2,672 times; before the handler was reshaped, a
+150 s run reached that success path 9 times. The coverage gate and the mutation script's helpers have
 7 + 4 `node:test` tests, and the local demo asserts the status of every step against a real anvil node.
 
 Settings: fuzz seed `0x01` in both profiles, 1,000 fuzz runs locally and 10,000 in CI; invariants 64 x 100 locally and
@@ -323,11 +329,11 @@ Settings: fuzz seed `0x01` in both profiles, 1,000 fuzz runs locally and 10,000 
 
 | File | Lines | Branches | Functions |
 |---|---:|---:|---:|
-| [`src/OracleRouter.sol`](src/OracleRouter.sol) | 198/198 | 85/85 | 25/25 |
+| [`src/OracleRouter.sol`](src/OracleRouter.sol) | 201/201 | 85/85 | 26/26 |
 | [`src/libraries/FeedReader.sol`](src/libraries/FeedReader.sol) | 12/12 | 2/2 | 1/1 |
 | [`src/libraries/ObservationRing.sol`](src/libraries/ObservationRing.sol) | 50/50 | 12/12 | 4/4 |
 | [`src/libraries/PriceMath.sol`](src/libraries/PriceMath.sol) | 13/13 | 3/3 | 3/3 |
-| **Total** | **273/273 (100 %)** | **102/102 (100 %)** | **33/33 (100 %)** |
+| **Total** | **276/276 (100 %)** | **102/102 (100 %)** | **34/34 (100 %)** |
 
 **Mutation spot-check** ([`scripts/mutation-spot-check.mjs`](scripts/mutation-spot-check.mjs)): each mutant is
 applied to a temporary copy, must still compile under `deny = "warnings"`, and must make at least one test fail.
@@ -335,29 +341,30 @@ applied to a temporary copy, must still compile under `deny = "warnings"`, and m
 | Mutant | Injected bug | Failing tests | Caught by (first failures) |
 |---|---|---:|---|
 | `stale-slack` | staleness check tolerates one extra minute | 33 | `test_AgeOneSecondOverHeartbeat_IsStale`, `test_StalePrice_CarriesUpdatedAtAgeAndHeartbeat`, `test_Death_SecondaryStale_Strict`, ... |
-| `fallback-any-failure` | soft mode bridges every failure, not only `STALE` | 10 | `test_PrimaryFailureWinsOverSecondaryFailure`, `tableValidationTest`, `test_Matrix_Negative_Soft`, ... |
-| `collateral-rounds-up` | collateral normalization rounds up | 6 | `test_ToWad_RoundsByIntentAbove18Decimals`, `test_DecisionIsIntentIndependent_ForHighDecimalFeeds`, `testFuzz_RoundTripErrorBounds`, ... |
+| `fallback-any-failure` | soft mode bridges every failure, not only `STALE` | 10 | `test_PrimaryFailureWinsOverSecondaryFailure`, `tableValidationTest`, `test_ActiveMalfunctions_AreNeverBridged`, ... |
+| `collateral-rounds-up` | collateral normalization rounds up | 6 | `test_DecisionIsIntentIndependent_ForHighDecimalFeeds`, `testFuzz_RoundTripErrorBounds`, `testFuzz_RouterNormalizesEveryDecimals`, ... |
 | `grace-exclusive` | grace period ends one second early | 1 | `test_GracePeriod_StartsWhenSequencerComesBack` |
-| `breaker-slack` | deviation breaker tolerates one extra basis point | 4 | `test_DecisionIsIntentIndependent_ForHighDecimalFeeds`, `test_GapMeasuredAgainstLowerPrice`, `test_GapOneWeiOverThreshold_Trips`, ... |
+| `breaker-slack` | deviation breaker tolerates one extra basis point | 3 | `test_DecisionIsIntentIndependent_ForHighDecimalFeeds`, `test_GapMeasuredAgainstLowerPrice`, `test_GapOneWeiOverThreshold_Trips` |
 | `conservative-swapped` | soft deviation quotes the higher price for collateral | 10 | `test_DecisionIsIntentIndependent_ForHighDecimalFeeds`, `test_Soft_CollateralTakesTheLowerSide`, `test_Soft_DebtTakesTheHigherSide`, ... |
-| `twap-never-expires` | TWAP fallback never expires | 7 | `testFuzz_RingMatchesNaiveReference`, `test_Consult_UnavailableWhenTooShortOrExpired`, `test_NewestObservationOlderThanWindow_Expires`, ... |
-| `twap-no-interpolation` | TWAP window start not interpolated | 9 | `test_Consult_ExactWindowAndInterpolation`, `test_CumulativeWrap_IsTolerated`, `test_TimestampWrap_IsTolerated`, ... |
+| `twap-never-expires` | TWAP fallback never expires | 7 | `test_Consult_UnavailableWhenTooShortOrExpired`, `testFuzz_RingMatchesNaiveReference`, `test_NewestObservationOlderThanWindow_Expires`, ... |
+| `twap-no-interpolation` | TWAP window start not interpolated | 9 | `testFuzz_RingMatchesNaiveReference`, `test_Consult_ExactWindowAndInterpolation`, `test_CumulativeWrap_IsTolerated`, ... |
 | `no-delay-floor` | router trusts the AccessManager's delay configuration | 2 | `test_Config_RelayedThroughExecuteIsRefused`, `test_Config_ShortDelayRoleIsRefusedByRouter` |
-| `no-round-check` | `answeredInRound < roundId` accepted | 11 | `test_Death_CarriedOverRound_Soft`, `test_Death_CarriedOverRound_Strict`, `test_ReadmeFeedDeathMatrixIsExecutable`, ... |
+| `no-round-check` | `answeredInRound < roundId` accepted | 11 | `tableSecondaryTest`, `tableValidationTest`, `test_StaleRound_CarriesRoundIds`, ... |
 | `sequencer-uninitialized-ok` | uninitialized sequencer feed (`startedAt == 0`) treated as up | 4 | `test_UninitializedFeed_CountsAsDown`, `test_Death_SequencerUninitialized_Soft`, `test_Death_SequencerUninitialized_Strict`, ... |
-| `record-deviating` | observations recorded while the breaker is tripped | 12 | `test_Record_RejectsAnythingButOk`, `test_WalkReachesEveryStatus`, `invariant_debtNeverBelowCollateral`, ... |
+| `record-deviating` | observations recorded while the breaker is tripped | 12 | `test_Record_RejectsAnythingButOk`, `invariant_debtNeverBelowCollateral`, `invariant_fallbackIsExactTwapOfValidatedAnswers`, ... |
 | `twap-carries-across-gaps` | an answer is carried across any recording gap (the bug the review found) | 14 | `testFuzz_RingMatchesNaiveReference`, `test_AncientAnswer_IsNeverCarriedIntoTheWindow`, `test_GapOfExactlyMaxGap_IsCarried_OneSecondMoreRestarts`, ... |
 | `gap-limit-ignores-heartbeat` | the gap limit is the window even when the heartbeat is shorter | 1 | `test_MaxGap_IsTheShorterOfHeartbeatAndWindow` |
 | `outage-carried-over` | observations carried across a sequencer outage shorter than the gap limit | 2 | `test_WalkReachesEveryStatus`, `test_SequencerOutage_RestartsHistoryEvenWithinMaxGap` |
 | `record-without-witness` | a soft asset records its primary while the witness is dead | 2 | `test_Record_SoftAssetWithDeadWitness_IsRefused`, `test_Record_SoftAssetWithUnhealthyWitness_IsRefused` |
-| `consult-ignores-sequencer` | `consultTwap` reports a TWAP during a sequencer outage | 1 | `test_ConsultTwap_IsUnavailableWhileTheSequencerIsUnhealthy` |
+| `twap-served-after-outage` | the fallback serves a pre-outage TWAP once the grace period is over (no keeper recorded since the recovery) | 1 | `test_SequencerOutage_PreOutageTwapIsNeverServed` |
+| `consult-ignores-sequencer` | `consultTwap` reports a TWAP during a sequencer outage | 2 | `test_ConsultTwap_IsUnavailableWhileTheSequencerIsUnhealthy`, `test_SequencerOutage_PreOutageTwapIsNeverServed` |
 | `doc-wrong-status` | README: soft `STALE` cell claims status `OK` | 1 | `test_ReadmeFailureMatrixIsExecutable` |
 | `doc-missing-test` | README: cell names a test that does not exist | 1 | `test_ReadmeFailureMatrixIsExecutable` |
 | `doc-wrong-error` | README: strict `ZERO` cell names the wrong custom error | 1 | `test_ReadmeFailureMatrixIsExecutable` |
 | `doc-dropped-row` | README: `GRACE_PERIOD` row removed | 1 | `test_ReadmeFailureMatrixIsExecutable` |
 | `doc-false-fallback` | README: soft `OUT_OF_BOUNDS` cell claims a TWAP fallback | 1 | `test_ReadmeFailureMatrixIsExecutable` |
 
-Result: **22/22 mutants killed** (`node scripts/mutation-spot-check.mjs`, 16 min 9 s on a 16-core machine with 256 fuzz
+Result: **23/23 mutants killed** (`node scripts/mutation-spot-check.mjs`, 12 min 29 s on a 16-core machine with 256 fuzz
 runs, 32 invariant runs and no shrinking per mutant; Foundry's persisted counterexamples are cleared between mutants so
 each one is judged on its own). CI runs the code and README mutants as two parallel jobs.
 
@@ -365,7 +372,9 @@ The stateful suite alone (`forge test --match-path 'test/invariant/*'`) kills `t
 walk and in `invariant_fallbackIsExactTwapOfValidatedAnswers`), `outage-carried-over` (P7 in the walk) and
 `record-deviating`; before this handler was reshaped, no stateful property could see a TWAP-freshness bug.
 `gap-limit-ignores-heartbeat` is only caught by its unit test: the handler's silence scenario always builds a fresh
-window, which never straddles an earlier pause.
+window, which never straddles an earlier pause. `twap-served-after-outage` is also only caught by its unit test: the
+handler would need an outage and its 10-minute grace period to fall between a primary going silent and the end of its
+last window, which the campaigns did not produce.
 
 ## Gas
 
@@ -380,7 +389,7 @@ measured call per test, starting cold; the baselines read the same mock feed.
 | `getPrice`, primary only, L2 (sequencer check) | 44,536 | +22,158 |
 | `getPrice`, primary + secondary, L2 (full pipeline) | 67,509 | +45,131 |
 | `tryGetPrice`, primary + secondary, L2 (`Debt` intent) | 67,551 | +45,173 |
-| `tryGetPrice`, TWAP fallback (primary reverts; binary search over a full 64-slot ring; secondary cross-check) | 79,543 | +57,165 |
+| `tryGetPrice`, TWAP fallback (primary reverts; outage rule; binary search over a full 64-slot ring; secondary cross-check) | 80,163 | +57,785 |
 | `tryGetPrice`, sequencer down (cheapest failure: one feed read) | 21,063 | -1,315 |
 | `recordObservation` (keeper: full quote + witness check + one ring slot + header) | 128,832 | n/a |
 
