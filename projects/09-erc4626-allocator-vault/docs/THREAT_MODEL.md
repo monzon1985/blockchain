@@ -77,13 +77,15 @@ with an OpenZeppelin `AccessManager` and curated ERC-4626 strategies. Vulnerabil
   3.5. Anyone can cause a restart with a 1-wei donation; that only delays profit, it cannot redirect it.
 - **Losses first cancel locked profit.** A loss smaller than the still-locked profit does not move the price; it only
   reduces what will unlock. Every holder is treated identically, so there is no first-mover advantage.
-- **Impaired positions are priced conservatively.** While a strategy cannot be valued, or a forced removal is pending
-  on a position that still holds value, withdrawals pay the conservative price and deposits are paused. If the
-  markdown later reverses, the holders who stayed receive the haircut of those who left; if it does not, everyone ends
-  at the same price. A strategy that pauses for a single block therefore costs whoever withdraws during that block.
-  Borrowers repaying into a strategy whose removal is pending do not move the price until the funds are recovered (by
-  the allocator, the removal itself, or a revocation): counting live liquidity is exactly what a flash deposit can
-  fake.
+- **Impaired positions are priced conservatively.** While a strategy cannot be valued, or a forced removal is pending on
+  a position that still holds value, withdrawals pay the conservative price and deposits are paused. If the markdown
+  later reverses, the holders who stayed receive the haircut of those who left; if it does not, everyone ends at the
+  same price. A strategy that pauses for a single block therefore costs whoever withdraws during that block. A haircut
+  large enough to lift the stayers' share price above the high-water mark pays the performance fee on that excess, like
+  any other gain above the mark; a recovery that only brings the price back towards the mark pays none
+  (`test/medusa/MedusaRegression.t.sol` replays both cases). Borrowers repaying into a strategy whose removal is pending
+  do not move the price until the funds are recovered (by the allocator, the removal itself, or a revocation): counting
+  live liquidity is exactly what a flash deposit can fake.
 - **The loss event itself can be front-run.** A forced removal prices its write-off in the transaction that announces
   it; someone watching the mempool could exit just before it, as before any loss that becomes visible in one
   transaction. Curators should submit removals through a private relay.

@@ -39,7 +39,7 @@ one (P&L <= 0, with the bound asserted).
   the out-of-gas guard, the rate limiter's anchor and clock, a reentrancy guard, withdraw or deposit rounding, the fee
   bound) and the test written for it fails (`scripts/mutation-check.sh`, run in CI; a mutant that does not compile
   aborts the check).
-- **359 tests, 100 % line / statement / branch / function coverage** of `src/`, zero Slither
+- **364 tests, 100 % line / statement / branch / function coverage** of `src/`, zero Slither
   (all Medium and High detectors on) and `forge lint` findings after triage. Hardening costs 29.8k gas per
   deposit on top of a plain OpenZeppelin vault, plus ~16.1k per listed strategy for live valuation.
 
@@ -265,12 +265,13 @@ an independent implementation from the Solady `fullMulDiv` the vault uses.
 Strategy honesty is assumed; losses a strategy has not reported yet are invisible; strategy rounding is socialized
 (bounded); holders who leave during an unlock window forgo still-locked profit, and new profit restarts the 7-day line
 for older profit (it unlocks more slowly when profit keeps arriving); withdrawals during an impairment pay the
-conservative price (stayers keep the haircut if the markdown reverses), and repayments into a strategy whose removal
-is pending only count once recovered; the transaction that announces a loss can be front-run like any loss event
+conservative price (stayers keep the haircut if the markdown reverses; whatever part of it lifts the share price above
+the high-water mark pays the performance fee, like any other gain above the mark), and repayments into a strategy whose
+removal is pending only count once recovered; the transaction that announces a loss can be front-run like any loss event
 (curators should use a private relay); a non-compliant strategy that reports liquidity it then refuses blocks the
-withdrawals that reach it until the allocator reorders the queue; a strategy whose views burn all the gas they are
-given (rather than reverting) cannot be told apart from an under-funded call, so it blocks the vault and cannot be
-removed; fee-on-transfer assets are not supported; liquidity is only as good as the strategies' `maxWithdraw`.
+withdrawals that reach it until the allocator reorders the queue; a strategy whose views burn all the gas they are given
+(rather than reverting) cannot be told apart from an under-funded call, so it blocks the vault and cannot be removed;
+fee-on-transfer assets are not supported; liquidity is only as good as the strategies' `maxWithdraw`.
 Details in
 [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md#5-known-limitations). Static-analysis triage is in
 [docs/STATIC_ANALYSIS.md](docs/STATIC_ANALYSIS.md).
@@ -301,7 +302,7 @@ forge soldeer install                  # dependencies (Soldeer, locked)
 forge fmt --check
 forge build
 forge build --sizes src               # production sizes (the test-only Medusa harness exceeds EIP-3860)
-forge test                             # 359 tests
+forge test                             # 364 tests
 FOUNDRY_PROFILE=ci forge test          # the CI profile: fixed seed 0x09, 1,024 fuzz runs, 128 x 128 invariants
 forge snapshot --check --match-contract GasBench
 forge lint --deny warnings
@@ -314,14 +315,14 @@ bash script/local-demo.sh              # end to end on anvil (free port), outcom
 
 | Suite | Path | Tests | What it covers |
 |---|---|---:|---|
-| Unit | `test/unit` | 165 | Every entry point's happy path and every revert path; fees, unlocking, removal, impairment (paused, broken and refusing strategies, the out-of-gas guard), rate limiter, reentrancy, fee-on-transfer, the asset bound, `VaultMath` (unit + differential fuzz), the deploy script and its input checks |
+| Unit | `test/unit` | 167 | Every entry point's happy path and every revert path; fees, unlocking, removal, impairment (paused, broken and refusing strategies, the out-of-gas guard), rate limiter, reentrancy, fee-on-transfer, the asset bound, `VaultMath` (unit + differential fuzz), the deploy script and its input checks |
 | Fuzz, 6 / 8 / 18 decimals | `test/fuzz` | 27 | Rounding of all four previews against OpenZeppelin `mulDiv`, no-profit round trips, `max*` always executable, linear unlock, equal loss scaling, on a randomized prior state with fees |
 | Attack PoCs | `test/attacks` | 17 | The four attacks, naive vs hardened, plus OpenZeppelin baselines; three fuzz tests among them |
 | a16z ERC-4626 properties | `test/erc4626` | 131 | 26 properties x (6, 8, 18 decimals, funds in strategies, time and fees), `_delta_ = 0`, plus one check that the time-and-fees configuration really has fees pending |
 | Invariants | `test/invariant` | 1 campaign, 9 invariants | I1-I9 above |
-| Medusa harness smoke | `test/medusa` | 1 | The Medusa harness deploys and keeps its properties (and assertions) under Foundry |
+| Medusa harness smoke and replay | `test/medusa` | 4 | The Medusa harness deploys and keeps its properties (and assertions) under Foundry; the call sequence Medusa shrank in CI is replayed call for call, with the removal's fee checked per accrual and a counterfactual without the exit |
 | Gas | `test/gas` | 17 | Snapshot below |
-| **Total** | | **359** | 168 of them property-based (fuzzed) |
+| **Total** | | **364** | 168 of them property-based (fuzzed) |
 
 - **Coverage** of `src/`: **100.00 % (479/479)** lines, **100.00 % (598/598)** statements, **100.00 % (95/95)** branches and
   **100.00 % (86/86)** functions.
@@ -333,11 +334,16 @@ bash script/local-demo.sh              # end to end on anvil (free port), outcom
 - **Invariant settings**: 64 runs x 128 depth locally (8,192 calls), 128 x 128 in CI (16,384 calls),
   `fail_on_revert = true`, 0 reverts.
 - **Medusa**: 7 property tests (I1-I6, I8), checked after every call, plus `assert`s inside the four ERC-4626 actions
-  (each executes exactly at its preview, and a `withdraw` / `redeem` bounded by `maxWithdraw` / `maxRedeem` or a
-  deposit allowed by `maxDeposit` never reverts). 4 workers, 300 s, random time gaps up to 2 days. Medusa's summary
-  lists every one of the harness's 16 actions as an "assertion test"; only those four contain assertions, the other
-  12 cannot fail and are not counted here. Last local run: 0 failures, 157,101 calls, 3,178
-  branches (throughput varies by machine; see the CI log).
+  (each executes exactly at its preview, and a `withdraw` / `redeem` bounded by `maxWithdraw` / `maxRedeem` or a deposit
+  allowed by `maxDeposit` never reverts). 4 workers, 300 s, random time gaps up to 2 days. Medusa cannot read event
+  logs, so the fee property bounds each accrual from the vault state around it, at the totals that accrual priced at:
+  every vault call the harness makes accrues first, except that `removeStrategy` accrues again after redeeming the
+  position (realizing its write-off, or the deferred PnL of an impaired position that has been recovered); the harness
+  accrues explicitly before it and checks the removal's fee at the post-removal totals. A sequence Medusa shrank in CI,
+  where the bound had used the pre-removal totals, is replayed in `test/medusa/MedusaRegression.t.sol`. Medusa's summary
+  lists every one of the harness's 16 actions as an "assertion test"; only those four contain assertions, the other 12
+  cannot fail and are not counted here. Last local run: 0 failures, 329,560 calls, 3,181 branches (throughput varies by
+  machine; see the CI log).
 - **Mutation check**: removing each defense makes its own test fail (withdraw rounding -> fuzz, burned shares checked
   against the preview; doubled performance fee -> fee tests; no profit lock and a shortened (weighted) unlock ->
   sandwich PoCs; hidden loss -> first-mover PoC; offset 0 -> donation PoC; deposit rounding up -> 1-wei PoC; pending
@@ -353,16 +359,16 @@ on a prepared state with fees on, pending unlock and pending fees, so each entry
 
 | Operation | 3 strategies listed | No strategy listed | OpenZeppelin ERC4626 (offset 6) |
 |---|---:|---:|---:|
-| `deposit` | 145,553 | 97,138 | 67,345 |
-| `withdraw` (from idle) | 143,023 | 94,642 | 68,484 |
-| `withdraw` pulling from 2 strategies | 184,048 | - | - |
-| `mint` | 145,693 | - | - |
-| `redeem` (all shares) | 147,903 | - | - |
-| `accrue` (keeper harvest) | 107,292 | 58,929 | - |
-| `reallocate` (2 moves) | 200,682 | - | - |
+| `deposit` | 145,424 | 97,138 | 67,345 |
+| `withdraw` (from idle) | 142,894 | 94,642 | 68,484 |
+| `withdraw` pulling from 2 strategies | 183,919 | - | - |
+| `mint` | 145,564 | - | - |
+| `redeem` (all shares) | 147,774 | - | - |
+| `accrue` (keeper harvest) | 107,163 | 58,929 | - |
+| `reallocate` (2 moves) | 200,553 | - | - |
 | `submitCap` (new strategy) | 79,087 | - | - |
 | `zeroCap` (guardian) | 57,433 | - | - |
-| `totalAssets` / `maxWithdraw` / `safeConvertToAssets` (views) | 78,449 / 96,959 / 81,714 | - | - |
+| `totalAssets` / `maxWithdraw` / `safeConvertToAssets` (views) | 78,320 / 96,830 / 81,585 | - | - |
 
 Reading the table: the accrual machinery (profit lock, fees, high-water mark, safe-price checkpoint, events) costs
 ~29.8k gas per deposit over a plain OpenZeppelin vault, and live valuation (now through `try`/`catch`, with

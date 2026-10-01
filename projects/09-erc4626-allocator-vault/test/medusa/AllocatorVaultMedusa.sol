@@ -40,8 +40,8 @@ contract MedusaActor {
 ///         - backing: the counted gross assets never exceed idle plus each strategy's own valuation of the vault's
 ///           shares, and the locked profit is part of the booked value;
 ///         - the share price never decreases within an action unless the action can lose value;
-///         - fee shares minted in an action are worth at most fee rate x gain above the high-water mark plus the
-///           management fee for the elapsed time;
+///         - fee shares minted by an accrual are worth at most fee rate x gain above the high-water mark, both priced
+///           at the totals that accrual used, plus the management fee for the elapsed time;
 ///         - the high-water mark never decreases; an accrual writes what `previewAccrual` predicted;
 ///         - the rate-limited price is never above the share price.
 ///         Assertion mode checks the `assert`s inside the four ERC-4626 actions: `deposit`, `mint`, `withdraw` and
@@ -269,9 +269,16 @@ contract AllocatorVaultMedusa {
             if (shares != 0 && strategy.maxRedeem(address(vault)) < shares) return;
         }
         if (cfg.cap != 0) vault.zeroCap(strategy);
+        // `removeStrategy` accrues twice: first at the current state, then, after redeeming and dropping the position,
+        // again to realize the write-off or, if the position was impaired and has been recovered since, the deferred
+        // PnL. Its first accrual is made explicit here (and checked like any other), so the removal's own first accrual
+        // is a no-op and every fee share the removal mints comes from its final accrual. That accrual prices the fee at
+        // the post-removal totals, which the pre-action preview does not include.
+        _accrueChecked();
         Pre memory p = _pre(true);
         vault.removeStrategy(strategy);
-        _post(p, false);
+        _checkPriceAndMark(p, false);
+        _checkFees(p, vault.totalAssets());
     }
 
     function relist(uint256 strategySeed) external {
@@ -288,16 +295,7 @@ contract AllocatorVaultMedusa {
     }
 
     function accrue() external {
-        IAllocatorVault.Accrual memory predicted = vault.previewAccrual();
-        uint256 lastBefore = vault.lastTotalAssets();
-        Pre memory p = _pre(false);
-        vault.accrue();
-        uint256 expectedLast = address(predicted.impairedStrategy) == address(0) ? predicted.grossAssets : lastBefore;
-        if (
-            vault.lastTotalAssets() != expectedLast || vault.totalAssets() != predicted.totalAssets
-                || vault.totalSupply() != predicted.totalSupply || vault.highWaterMark() != predicted.highWaterMark
-        ) accrualMismatch = true;
-        _post(p, false);
+        _accrueChecked();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -348,6 +346,20 @@ contract AllocatorVaultMedusa {
                                 INTERNALS
     //////////////////////////////////////////////////////////////*/
 
+    /// @dev `accrue`, checked: it writes exactly what `previewAccrual` predicted, and an impaired accrual books nothing.
+    function _accrueChecked() internal {
+        IAllocatorVault.Accrual memory predicted = vault.previewAccrual();
+        uint256 lastBefore = vault.lastTotalAssets();
+        Pre memory p = _pre(false);
+        vault.accrue();
+        uint256 expectedLast = address(predicted.impairedStrategy) == address(0) ? predicted.grossAssets : lastBefore;
+        if (
+            vault.lastTotalAssets() != expectedLast || vault.totalAssets() != predicted.totalAssets
+                || vault.totalSupply() != predicted.totalSupply || vault.highWaterMark() != predicted.highWaterMark
+        ) accrualMismatch = true;
+        _post(p, false);
+    }
+
     function _pre(bool touchesStrategies) internal view returns (Pre memory p) {
         IAllocatorVault.Accrual memory a = vault.previewAccrual();
         p.totalAssets = a.totalAssets;
@@ -362,25 +374,35 @@ contract AllocatorVaultMedusa {
         }
     }
 
+    /// @dev Checks after an action whose vault call accrues before anything else, at exactly the state `p` previewed
+    ///      (every vault entry point the harness calls, except `removeStrategy`; see there).
     function _post(Pre memory p, bool lossPossible) internal {
-        IAllocatorVault.Accrual memory q = vault.previewAccrual();
+        _checkPriceAndMark(p, lossPossible);
+        _checkFees(p, p.totalAssets);
+    }
+
+    function _checkPriceAndMark(Pre memory p, bool lossPossible) internal {
         if (!lossPossible) {
+            IAllocatorVault.Accrual memory q = vault.previewAccrual();
             uint256 after_ = Math.mulDiv(q.totalAssets + 1 + p.tolerance, RAY, q.totalSupply + V);
             uint256 before = Math.mulDiv(p.totalAssets + 1, RAY, p.supplyWithFees + V);
             if (after_ + 1 < before) priceDroppedWithoutLoss = true;
         }
         if (vault.highWaterMark() < p.hwm) highWaterMarkDecreased = true;
+    }
 
-        // Fee shares minted by this action, valued at the post-accrual price, against a sound upper bound:
-        // performance on the (pre-fee) gain above the mark for all shares incl. the fee shares, plus management.
+    /// @dev Fee shares minted since `p`, all by one accrual that priced them at `accrualTotalAssets` with the supply,
+    ///      high-water mark and last-accrual time of `p`, against a sound upper bound: performance on the (pre-fee)
+    ///      gain above the mark for all shares incl. the fee shares, plus management on the elapsed time.
+    function _checkFees(Pre memory p, uint256 accrualTotalAssets) internal {
         uint256 feeShares = vault.balanceOf(FEE_RECIPIENT) - p.recipientShares;
         if (feeShares != 0) {
-            uint256 value = Math.mulDiv(feeShares, p.totalAssets + 1, p.supply + feeShares + V);
-            uint256 price = Math.mulDiv(p.totalAssets + 1, RAY, p.supply + V);
+            uint256 value = Math.mulDiv(feeShares, accrualTotalAssets + 1, p.supply + feeShares + V);
+            uint256 price = Math.mulDiv(accrualTotalAssets + 1, RAY, p.supply + V);
             uint256 gain = price > p.hwm ? Math.mulDiv(price - p.hwm, p.supply + feeShares, RAY) : 0;
             uint256 perfBound = Math.mulDiv(gain, vault.performanceFee(), WAD);
             uint256 mgmtBound =
-                Math.mulDiv(p.totalAssets, vault.managementFee() * (block.timestamp - p.lastAccrual), WAD * YEAR);
+                Math.mulDiv(accrualTotalAssets, vault.managementFee() * (block.timestamp - p.lastAccrual), WAD * YEAR);
             if (value > perfBound + mgmtBound + 2) feeAboveBound = true;
         }
     }
