@@ -1,0 +1,12 @@
+Mutant M11-lp-fee-rounds-down: the LP fee rounds down.
+--- a/src/libraries/VolatilityMath.sol
++++ b/src/libraries/VolatilityMath.sol
+@@ -95,7 +95,7 @@
+     /// @param slopePips Fee increment per tick of volatility, in pips.
+     /// @return fee LP fee in pips, within [MIN_FEE_PIPS, MAX_FEE_PIPS].
+     function lpFee(uint256 ewmaWad, uint256 slopePips) internal pure returns (uint24 fee) {
+-        uint256 raw = MIN_FEE_PIPS + Math.ceilDiv(ewmaWad * slopePips, WAD);
++        uint256 raw = MIN_FEE_PIPS + (ewmaWad * slopePips) / WAD;
+         // Casting to uint24 is safe: the cast only runs when raw <= MAX_FEE_PIPS (10,000).
+         // forge-lint: disable-next-line(unsafe-typecast)
+         fee = raw > MAX_FEE_PIPS ? MAX_FEE_PIPS : uint24(raw);

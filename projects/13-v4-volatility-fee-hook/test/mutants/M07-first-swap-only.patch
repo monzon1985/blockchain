@@ -1,0 +1,11 @@
+Mutant M07-first-swap-only: only the block's first price-moving swap is surcharged (the dust-first bypass).
+--- a/src/VolatilityFeeHook.sol
++++ b/src/VolatilityFeeHook.sol
+@@ -399,6 +399,7 @@
+         // Every price change in a surcharged block passes through here, so `pre` always lies inside [low, high], and
+         // the edge the swap moves toward lies between `pre` and `post` whenever the swap leaves the range.
+         uint256 edge;
++        if (state.lowSqrtPriceX96 != pre || state.highSqrtPriceX96 != pre) return 0;
+         if (post < pre) {
+             edge = state.lowSqrtPriceX96;
+             if (post >= edge) return 0;

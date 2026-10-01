@@ -1,0 +1,6 @@
+== regime-switch (400 blocks)
+venue | LP fees | LP P&L vs HODL | arbitrage profit | avg LP fee | noise trades | surcharged arbs
+  static 30 bps | 0.0684 | 0.0697 | 0.0024 | 3000 pips | 270 | 0
+  hook default | 0.0656 | 0.0658 | 0.0043 | 1282 pips | 390 | 68
+  hook, no surcharge | 0.0662 | 0.0662 | 0.0057 | 1401 pips | 412 | 0
+  hook, steep | 0.0620 | 0.0625 | 0.0016 | 2104 pips | 296 | 23

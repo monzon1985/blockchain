@@ -1,0 +1,12 @@
+Mutant M12-surcharge-rounds-down: the surcharge amount rounds down.
+--- a/src/libraries/VolatilityMath.sol
++++ b/src/libraries/VolatilityMath.sol
+@@ -118,7 +118,7 @@
+     /// @param ratePips Surcharge rate in pips.
+     /// @return The surcharge, in units of the unspecified currency.
+     function surchargeAmount(uint256 amount, uint256 ratePips) internal pure returns (uint256) {
+-        return Math.ceilDiv(amount * ratePips, PIPS_DENOMINATOR);
++        return (amount * ratePips) / PIPS_DENOMINATOR;
+     }
+ 
+     /// @notice Surcharge owed on the part of a swap that pushed the price beyond the block's previous price range.

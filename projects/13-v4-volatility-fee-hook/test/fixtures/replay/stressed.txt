@@ -1,0 +1,6 @@
+== stressed (400 blocks)
+venue | LP fees | LP P&L vs HODL | arbitrage profit | avg LP fee | noise trades | surcharged arbs
+  static 30 bps | 0.1306 | -0.0954 | 0.0161 | 3000 pips | 260 | 0
+  hook default | 0.1306 | -0.0973 | 0.0206 | 1728 pips | 319 | 98
+  hook, no surcharge | 0.1287 | -0.0992 | 0.0261 | 1934 pips | 350 | 0
+  hook, steep | 0.1188 | -0.1087 | 0.0127 | 2851 pips | 207 | 54

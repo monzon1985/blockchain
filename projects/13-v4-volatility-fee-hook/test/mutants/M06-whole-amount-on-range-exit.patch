@@ -1,0 +1,12 @@
+Mutant M06-whole-amount-on-range-exit: a swap that leaves the block's range pays on its whole amount (the reviewed crossing cliff).
+--- a/src/VolatilityFeeHook.sol
++++ b/src/VolatilityFeeHook.sol
+@@ -408,7 +408,7 @@
+             if (post <= edge) return 0;
+             state.highSqrtPriceX96 = post;
+         }
+-        return VolatilityMath.proRatedSurcharge(amount, rate, pre, post, edge, inCurrency1);
++        return inCurrency1 ? VolatilityMath.surchargeAmount(amount, rate) : VolatilityMath.surchargeAmount(amount, rate);
+     }
+ 
+     /// @dev Donates the surcharge to the in-range LPs. donate() debits the hook by `surcharge`; the afterSwap return

@@ -1,0 +1,77 @@
+# Uniswap v4 pins its core contracts to solc 0.8.26 / cancun (transient storage),
+# so this project follows v4-core instead of the monorepo default (0.8.37 / osaka).
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.26"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 1_000_000
+via_ir = false
+# Byte-for-byte reproducible bytecode across machines: the CREATE2 salt mined by
+# HookMiner depends on the init code, so metadata must not leak local paths.
+bytecode_hash = "none"
+cbor_metadata = false
+auto_detect_remappings = false
+ignored_warnings_from = ["dependencies"]
+deny = "warnings"
+fs_permissions = [
+    { access = "read", path = "./test/fixtures" },
+    # The GBM replay rewrites its pinned reports only when run with REPLAY_REPORT_UPDATE=true.
+    { access = "read-write", path = "./test/fixtures/replay" },
+]
+remappings = [
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "@openzeppelin/uniswap-hooks/=dependencies/@openzeppelin-uniswap-hooks-1.1.1/src/",
+    "@uniswap/v4-core/=dependencies/@uniswap-v4-core-1.0.2/",
+    "@uniswap/v4-periphery/=dependencies/@uniswap-v4-periphery-1.0.3/",
+    "solmate/=dependencies/solmate-6.2.0/",
+]
+
+[profile.default.fuzz]
+runs = 512
+seed = "0x1313"
+
+[profile.default.invariant]
+runs = 64
+depth = 64
+fail_on_revert = true
+
+# CI: same fixed seed, deeper campaigns.
+[profile.ci.fuzz]
+runs = 4096
+seed = "0x1313"
+
+[profile.ci.invariant]
+runs = 256
+depth = 100
+fail_on_revert = true
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+quote_style = "double"
+number_underscore = "thousands"
+sort_imports = false
+
+[lint]
+lint_on_build = false
+
+[soldeer]
+remappings_generate = false
+remappings_regenerate = false
+recursive_deps = false
+
+[dependencies]
+forge-std = "1.16.2"
+"@openzeppelin-contracts" = "5.7.0"
+"@uniswap-v4-core" = { version = "1.0.2", git = "https://github.com/Uniswap/v4-core.git", rev = "d153b048868a60c2403a3ef5b2301bb247884d46" }
+"@uniswap-v4-periphery" = { version = "1.0.3", git = "https://github.com/Uniswap/v4-periphery.git", rev = "7ebd04b161745b75ed0c24ba2df3bc7c25f65606" }
+"@openzeppelin-uniswap-hooks" = { version = "1.1.1", git = "https://github.com/OpenZeppelin/uniswap-hooks.git", rev = "bd5287c4a9f5c22c2393f7587a9b357662916115" }
+solmate = { version = "6.2.0", git = "https://github.com/transmissions11/solmate.git", rev = "4b47a19038b798b4a33d9749d25e570443520647" }

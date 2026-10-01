@@ -1,0 +1,39 @@
+version = 2
+
+[[dependencies]]
+name = "@openzeppelin-contracts"
+version = "5.7.0"
+url = "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_7_0_29-07-2026_19:34:46_contracts.zip"
+checksum = "fe08a24bc34334b2976c6ad69a0d74bdfa63de8a5c8528579060f25a11fb5cd5"
+integrity = "3e13bc4d96bdef6e35f6b1e0dc0e455843a958edc597750dff20ca50295b767d"
+
+[[dependencies]]
+name = "@openzeppelin-uniswap-hooks"
+version = "1.1.1"
+git = "https://github.com/OpenZeppelin/uniswap-hooks.git"
+rev = "bd5287c4a9f5c22c2393f7587a9b357662916115"
+
+[[dependencies]]
+name = "@uniswap-v4-core"
+version = "1.0.2"
+git = "https://github.com/Uniswap/v4-core.git"
+rev = "d153b048868a60c2403a3ef5b2301bb247884d46"
+
+[[dependencies]]
+name = "@uniswap-v4-periphery"
+version = "1.0.3"
+git = "https://github.com/Uniswap/v4-periphery.git"
+rev = "7ebd04b161745b75ed0c24ba2df3bc7c25f65606"
+
+[[dependencies]]
+name = "forge-std"
+version = "1.16.2"
+url = "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_16_2_03-07-2026_07:37:45_forge-std-1.16.zip"
+checksum = "405dccc9d60d753f6abc412b4adf0359f4390f65dbadbbb277a12b4946ed8969"
+integrity = "5fb4325b60d7d4194bd0481e2f94398cf1d9c6561dd12a66fb2748ef4a68205f"
+
+[[dependencies]]
+name = "solmate"
+version = "6.2.0"
+git = "https://github.com/transmissions11/solmate.git"
+rev = "4b47a19038b798b4a33d9749d25e570443520647"

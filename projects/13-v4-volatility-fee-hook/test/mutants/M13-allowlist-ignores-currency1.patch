@@ -1,0 +1,11 @@
+Mutant M13-allowlist-ignores-currency1: the allowlist check skips currency1.
+--- a/src/VolatilityFeeHook.sol
++++ b/src/VolatilityFeeHook.sol
+@@ -249,7 +249,6 @@
+     function _beforeInitialize(address, PoolKey calldata key, uint160 sqrtPriceX96) internal override returns (bytes4) {
+         if (!key.fee.isDynamicFee()) revert DynamicFeeRequired(key.fee);
+         if (!isCurrencyAllowed[key.currency0]) revert CurrencyNotAllowed(key.currency0);
+-        if (!isCurrencyAllowed[key.currency1]) revert CurrencyNotAllowed(key.currency1);
+ 
+         PoolId poolId = key.toId();
+         int24 tick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);

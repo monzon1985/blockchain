@@ -1,0 +1,12 @@
+Mutant M04-no-gas-sufficiency-check: delivery no longer requires the module's full gas budget (a keeper can starve the module on purpose).
+--- a/src/VolatilityFeeHook.sol
++++ b/src/VolatilityFeeHook.sol
+@@ -182,7 +182,7 @@
+         // failed delivery is always the module's own fault and never a keeper under-funding the call on purpose.
+         uint256 required = (MODULE_GAS_LIMIT * 64) / 63 + MODULE_CALL_RESERVE;
+         uint256 available = gasleft();
+-        if (available < required) revert InsufficientGasForModule(available, required);
++        if (available < MODULE_CALL_RESERVE) revert InsufficientGasForModule(available, required);
+ 
+         bool success;
+         // Low-level call with a fixed gas budget and zero-length output: no return data is copied (a module cannot

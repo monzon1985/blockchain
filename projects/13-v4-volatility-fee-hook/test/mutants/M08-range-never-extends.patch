@@ -1,0 +1,11 @@
+Mutant M08-range-never-extends: the block's range is never extended, so ground already paid for is charged again.
+--- a/src/VolatilityFeeHook.sol
++++ b/src/VolatilityFeeHook.sol
+@@ -402,7 +402,6 @@
+         if (post < pre) {
+             edge = state.lowSqrtPriceX96;
+             if (post >= edge) return 0;
+-            state.lowSqrtPriceX96 = post;
+         } else {
+             edge = state.highSqrtPriceX96;
+             if (post <= edge) return 0;

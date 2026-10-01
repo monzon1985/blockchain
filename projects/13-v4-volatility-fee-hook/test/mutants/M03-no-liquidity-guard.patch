@@ -1,0 +1,12 @@
+Mutant M03-no-liquidity-guard: the surcharge is donated even when the swap left no liquidity in range.
+--- a/src/VolatilityFeeHook.sol
++++ b/src/VolatilityFeeHook.sol
+@@ -316,7 +316,7 @@
+         );
+ 
+         // A donation needs in-range liquidity; if the swap left none, skip the surcharge rather than revert the swap.
+-        if (surcharge == 0 || poolManager.getLiquidity(poolId) == 0) return (this.afterSwap.selector, 0);
++        if (surcharge == 0) return (this.afterSwap.selector, 0);
+ 
+         _donateSurcharge(sender, key, poolId, unspecifiedIsCurrency1, surcharge);
+         return (this.afterSwap.selector, surcharge.toInt256().toInt128());

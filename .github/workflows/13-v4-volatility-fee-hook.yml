@@ -1,0 +1,264 @@
+name: "13 · v4 Volatility Fee Hook"
+
+on:
+  push:
+    paths:
+      - "projects/13-v4-volatility-fee-hook/**"
+      - ".github/workflows/13-v4-volatility-fee-hook.yml"
+  pull_request:
+    paths:
+      - "projects/13-v4-volatility-fee-hook/**"
+      - ".github/workflows/13-v4-volatility-fee-hook.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/13-v4-volatility-fee-hook
+    shell: bash
+
+env:
+  FOUNDRY_VERSION: v1.8.3
+  UV_VERSION: "0.12.20"
+  MEDUSA_VERSION: v1.5.1
+  # sha256 of medusa-linux-x64.tar.gz in the crytic/medusa v1.5.1 release (the digest GitHub publishes for the asset).
+  MEDUSA_SHA256: ddfe1517ae9028ef9fc331b00f5a6a9d5406f3fcd11a715d60c6b6fb3e4546d3
+  SLITHER_VERSION: "0.11.6"
+  CRYTIC_COMPILE_VERSION: "0.4.2"
+  PROJECT: projects/13-v4-volatility-fee-hook
+
+jobs:
+  foundry:
+    name: Build, lint, test, gas, coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/dependencies
+          key: soldeer-13-${{ hashFiles('projects/13-v4-volatility-fee-hook/soldeer.lock') }}
+
+      - name: Cache compiler output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PROJECT }}/cache
+            ${{ env.PROJECT }}/out
+          key: forge-13-${{ hashFiles('projects/13-v4-volatility-fee-hook/soldeer.lock', 'projects/13-v4-volatility-fee-hook/foundry.toml', 'projects/13-v4-volatility-fee-hook/src/**', 'projects/13-v4-volatility-fee-hook/test/**/*.sol', 'projects/13-v4-volatility-fee-hook/script/**/*.sol') }}
+          restore-keys: forge-13-
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Format
+        run: forge fmt --check
+
+      - name: Build
+        run: forge build
+
+      - name: Lint
+        run: forge lint
+
+      - name: Test (CI profile, fixed fuzz seed, deeper fuzz and invariant campaigns)
+        env:
+          FOUNDRY_PROFILE: ci
+        run: forge test
+
+      - name: Gas snapshot
+        run: forge snapshot --check --match-contract GasBench
+
+      - name: Coverage (production code; 100% of lines and branches, as published in the README)
+        run: |
+          forge coverage --report summary --report lcov --no-match-coverage "(test|script|dependencies)"
+          awk -F: '/^LF:/{lf+=$2} /^LH:/{lh+=$2} /^BRF:/{bf+=$2} /^BRH:/{bh+=$2} END {
+            printf "Lines of src/: %d/%d, branches: %d/%d\n", lh, lf, bh, bf;
+            if (lf == 0 || lh < lf || bh < bf) exit 1 }' lcov.info
+
+      - name: GBM replay report (pinned files, byte-for-byte equal to the test run above)
+        run: |
+          {
+            echo "### GBM replay report"
+            echo '```'
+            cat test/fixtures/replay/{calm,normal,stressed,regime-switch}.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  local-demo:
+    name: Local anvil demo (end to end)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/dependencies
+          key: soldeer-13-${{ hashFiles('projects/13-v4-volatility-fee-hook/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Deploy, deliver a notification and trade on anvil (free port chosen at runtime)
+        run: bash script/local-demo.sh
+
+  medusa:
+    name: Medusa stateful fuzzing (300 s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install crytic-compile
+        run: |
+          uv tool install "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Medusa (official release, checksum verified)
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL -o medusa.tar.gz \
+            "https://github.com/crytic/medusa/releases/download/${MEDUSA_VERSION}/medusa-linux-x64.tar.gz"
+          echo "${MEDUSA_SHA256}  medusa.tar.gz" | sha256sum -c -
+          mkdir -p medusa-bin "$HOME/.local/bin" && tar -xzf medusa.tar.gz -C medusa-bin
+          install -m 0755 "$(find medusa-bin -type f -name medusa | head -n 1)" "$HOME/.local/bin/medusa"
+          "$HOME/.local/bin/medusa" --version
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/dependencies
+          key: soldeer-13-${{ hashFiles('projects/13-v4-volatility-fee-hook/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Fuzz
+        run: medusa fuzz --config medusa.json --timeout 300
+
+      - name: Keep the corpus (and any counterexample) for replay
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: medusa-corpus-13
+          path: ${{ env.PROJECT }}/medusa-corpus
+          if-no-files-found: ignore
+
+  slither:
+    name: Slither
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install Slither
+        run: |
+          uv tool install "slither-analyzer==${SLITHER_VERSION}" --with "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/dependencies
+          key: soldeer-13-${{ hashFiles('projects/13-v4-volatility-fee-hook/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Analyze (fails on any untriaged finding)
+        run: slither . --config-file slither.config.json
+
+  python:
+    name: Reference vectors, GBM paths, sim tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Sync locked environment
+        run: uv sync --project sim --locked
+
+      - name: Ruff
+        run: |
+          uv run --project sim ruff check sim
+          uv run --project sim ruff format --check sim
+
+      - name: Pytest
+        run: uv run --project sim pytest sim -q
+
+      - name: Committed mpmath vectors are reproducible
+        run: uv run --project sim python sim/gen_vectors.py --check
+
+      - name: Committed GBM paths are reproducible
+        run: uv run --project sim python sim/gen_paths.py --check
+
+  mutants:
+    name: Mutation check (manual dispatch only)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/dependencies
+          key: soldeer-13-${{ hashFiles('projects/13-v4-volatility-fee-hook/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Every committed mutant must be killed
+        run: bash script/mutants.sh | tee mutants.txt
+
+      - name: Mutation summary
+        if: always()
+        run: |
+          {
+            echo "### Mutation check"
+            echo '```'
+            cat mutants.txt 2>/dev/null || echo "no output"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

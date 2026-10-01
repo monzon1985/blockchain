@@ -1,0 +1,12 @@
+Mutant M01-afterswap-zero-return-delta: afterSwap still donates the surcharge but returns a zero delta (the hook is left owing it).
+--- a/src/VolatilityFeeHook.sol
++++ b/src/VolatilityFeeHook.sol
+@@ -319,7 +319,7 @@
+         if (surcharge == 0 || poolManager.getLiquidity(poolId) == 0) return (this.afterSwap.selector, 0);
+ 
+         _donateSurcharge(sender, key, poolId, unspecifiedIsCurrency1, surcharge);
+-        return (this.afterSwap.selector, surcharge.toInt256().toInt128());
++        return (this.afterSwap.selector, 0);
+     }
+ 
+     /// @dev Queues a notification for the module; makes no external call and never changes balances.

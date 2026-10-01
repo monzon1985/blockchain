@@ -1,0 +1,12 @@
+Mutant M15-same-block-swaps-pay-the-floor: swaps after the first in a block are charged the 5 bps floor instead of the block's fee.
+--- a/src/VolatilityFeeHook.sol
++++ b/src/VolatilityFeeHook.sol
+@@ -288,7 +288,7 @@
+             (fee, surchargePips) = _openBlock(poolId, state, sqrtPriceX96, tick);
+             if (surchargePips != 0) _preSwapPriceSlot(poolId).tstore(sqrtPriceX96);
+         } else {
+-            fee = state.lpFeePips;
++            fee = MIN_FEE_PIPS;
+             if (state.surchargePips != 0) {
+                 // slither-disable-next-line unused-return
+                 (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);

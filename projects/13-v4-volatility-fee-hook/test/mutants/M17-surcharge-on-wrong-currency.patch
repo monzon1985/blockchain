@@ -1,0 +1,12 @@
+Mutant M17-surcharge-on-wrong-currency: the surcharge is computed on the specified side instead of the unspecified side.
+--- a/src/VolatilityFeeHook.sol
++++ b/src/VolatilityFeeHook.sol
+@@ -310,7 +310,7 @@
+     ) internal override returns (bytes4, int128) {
+         PoolId poolId = key.toId();
+         // The unspecified side is the output of an exact-input swap and the input of an exact-output swap.
+-        bool unspecifiedIsCurrency1 = (params.amountSpecified < 0) == params.zeroForOne;
++        bool unspecifiedIsCurrency1 = (params.amountSpecified < 0) != params.zeroForOne;
+         uint256 surcharge = _extendRangeAndPrice(
+             poolId, _abs(unspecifiedIsCurrency1 ? delta.amount1() : delta.amount0()), unspecifiedIsCurrency1
+         );

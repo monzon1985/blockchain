@@ -1,0 +1,12 @@
+Mutant M10-ewma-rounds-up: the EWMA update rounds up.
+--- a/src/libraries/VolatilityMath.sol
++++ b/src/libraries/VolatilityMath.sol
+@@ -83,7 +83,7 @@
+         returns (uint256 next)
+     {
+         // alphaWad * sampleTicks is an exact integer, so only the first term is rounded.
+-        next = ((WAD - alphaWad) * ewmaWad) / WAD + alphaWad * sampleTicks;
++        next = Math.ceilDiv((WAD - alphaWad) * ewmaWad, WAD) + alphaWad * sampleTicks;
+         if (blocksElapsed > 1 && next != 0) {
+             next = (next * decayFactor(alphaWad, blocksElapsed - 1)) / WAD;
+         }

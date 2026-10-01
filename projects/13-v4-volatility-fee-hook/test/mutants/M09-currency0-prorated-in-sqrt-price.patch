@@ -1,0 +1,12 @@
+Mutant M09-currency0-prorated-in-sqrt-price: a currency0 amount is pro-rated by sqrt-price distance instead of 1/sqrt-price distance.
+--- a/src/libraries/VolatilityMath.sol
++++ b/src/libraries/VolatilityMath.sol
+@@ -152,7 +152,7 @@
+         uint256 total = pre > post ? pre - post : post - pre;
+         uint256 beyond = edge > post ? edge - post : post - edge;
+         uint256 share = Math.mulDiv(amount * ratePips, beyond, total, Math.Rounding.Ceil);
+-        if (!inCurrency1) share = Math.mulDiv(share, pre, edge, Math.Rounding.Ceil);
++        if (!inCurrency1 && edge == 0) share = Math.mulDiv(share, pre, edge, Math.Rounding.Ceil);
+         uint256 surcharge = Math.ceilDiv(share, PIPS_DENOMINATOR);
+         return surcharge > full ? full : surcharge;
+     }

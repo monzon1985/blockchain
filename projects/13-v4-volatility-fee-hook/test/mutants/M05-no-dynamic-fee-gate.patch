@@ -1,0 +1,11 @@
+Mutant M05-no-dynamic-fee-gate: beforeInitialize accepts static-fee pool keys.
+--- a/src/VolatilityFeeHook.sol
++++ b/src/VolatilityFeeHook.sol
+@@ -247,7 +247,6 @@
+     /// swaps would pay the key's static fee) and currencies the owner has not vetted. State is keyed by PoolId, so a
+     /// hostile pool that passes these checks still cannot touch any other pool's oracle.
+     function _beforeInitialize(address, PoolKey calldata key, uint160 sqrtPriceX96) internal override returns (bytes4) {
+-        if (!key.fee.isDynamicFee()) revert DynamicFeeRequired(key.fee);
+         if (!isCurrencyAllowed[key.currency0]) revert CurrencyNotAllowed(key.currency0);
+         if (!isCurrencyAllowed[key.currency1]) revert CurrencyNotAllowed(key.currency1);
+ 

@@ -1,0 +1,12 @@
+Mutant M14-oracle-updates-every-swap: the oracle re-samples on every swap instead of once per block.
+--- a/src/VolatilityFeeHook.sol
++++ b/src/VolatilityFeeHook.sol
+@@ -281,7 +281,7 @@
+         uint24 fee;
+         // The pre-swap price is handed to afterSwap of this same swap through a transient slot keyed by PoolId (so
+         // interleaved swaps across pools cannot mix values). A quiet block (zero surcharge rate) needs neither.
+-        if (block.number > state.anchorBlock) {
++        if (block.number >= state.anchorBlock) {
+             // slither-disable-next-line unused-return
+             (uint160 sqrtPriceX96, int24 tick,,) = poolManager.getSlot0(poolId);
+             uint24 surchargePips;

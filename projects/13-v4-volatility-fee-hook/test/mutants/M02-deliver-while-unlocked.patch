@@ -1,0 +1,11 @@
+Mutant M02-deliver-while-unlocked: deliverNotification no longer requires the PoolManager to be locked.
+--- a/src/VolatilityFeeHook.sol
++++ b/src/VolatilityFeeHook.sol
+@@ -170,7 +170,6 @@
+     {
+         // A module must never run inside somebody's unlock: there it could leave a delta open, or settle a debt of
+         // another party to keep the PoolManager's global delta count unchanged, and revert that party's transaction.
+-        if (poolManager.exttload(PM_IS_UNLOCKED_SLOT) != bytes32(0)) revert PoolManagerUnlocked();
+         if (pendingNotification[id] != _notificationDigest(module, notification)) revert UnknownNotification(id);
+         delete pendingNotification[id];
+ 
