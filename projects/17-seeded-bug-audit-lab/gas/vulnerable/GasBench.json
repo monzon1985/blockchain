@@ -1,0 +1,15 @@
+{
+  "KestrelGovernor.emergencyExecute [SC04]": "67760",
+  "KestrelLending.borrow [SC03]": "128534",
+  "KestrelPool.addLiquidityExactShares [SC09]": "143989",
+  "KestrelPool.batchSwap (2 assets, 1 step) [SC02 SC05 SC07a]": "107862",
+  "KestrelPool.setRewardRate (owner) [SC01]": "52061",
+  "KestrelPool.swap": "101867",
+  "KestrelPool.swapWithNativeSponsor (with refund) [SC06]": "132490",
+  "KestrelProxy -> KestrelConfig.ethPrice [SC10]": "9520",
+  "KestrelRelayer.relaySwap [REPLAY]": "150302",
+  "KestrelVault.convertToAssets [SC08]": "4915",
+  "KestrelVault.deposit": "59767",
+  "KestrelVault.redeem [SC08]": "49854",
+  "KestrelVault.withdraw [SC07b]": "49827"
+}

@@ -1,0 +1,98 @@
+{
+  "tool": "medusa",
+  "tree": "fixed",
+  "command": "FOUNDRY_PROFILE=fixed medusa fuzz --config medusa.json --timeout 180 --workers 4",
+  "version": "medusa 1.5.1",
+  "budget": {
+    "timeout": 180,
+    "workers": 4,
+    "callSequenceLength": 100,
+    "seed": "none (Medusa 1.5.1 has no seed option)"
+  },
+  "results": [
+    {
+      "id": "property_batchMatchesSingleSwap",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_configChangesAuthorized",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_integratorsSeeConsistentPrice",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_joinsPayProRata",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_nativeFeeAccounting",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_onlyAdminUpgrades",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_poolRoundingFavorsPool",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_poolSolvency",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_privilegedActionsOwnerOnly",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_rewardReserveBacked",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_sharePriceMonotonic",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_signaturesSingleUse",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_treasuryNeedsDurableStake",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_valuationIgnoresSameBlockSwaps",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_vaultRoundingFavorsVault",
+      "kind": "property",
+      "status": "pass"
+    },
+    {
+      "id": "property_vaultSolvency",
+      "kind": "property",
+      "status": "pass"
+    }
+  ],
+  "summary": {
+    "passed": 16,
+    "failed": 0
+  }
+}

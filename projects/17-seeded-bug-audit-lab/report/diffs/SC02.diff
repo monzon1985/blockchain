@@ -1,0 +1,17 @@
+# M-01 [SC02] Swap fee bypassed through the batch path
+# Fix 2 of 12. Apply the patches in order (SC01 ... REPLAY) on top of
+# src/vulnerable/ to obtain src/fixed/ exactly; `node scripts/fixdiffs.mjs --check` verifies this.
+diff --git a/KestrelPool.sol b/KestrelPool.sol
+--- a/KestrelPool.sol
++++ b/KestrelPool.sol
+@@ -571,7 +571,9 @@
+         view
+         returns (uint256 outAmt)
+     {
+-        uint256 outScaled = _outGivenInScaled(aIn, aOut, balIn, balOut, amountIn);
++        // [SC02] Charge the swap fee exactly as the single-swap path does.
++        uint256 amountInNet = _netOfFee(amountIn);
++        uint256 outScaled = _outGivenInScaled(aIn, aOut, balIn, balOut, amountInNet);
+         uint256 scaleOut = _scaleOf(aOut);
+         outAmt = FixedPointMath.mulDivUp(outScaled, 1, scaleOut);
+     }

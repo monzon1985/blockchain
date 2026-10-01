@@ -1,0 +1,26 @@
+# M-02 [SC06] Unchecked ETH refund strands funds
+# Fix 6 of 12. Apply the patches in order (SC01 ... REPLAY) on top of
+# src/vulnerable/ to obtain src/fixed/ exactly; `node scripts/fixdiffs.mjs --check` verifies this.
+diff --git a/KestrelPool.sol b/KestrelPool.sol
+--- a/KestrelPool.sol
++++ b/KestrelPool.sol
+@@ -170,6 +170,8 @@
+     /// @param sent Value sent.
+     /// @param required Value required.
+     error InsufficientNativeFee(uint256 sent, uint256 required);
++    /// @notice Thrown when the native-currency refund of a sponsored swap fails. [SC06]
++    error RefundFailed();
+     /// @notice Thrown when a native fee withdrawal transfer fails.
+     error NativeTransferFailed();
+     /// @notice Thrown when withdrawing more native fees than were collected.
+@@ -369,7 +371,9 @@
+         emit NativeFeeCollected(msg.sender, nativeSwapFee);
+         uint256 refund = msg.value - nativeSwapFee;
+         if (refund > 0) {
+-            msg.sender.call{ value: refund }("");
++            // [SC06] Check the refund: a failed refund reverts the swap instead of stranding ETH.
++            (bool ok,) = msg.sender.call{ value: refund }("");
++            require(ok, RefundFailed());
+         }
+     }
+ 

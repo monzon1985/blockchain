@@ -1,0 +1,48 @@
+# H-04 [SC08] Read-only reentrancy on the vault share price
+# Fix 9 of 12. Apply the patches in order (SC01 ... REPLAY) on top of
+# src/vulnerable/ to obtain src/fixed/ exactly; `node scripts/fixdiffs.mjs --check` verifies this.
+diff --git a/KestrelVault.sol b/KestrelVault.sol
+--- a/KestrelVault.sol
++++ b/KestrelVault.sol
+@@ -58,6 +58,8 @@
+     error NoShares();
+     /// @notice Thrown when the ETH transfer to the receiver fails.
+     error EthTransferFailed();
++    /// @notice Thrown when a price view is read while a state-changing call is in flight. [SC08]
++    error ReentrantRead();
+ 
+     /// @notice Deploy the vault share token.
+     constructor() ERC20("Kestrel ETH Vault", "kETH") { }
+@@ -123,8 +125,8 @@
+         // vault's favor), so a non-zero share count always redeems a non-zero amount.
+         assets = _convertToAssets(shares);
+         _burn(msg.sender, shares);
++        totalManaged -= assets; // [SC08] effects before the ETH transfer: the price is never stale
+         _sendEth(receiver, assets);
+-        totalManaged -= assets;
+         emit Withdraw(msg.sender, receiver, assets, shares);
+     }
+ 
+@@ -132,6 +134,7 @@
+     /// @param assets ETH (wei).
+     /// @return shares Corresponding shares.
+     function convertToShares(uint256 assets) external view returns (uint256 shares) {
++        require(!_reentrancyGuardEntered(), ReentrantRead()); // [SC08] no reads mid-operation
+         shares = _convertToShares(assets);
+     }
+ 
+@@ -139,12 +142,14 @@
+     /// @param shares Vault shares.
+     /// @return assets Corresponding ETH (wei).
+     function convertToAssets(uint256 shares) external view returns (uint256 assets) {
++        require(!_reentrancyGuardEntered(), ReentrantRead()); // [SC08] no reads mid-operation
+         assets = _convertToAssets(shares);
+     }
+ 
+     /// @notice Price of 1e18 shares in ETH (wei).
+     /// @return price ETH per 1e18 shares.
+     function pricePerShare() external view returns (uint256 price) {
++        require(!_reentrancyGuardEntered(), ReentrantRead()); // [SC08] no reads mid-operation
+         price = _convertToAssets(1e18);
+     }
+ 

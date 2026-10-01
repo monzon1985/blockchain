@@ -1,0 +1,36 @@
+{
+  "tool": "halmos",
+  "tree": "fixed",
+  "command": "FOUNDRY_PROFILE=fixed halmos --match-contract FixedProperties --forge-build-out out/fixed",
+  "version": "halmos 0.3.3",
+  "results": [
+    {
+      "id": "check_castVoteUsesSnapshotWeight",
+      "status": "pass"
+    },
+    {
+      "id": "check_checkedShlFullWord",
+      "status": "pass"
+    },
+    {
+      "id": "check_checkedShlIsLossless",
+      "status": "pass"
+    },
+    {
+      "id": "check_depositNeverOvermints",
+      "status": "pass"
+    },
+    {
+      "id": "check_flashMintCannotPassEmergencyQuorum",
+      "status": "pass"
+    },
+    {
+      "id": "check_redeemNeverOverpays",
+      "status": "pass"
+    },
+    {
+      "id": "check_withdrawNeverUnderburnsShares",
+      "status": "pass"
+    }
+  ]
+}

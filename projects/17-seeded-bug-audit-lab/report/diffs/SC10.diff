@@ -1,0 +1,44 @@
+# H-07 [SC10] Proxy admin slot collides with the config's initializer flags (Audius)
+# Fix 11 of 12. Apply the patches in order (SC01 ... REPLAY) on top of
+# src/vulnerable/ to obtain src/fixed/ exactly; `node scripts/fixdiffs.mjs --check` verifies this.
+diff --git a/KestrelProxy.sol b/KestrelProxy.sol
+--- a/KestrelProxy.sol
++++ b/KestrelProxy.sol
+@@ -10,9 +10,9 @@
+     /// @notice EIP-1967 implementation slot: `keccak256("eip1967.proxy.implementation") - 1`.
+     bytes32 private constant IMPLEMENTATION_SLOT =
+         0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+-
+-    /// @notice The proxy administrator.
+-    address private _admin;
++    /// @notice EIP-1967 admin slot: `keccak256("eip1967.proxy.admin") - 1`. The admin lives here,
++    ///         outside the sequential layout, so it cannot collide with implementation storage. [SC10]
++    bytes32 private constant ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+ 
+     /// @notice Emitted when the implementation changes.
+     /// @param implementation The new implementation.
+@@ -97,14 +97,20 @@
+         _delegate(_getImplementation());
+     }
+ 
+-    /// @dev Read the admin.
++    /// @dev Read the admin from the EIP-1967 admin slot. [SC10]
+     function _getAdmin() private view returns (address account) {
+-        account = _admin;
++        // Reads one fixed storage slot; no memory is touched.
++        assembly ("memory-safe") {
++            account := sload(ADMIN_SLOT)
++        }
+     }
+ 
+-    /// @dev Write the admin.
++    /// @dev Write the admin to the EIP-1967 admin slot. [SC10]
+     function _setAdmin(address account) private {
+-        _admin = account;
++        // Writes one fixed storage slot; no memory is touched.
++        assembly ("memory-safe") {
++            sstore(ADMIN_SLOT, account)
++        }
+     }
+ 
+     /// @dev Read the implementation from the EIP-1967 slot.

@@ -1,0 +1,91 @@
+{
+  "tool": "forge",
+  "tree": "vulnerable",
+  "command": "FOUNDRY_PROFILE=vulnerable forge test --match-path 'test/invariant/*'",
+  "version": "forge 1.8.3",
+  "budget": {
+    "runs": 128,
+    "depth": 64,
+    "workers": 1,
+    "seed": "0x4b65737472656c"
+  },
+  "results": [
+    {
+      "id": "KestrelInvariants.invariant_batchMatchesSingleSwap",
+      "status": "fail",
+      "reason": "batch paid above the single-swap quote"
+    },
+    {
+      "id": "KestrelInvariants.invariant_configChangesAuthorized",
+      "status": "fail",
+      "reason": "unauthorized risk-config change"
+    },
+    {
+      "id": "KestrelInvariants.invariant_integratorsSeeConsistentPrice",
+      "status": "fail",
+      "reason": "transient share price observed"
+    },
+    {
+      "id": "KestrelInvariants.invariant_joinsPayProRata",
+      "status": "fail",
+      "reason": "underpriced join"
+    },
+    {
+      "id": "KestrelInvariants.invariant_nativeFeeAccounting",
+      "status": "fail",
+      "reason": "pool ETH != fees"
+    },
+    {
+      "id": "KestrelInvariants.invariant_onlyAdminUpgrades",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_poolRoundingFavorsPool",
+      "status": "fail",
+      "reason": "amplified pool rounding error"
+    },
+    {
+      "id": "KestrelInvariants.invariant_poolSolvency",
+      "status": "fail",
+      "reason": "pool reserve1"
+    },
+    {
+      "id": "KestrelInvariants.invariant_privilegedActionsOwnerOnly",
+      "status": "fail",
+      "reason": "owner-only action by non-owner"
+    },
+    {
+      "id": "KestrelInvariants.invariant_rewardReserveBacked",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_sharePriceMonotonic",
+      "status": "fail",
+      "reason": "share price decreased"
+    },
+    {
+      "id": "KestrelInvariants.invariant_signaturesSingleUse",
+      "status": "fail",
+      "reason": "relay request executed twice"
+    },
+    {
+      "id": "KestrelInvariants.invariant_treasuryNeedsDurableStake",
+      "status": "fail",
+      "reason": "treasury moved by flash-loaned stake"
+    },
+    {
+      "id": "KestrelInvariants.invariant_valuationIgnoresSameBlockSwaps",
+      "status": "fail",
+      "reason": "valuation moved by a same-block swap"
+    },
+    {
+      "id": "KestrelInvariants.invariant_vaultRoundingFavorsVault",
+      "status": "fail",
+      "reason": "amplified vault rounding error"
+    },
+    {
+      "id": "KestrelInvariants.invariant_vaultSolvency",
+      "status": "pass"
+    }
+  ]
+}

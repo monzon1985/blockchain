@@ -1,0 +1,17 @@
+# L-02 [SC07b] Vault withdraw rounds burned shares down (free dust withdrawals)
+# Fix 8 of 12. Apply the patches in order (SC01 ... REPLAY) on top of
+# src/vulnerable/ to obtain src/fixed/ exactly; `node scripts/fixdiffs.mjs --check` verifies this.
+diff --git a/KestrelVault.sol b/KestrelVault.sol
+--- a/KestrelVault.sol
++++ b/KestrelVault.sol
+@@ -102,7 +102,9 @@
+     function withdraw(uint256 assets, address receiver) external nonReentrant returns (uint256 shares) {
+         require(assets > 0, ZeroAmount());
+         require(assets <= totalManaged, InsufficientAssets(assets, totalManaged));
+-        shares = FixedPointMath.mulDivDown(assets, totalSupply(), totalManaged);
++        // [SC07b] Round the shares to burn UP, in the vault's favor: any non-zero withdrawal
++        // burns at least one share, so no withdrawal is free.
++        shares = FixedPointMath.mulDivUp(assets, totalSupply(), totalManaged);
+         require(balanceOf(msg.sender) >= shares, InsufficientShares(shares, balanceOf(msg.sender)));
+         _burn(msg.sender, shares);
+         totalManaged -= assets;

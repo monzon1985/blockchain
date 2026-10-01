@@ -1,0 +1,30 @@
+# H-03 [SC05] Duplicate-asset batchSwap double-counts a reserve
+# Fix 5 of 12. Apply the patches in order (SC01 ... REPLAY) on top of
+# src/vulnerable/ to obtain src/fixed/ exactly; `node scripts/fixdiffs.mjs --check` verifies this.
+diff --git a/KestrelPool.sol b/KestrelPool.sol
+--- a/KestrelPool.sol
++++ b/KestrelPool.sol
+@@ -148,6 +148,9 @@
+     /// @notice Thrown when a batch is malformed: fewer than two assets, an out-of-range index or
+     ///         a step whose input and output index are equal.
+     error BadAssetIndex();
++    /// @notice Thrown when {batchSwap} lists the same asset twice. [SC05]
++    /// @param asset The repeated asset.
++    error DuplicateAsset(address asset);
+     /// @notice Thrown when burning more LP shares than the caller holds.
+     /// @param shares Requested shares.
+     /// @param balance Available shares.
+@@ -384,6 +387,13 @@
+         uint256 n = assets.length;
+         require(n >= 2, BadAssetIndex());
+         _syncOracle();
++        // [SC05] Reject duplicated assets, so each token has exactly one running balance and
++        // settlement writes each reserve once.
++        for (uint256 i = 0; i < n; ++i) {
++            for (uint256 j = i + 1; j < n; ++j) {
++                require(assets[i] != assets[j], DuplicateAsset(assets[i]));
++            }
++        }
+         uint256[] memory bal = new uint256[](n);
+         for (uint256 i = 0; i < n; ++i) {
+             bal[i] = _reserveOf(assets[i]);

@@ -1,0 +1,39 @@
+[project]
+name = "kestrel-detectors"
+version = "0.2.0"
+description = "Custom Slither detectors for the Kestrel audit lab"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+    "slither-analyzer==0.11.6",
+    "crytic-compile==0.4.2",
+]
+
+[project.entry-points."slither_analyzer.plugin"]
+kestrel = "kestrel_detectors:make_plugin"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.13",
+    "solc-select>=1.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["kestrel_detectors"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]

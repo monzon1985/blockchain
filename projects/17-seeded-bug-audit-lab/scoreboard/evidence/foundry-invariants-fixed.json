@@ -1,0 +1,78 @@
+{
+  "tool": "forge",
+  "tree": "fixed",
+  "command": "FOUNDRY_PROFILE=fixed forge test --match-path 'test/invariant/*'",
+  "version": "forge 1.8.3",
+  "budget": {
+    "runs": 128,
+    "depth": 64,
+    "workers": 1,
+    "seed": "0x4b65737472656c"
+  },
+  "results": [
+    {
+      "id": "KestrelInvariants.invariant_batchMatchesSingleSwap",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_configChangesAuthorized",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_integratorsSeeConsistentPrice",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_joinsPayProRata",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_nativeFeeAccounting",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_onlyAdminUpgrades",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_poolRoundingFavorsPool",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_poolSolvency",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_privilegedActionsOwnerOnly",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_rewardReserveBacked",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_sharePriceMonotonic",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_signaturesSingleUse",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_treasuryNeedsDurableStake",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_valuationIgnoresSameBlockSwaps",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_vaultRoundingFavorsVault",
+      "status": "pass"
+    },
+    {
+      "id": "KestrelInvariants.invariant_vaultSolvency",
+      "status": "pass"
+    }
+  ]
+}

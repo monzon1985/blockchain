@@ -1,0 +1,74 @@
+# H-08 [REPLAY] Relayer signatures lack chain id and nonce (replay)
+# Fix 12 of 12. Apply the patches in order (SC01 ... REPLAY) on top of
+# src/vulnerable/ to obtain src/fixed/ exactly; `node scripts/fixdiffs.mjs --check` verifies this.
+diff --git a/KestrelRelayer.sol b/KestrelRelayer.sol
+--- a/KestrelRelayer.sol
++++ b/KestrelRelayer.sol
+@@ -19,9 +19,9 @@
+     /// @notice The pool swaps are routed through.
+     KestrelPool public immutable pool;
+ 
+-    /// @notice EIP-712 domain type hash.
++    /// @notice EIP-712 domain type hash. [REPLAY] It binds the chain id.
+     bytes32 private constant DOMAIN_TYPEHASH =
+-        keccak256("EIP712Domain(string name,string version,address verifyingContract)");
++        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+     /// @notice EIP-712 type hash for {SwapRequest}.
+     bytes32 private constant SWAP_REQUEST_TYPEHASH = keccak256(
+         "SwapRequest(address user,address tokenIn,uint256 amountIn,uint256 minOut,address to,uint256 nonce,uint256 deadline)"
+@@ -33,6 +33,8 @@
+ 
+     /// @notice Domain separator computed at deployment.
+     bytes32 private immutable _cachedDomainSeparator;
++    /// @notice Chain id the cached separator was computed for. [REPLAY]
++    uint256 private immutable _cachedChainId;
+ 
+     /// @notice Next nonce each user must sign.
+     mapping(address user => uint256 nonce) public nonces;
+@@ -70,18 +72,24 @@
+     error ExpiredSignature(uint256 deadline);
+     /// @notice Thrown when `signature` is not a valid signature by `req.user` over the request.
+     error InvalidSignature();
++    /// @notice Thrown when the request's nonce is not the user's current nonce. [REPLAY]
++    /// @param provided Nonce in the request.
++    /// @param expected Current nonce.
++    error InvalidNonce(uint256 provided, uint256 expected);
+ 
+     /// @notice Deploy the relayer.
+     /// @param _pool The pool to route swaps through.
+     constructor(KestrelPool _pool) {
+         pool = _pool;
++        _cachedChainId = block.chainid; // [REPLAY]
+         _cachedDomainSeparator = _buildDomainSeparator();
+     }
+ 
+     /// @notice The EIP-712 domain separator signatures must use.
+     /// @return separator The domain separator.
+     function domainSeparator() public view returns (bytes32 separator) {
+-        separator = _cachedDomainSeparator;
++        // [REPLAY] Recompute after a fork or on another chain: the separator follows the chain id.
++        separator = block.chainid == _cachedChainId ? _cachedDomainSeparator : _buildDomainSeparator();
+     }
+ 
+     /// @notice EIP-712 digest a user signs for `req`.
+@@ -116,6 +124,10 @@
+         require(
+             SignatureChecker.isValidSignatureNow(req.user, hashRequest(req), signature), InvalidSignature()
+         );
++        // [REPLAY] Verify and consume the user's nonce: each signature is valid exactly once.
++        uint256 expected = nonces[req.user];
++        require(req.nonce == expected, InvalidNonce(req.nonce, expected));
++        nonces[req.user] = expected + 1;
+ 
+         IERC20(req.tokenIn).safeTransferFrom(req.user, address(this), req.amountIn);
+         IERC20(req.tokenIn).forceApprove(address(pool), req.amountIn);
+@@ -125,6 +137,8 @@
+ 
+     /// @dev Hash the EIP-712 domain for the current chain.
+     function _buildDomainSeparator() private view returns (bytes32 separator) {
+-        separator = keccak256(abi.encode(DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, address(this)));
++        // [REPLAY] `block.chainid` is part of the domain, so a signature never transfers across chains.
++        separator =
++            keccak256(abi.encode(DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(this)));
+     }
+ }

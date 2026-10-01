@@ -1,0 +1,237 @@
+{
+  "rule": "A tool is credited with a bug only when (1) its signal is present in the vulnerable-build evidence, (2) the same signal is absent from the fixed-build evidence, and (3) the auditor traced the signal to the bug's root cause, recorded below. Slither signals are keyed by check, function and (for kestrel-* detectors) source, and must point at one of the bug's sites; property signals are keyed by invariant/property name. Every signal that fires on v1 and not on v2 must be attributed to a bug or listed under `unattributed` with a reason. scripts/scoreboard.mjs --check enforces all of this against scoreboard/evidence/.",
+  "tools": {
+    "foundryInvariant": { "label": "Foundry inv.", "evidence": "foundry-invariants" },
+    "medusa": { "label": "Medusa", "evidence": "medusa" },
+    "halmos": { "label": "Halmos", "evidence": "halmos" },
+    "slitherStd": { "label": "Slither (std)", "evidence": "slither", "custom": false },
+    "slitherCustom": { "label": "Slither (custom)", "evidence": "slither", "custom": true }
+  },
+  "bugs": [
+    {
+      "id": "SC01",
+      "finding": "H-05",
+      "owasp": "SC01:2026 Access Control",
+      "title": "Unprotected reward-rate setter drains the reward reserve",
+      "sites": ["KestrelPool.setRewardRate(uint256)"],
+      "exploits": ["SC01RewardSetterExploit.test_exploit_unprotectedRewardRateDrainsReserve"],
+      "regressions": ["SC01RewardSetterRegression.test_regression_rewardRateIsOwnerGated"],
+      "signals": [
+        { "tool": "foundryInvariant", "id": "invariant_privilegedActionsOwnerOnly" },
+        { "tool": "medusa", "id": "property_privilegedActionsOwnerOnly" }
+      ],
+      "triage": "The counterexample is a non-owner actor whose setRewardRate call succeeded; the only owner-only entry point without onlyOwner is setRewardRate."
+    },
+    {
+      "id": "SC02",
+      "finding": "M-01",
+      "owasp": "SC02:2026 Business Logic",
+      "title": "Swap fee bypassed through the batch path",
+      "sites": ["KestrelPool._batchStepOut(address,address,uint256,uint256,uint256)"],
+      "exploits": ["SC02FeeBypassExploit.test_exploit_batchPathBypassesFee"],
+      "regressions": [
+        "SC02FeeBypassRegression.test_regression_batchChargesTheFee",
+        "SC02FeeBypassRegression.testFuzz_regression_batchMatchesQuote"
+      ],
+      "signals": [
+        { "tool": "foundryInvariant", "id": "invariant_batchMatchesSingleSwap" },
+        { "tool": "medusa", "id": "property_batchMatchesSingleSwap" }
+      ],
+      "triage": "On the 18-decimal main pool the batch output exceeded the single-swap quote by ~0.3% of the input, the swap fee; rounding cannot differ at scale 1, so the excess is the missing fee."
+    },
+    {
+      "id": "SC03",
+      "finding": "H-01",
+      "owasp": "SC03:2026 Price Oracle Manipulation",
+      "title": "Lending values collateral at the AMM spot price",
+      "sites": ["KestrelLending.collateralValue(address)"],
+      "exploits": ["SC03SpotOracleExploit.test_exploit_spotPumpBorrowsTheMarket"],
+      "regressions": [
+        "SC03SpotOracleRegression.test_regression_pumpDoesNotMoveValuation",
+        "SC03SpotOracleRegression.test_regression_valuationIgnoresSameBlockSwap"
+      ],
+      "signals": [
+        { "tool": "foundryInvariant", "id": "invariant_valuationIgnoresSameBlockSwaps" },
+        { "tool": "medusa", "id": "property_valuationIgnoresSameBlockSwaps" },
+        {
+          "tool": "slitherCustom",
+          "id": "kestrel-spot-price-collateral@KestrelLending.collateralValue(address)#spotPrice0In1"
+        }
+      ],
+      "triage": "A same-block swap changed collateralValue; the detector names the source, pool.spotPrice0In1, which disappears once the market reads the TWAP oracle."
+    },
+    {
+      "id": "SC04",
+      "finding": "H-02",
+      "owasp": "SC04:2026 Flash Loan-Facilitated Attacks",
+      "title": "Emergency execution weighs live balances (flash-loan governance)",
+      "sites": ["KestrelGovernor.emergencyExecute(address,uint256,bytes)"],
+      "exploits": [
+        "SC04FlashGovernanceExploit.test_exploit_flashLoanReachesEmergencyQuorum",
+        "SC04FlashGovernanceExploit.test_exploit_oneBlockBorrowedStake"
+      ],
+      "regressions": [
+        "SC04FlashGovernanceRegression.test_regression_flashLoanHasNoPastVotes",
+        "SC04FlashGovernanceRegression.test_regression_oneBlockBorrowedStakeHasNoWeight",
+        "SC04FlashGovernanceRegression.test_regression_stakeMustBeHeldForTheLookback"
+      ],
+      "signals": [
+        { "tool": "foundryInvariant", "id": "invariant_treasuryNeedsDurableStake" },
+        { "tool": "medusa", "id": "property_treasuryNeedsDurableStake" },
+        { "tool": "halmos", "id": "check_flashMintCannotPassEmergencyQuorum" },
+        {
+          "tool": "slitherCustom",
+          "id": "kestrel-unchecked-callback@KestrelGovernor.emergencyExecute(address,uint256,bytes)#authorization from a flash-loanable balance"
+        }
+      ],
+      "triage": "The treasury moved inside a flash loan through emergencyExecute; the Halmos model is a loan of about 2**127 tokens, and the detector traces the quorum condition to token.balanceOf(msg.sender)."
+    },
+    {
+      "id": "SC05",
+      "finding": "H-03",
+      "owasp": "SC05:2026 Lack of Input Validation",
+      "title": "Duplicate-asset batchSwap double-counts a reserve",
+      "sites": ["KestrelPool.batchSwap(address[],KestrelPool.BatchStep[],address)"],
+      "exploits": ["SC05DuplicateBatchExploit.test_exploit_duplicateAssetDoubleCount"],
+      "regressions": ["SC05DuplicateBatchRegression.test_regression_duplicateAssetRejected"],
+      "signals": [
+        { "tool": "foundryInvariant", "id": "invariant_poolSolvency" },
+        { "tool": "medusa", "id": "property_poolSolvency" }
+      ],
+      "triage": "Reduced counterexamples are batches whose asset list repeats a token: settlement writes the token's reserve once per index and the stale last write leaves the recorded reserve above the balance."
+    },
+    {
+      "id": "SC06",
+      "finding": "M-02",
+      "owasp": "SC06:2026 Unchecked External Calls",
+      "title": "Unchecked ETH refund strands funds",
+      "sites": ["KestrelPool.swapWithNativeSponsor(address,uint256,uint256,address)"],
+      "exploits": ["SC06UncheckedRefundExploit.test_exploit_failedRefundStrandsEth"],
+      "regressions": ["SC06UncheckedRefundRegression.test_regression_failedRefundReverts"],
+      "signals": [
+        { "tool": "foundryInvariant", "id": "invariant_nativeFeeAccounting" },
+        { "tool": "medusa", "id": "property_nativeFeeAccounting" },
+        {
+          "tool": "slitherStd",
+          "id": "unchecked-lowlevel@KestrelPool.swapWithNativeSponsor(address,uint256,uint256,address)"
+        }
+      ],
+      "triage": "The pool held more ETH than its accounted fees after a contract wallet without receive() overpaid; Slither points at the ignored refund call result."
+    },
+    {
+      "id": "SC07a",
+      "finding": "L-01",
+      "owasp": "SC07:2026 Arithmetic Errors",
+      "title": "Batch downscaling rounds toward the trader",
+      "sites": ["KestrelPool._batchStepOut(address,address,uint256,uint256,uint256)"],
+      "exploits": ["SC07aScalingRoundingExploit.test_exploit_batchRoundsTowardTrader"],
+      "regressions": [
+        "SC07aScalingRoundingRegression.test_regression_batchRoundsTowardPool",
+        "SC07aScalingRoundingRegression.testFuzz_regression_noLeakAnySize"
+      ],
+      "signals": [
+        { "tool": "foundryInvariant", "id": "invariant_poolRoundingFavorsPool" },
+        { "tool": "medusa", "id": "property_poolRoundingFavorsPool" }
+      ],
+      "triage": "The precision amplifier measured one 6-decimal unit per tiny batch swap above the single-swap quote on the fee-free pool, where only the downscaling direction differs between the paths."
+    },
+    {
+      "id": "SC07b",
+      "finding": "L-02",
+      "owasp": "SC07:2026 Arithmetic Errors",
+      "title": "Vault withdraw rounds burned shares down (free dust withdrawals)",
+      "sites": ["KestrelVault.withdraw(uint256,address)"],
+      "exploits": ["SC07bVaultRoundingExploit.test_exploit_freeDustWithdrawals"],
+      "regressions": [
+        "SC07bVaultRoundingRegression.test_regression_dustWithdrawalsAreNotFree",
+        "SC07bVaultRoundingRegression.testFuzz_regression_withdrawRoundsForTheVault"
+      ],
+      "signals": [
+        { "tool": "foundryInvariant", "id": "invariant_vaultRoundingFavorsVault" },
+        { "tool": "foundryInvariant", "id": "invariant_sharePriceMonotonic" },
+        { "tool": "medusa", "id": "property_vaultRoundingFavorsVault" },
+        { "tool": "medusa", "id": "property_sharePriceMonotonic" },
+        { "tool": "halmos", "id": "check_withdrawNeverUnderburnsShares" }
+      ],
+      "triage": "Dust withdrawals at a share price above 1 burned zero shares (amplifier error, falling price); the Halmos model withdraws 256 wei at a share price of about 1.37 and burns 187 shares where 188 are owed."
+    },
+    {
+      "id": "SC08",
+      "finding": "H-04",
+      "owasp": "SC08:2026 Reentrancy",
+      "title": "Read-only reentrancy on the vault share price",
+      "sites": ["KestrelVault.redeem(uint256,address)"],
+      "exploits": ["SC08ReadOnlyReentrancyExploit.test_exploit_readOnlyReentrancyOverBorrows"],
+      "regressions": ["SC08ReadOnlyReentrancyRegression.test_regression_readOnlyReentrancyBlocked"],
+      "signals": [
+        { "tool": "foundryInvariant", "id": "invariant_integratorsSeeConsistentPrice" },
+        { "tool": "medusa", "id": "property_integratorsSeeConsistentPrice" },
+        { "tool": "slitherStd", "id": "reentrancy-eth@KestrelVault.redeem(uint256,address)" }
+      ],
+      "triage": "An integrator reading convertToAssets during the redemption's ETH callback saw a price above both the before and after prices; Slither flags totalManaged written after the external call in redeem."
+    },
+    {
+      "id": "SC09",
+      "finding": "H-06",
+      "owasp": "SC09:2026 Integer Overflow and Underflow",
+      "title": "Flawed shift guard lets exact-share joins mint for dust (Cetus)",
+      "sites": ["FixedPointMath.checkedShl(uint256,uint256)", "KestrelPool.addLiquidityExactShares(uint256,uint256,uint256,address)"],
+      "exploits": [
+        "SC09ExactSharesOverflowExploit.test_exploit_wrappedShiftMintsSharesForDust",
+        "SC09ExactSharesOverflowExploit.test_exploit_guardUnderreportsOverflow",
+        "SC09ExactSharesOverflowExploit.test_exploit_fuzzFindsTruncation"
+      ],
+      "regressions": [
+        "SC09ExactSharesOverflowRegression.test_regression_wrappedShareCountReverts",
+        "SC09ExactSharesOverflowRegression.test_regression_overflowIsFlagged",
+        "SC09ExactSharesOverflowRegression.testFuzz_regression_successfulShiftIsReversible"
+      ],
+      "signals": [
+        { "tool": "foundryInvariant", "id": "invariant_joinsPayProRata" },
+        { "tool": "medusa", "id": "property_joinsPayProRata" },
+        { "tool": "halmos", "id": "check_checkedShlIsLossless" },
+        { "tool": "halmos", "id": "check_checkedShlFullWord" }
+      ],
+      "triage": "Foundry's shrunk counterexample joins with exactly 2**128 shares (the Q128 constant in the bytecode dictionary) and the recorded Medusa run with about 2**151; both pass the top-64-bit guard, wrap the Q128 ratio and pay a few wei. Halmos models a value just below 2**192 shifted by 65 bits, and the same value shifted by a full word."
+    },
+    {
+      "id": "SC10",
+      "finding": "H-07",
+      "owasp": "SC10:2026 Proxy & Upgradeability",
+      "title": "Proxy admin slot collides with the config's initializer flags (Audius)",
+      "sites": ["KestrelProxy", "KestrelConfig.initialize(address,uint256,uint256)"],
+      "exploits": ["SC10ProxyCollisionExploit.test_exploit_reinitializeTakesOverRiskConfig"],
+      "regressions": [
+        "SC10ProxyCollisionRegression.test_regression_reinitializeReverts",
+        "SC10ProxyCollisionRegression.test_regression_adminLivesAtEip1967Slot"
+      ],
+      "signals": [
+        { "tool": "foundryInvariant", "id": "invariant_configChangesAuthorized" },
+        { "tool": "medusa", "id": "property_configChangesAuthorized" }
+      ],
+      "triage": "A random actor's initialize() succeeded through the proxy and replaced the risk owner; reading slot 0 of the proxy showed the admin address where the initializer flags should be."
+    },
+    {
+      "id": "REPLAY",
+      "finding": "H-08",
+      "owasp": "SC02:2026 Business Logic (signature replay)",
+      "title": "Relayer signatures lack chain id and nonce (replay)",
+      "sites": ["KestrelRelayer.relaySwap(KestrelRelayer.SwapRequest,bytes)", "KestrelRelayer.domainSeparator()"],
+      "exploits": ["ReplayCrossChainExploit.test_exploit_replayAndCrossChain"],
+      "regressions": [
+        "ReplayCrossChainRegression.test_regression_capturedSignatureCannotBeReplayed",
+        "ReplayCrossChainRegression.test_regression_signatureDoesNotCrossChains"
+      ],
+      "signals": [
+        { "tool": "foundryInvariant", "id": "invariant_signaturesSingleUse" },
+        { "tool": "medusa", "id": "property_signaturesSingleUse" }
+      ],
+      "triage": "A previously relayed request executed again; Slither's arbitrary-send-erc20 also fires on relaySwap but on both trees, so it is not credited."
+    }
+  ],
+  "controls": [
+    "SC06UncheckedRefundRegression.test_regression_exactFeeNeedsNoRefund"
+  ],
+  "reviewSuites": ["ReviewOracleLivenessRegression", "ReviewVaultInflationRegression"],
+  "unattributed": []
+}

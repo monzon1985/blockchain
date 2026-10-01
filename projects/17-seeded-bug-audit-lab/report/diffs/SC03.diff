@@ -1,0 +1,15 @@
+# H-01 [SC03] Lending values collateral at the AMM spot price
+# Fix 3 of 12. Apply the patches in order (SC01 ... REPLAY) on top of
+# src/vulnerable/ to obtain src/fixed/ exactly; `node scripts/fixdiffs.mjs --check` verifies this.
+diff --git a/KestrelLending.sol b/KestrelLending.sol
+--- a/KestrelLending.sol
++++ b/KestrelLending.sol
+@@ -218,7 +218,7 @@
+     function collateralValue(address account) public view returns (uint256 value) {
+         uint256 amount = collateralOf[account];
+         if (amount > 0) {
+-            uint256 price = pool.spotPrice0In1();
++            uint256 price = oracle.priceToken0In1(); // [SC03] time-weighted, never the AMM spot
+             value = FixedPointMath.mulWadDown(amount, price);
+         }
+         uint256 shares = vaultCollateralOf[account];

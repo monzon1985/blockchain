@@ -1,0 +1,16 @@
+# L-01 [SC07a] Batch downscaling rounds toward the trader
+# Fix 7 of 12. Apply the patches in order (SC01 ... REPLAY) on top of
+# src/vulnerable/ to obtain src/fixed/ exactly; `node scripts/fixdiffs.mjs --check` verifies this.
+diff --git a/KestrelPool.sol b/KestrelPool.sol
+--- a/KestrelPool.sol
++++ b/KestrelPool.sol
+@@ -589,7 +589,8 @@
+         uint256 amountInNet = _netOfFee(amountIn);
+         uint256 outScaled = _outGivenInScaled(aIn, aOut, balIn, balOut, amountInNet);
+         uint256 scaleOut = _scaleOf(aOut);
+-        outAmt = FixedPointMath.mulDivUp(outScaled, 1, scaleOut);
++        // [SC07a] Downscale rounding DOWN, toward the pool, as the single-swap path does.
++        outAmt = outScaled / scaleOut;
+     }
+ 
+     /// @dev Input amount net of the swap fee (fee rounded up, in the pool's favor).

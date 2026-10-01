@@ -1,0 +1,6 @@
+# Halmos settings shared by the fixed-tree gate and the blind run.
+# `forge-build-out` is passed on the command line (out/fixed or out/vulnerable).
+[global]
+# The checked-shift property case-splits over all 256 shift amounts.
+loop = 256
+solver-timeout-assertion = "300s"

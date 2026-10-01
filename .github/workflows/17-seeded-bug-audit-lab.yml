@@ -1,0 +1,317 @@
+name: "17 · Audit Lab"
+
+on:
+  push:
+    paths:
+      - "projects/17-seeded-bug-audit-lab/**"
+      - ".github/workflows/17-seeded-bug-audit-lab.yml"
+  pull_request:
+    paths:
+      - "projects/17-seeded-bug-audit-lab/**"
+      - ".github/workflows/17-seeded-bug-audit-lab.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/17-seeded-bug-audit-lab
+    shell: bash
+
+env:
+  FOUNDRY_VERSION: v1.8.3
+  UV_VERSION: "0.12.20"
+  PYTHON_VERSION: "3.12"
+  MEDUSA_VERSION: v1.5.1
+  # sha256 of medusa-linux-x64.tar.gz in the crytic/medusa v1.5.1 release (the digest GitHub publishes for the asset).
+  MEDUSA_SHA256: ddfe1517ae9028ef9fc331b00f5a6a9d5406f3fcd11a715d60c6b6fb3e4546d3
+  CRYTIC_COMPILE_VERSION: "0.4.2"
+  HALMOS_VERSION: "0.3.3"
+  SOLC_VERSION: "0.8.37"
+  PROJECT: projects/17-seeded-bug-audit-lab
+
+jobs:
+  foundry:
+    name: Build, lint, exploits, regressions, invariants, gas, coverage, generated docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # Every `forge test` in this job compares gas snapshots instead of rewriting them.
+      FORGE_SNAPSHOT_CHECK: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/dependencies
+          key: soldeer-17-${{ hashFiles('projects/17-seeded-bug-audit-lab/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Format
+        run: forge fmt --check
+
+      - name: Build (fixed tree, no compiler warnings in src)
+        run: FOUNDRY_PROFILE=fixed forge build
+
+      - name: Lint (fixed tree + shared code, every remaining lint triaged in foundry.toml)
+        run: FOUNDRY_PROFILE=fixed forge lint src/fixed src/shared --deny warnings
+
+      - name: Exploit PoCs pass on the vulnerable tree
+        run: FOUNDRY_PROFILE=vulnerable forge test --match-path 'test/exploits/*'
+
+      - name: Regression, unit, invariant and gas suites pass on the fixed tree
+        run: FOUNDRY_PROFILE=fixed forge test --no-match-path 'test/exploits/*'
+
+      - name: Gas snapshots of the vulnerable tree (the fixed tree's were checked above)
+        run: FOUNDRY_PROFILE=vulnerable forge test --match-path 'test/gas/*'
+
+      - name: Coverage of the fixed tree (>= 90% of lines, Engineering Standards §4)
+        run: |
+          FOUNDRY_PROFILE=fixed forge coverage --no-match-path 'test/{exploits,gas}/*' \
+            --no-match-coverage '(test|script|dependencies)/' --report summary --report lcov
+          awk -F: '/^LF:/{lf+=$2} /^LH:/{lh+=$2} /^BRF:/{bf+=$2} /^BRH:/{bh+=$2} END {
+            printf "Lines %d/%d (%.2f%%), branches %d/%d (%.2f%%)\n", lh, lf, 100*lh/lf, bh, bf, 100*bh/bf;
+            if (lf == 0 || 100*lh/lf < 90) exit 1 }' lcov.info
+
+      - name: Fix diffs compose into src/fixed; report, scoreboard and README are up to date
+        run: |
+          node scripts/fixdiffs.mjs --check
+          node scripts/report.mjs --check
+          node scripts/scoreboard.mjs --check
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-lab-coverage
+          path: ${{ env.PROJECT }}/lcov.info
+          if-no-files-found: ignore
+
+  medusa:
+    name: Medusa (fixed tree, 300 s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install crytic-compile (Medusa compiles through it)
+        run: |
+          uv tool install --python "$PYTHON_VERSION" "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/crytic-compile" --version
+
+      - name: Install Medusa (official release, checksum verified)
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL -o medusa.tar.gz \
+            "https://github.com/crytic/medusa/releases/download/${MEDUSA_VERSION}/medusa-linux-x64.tar.gz"
+          echo "${MEDUSA_SHA256}  medusa.tar.gz" | sha256sum -c -
+          mkdir -p medusa-bin "$HOME/.local/bin" && tar -xzf medusa.tar.gz -C medusa-bin
+          install -m 0755 "$(find medusa-bin -type f -name medusa | head -n 1)" "$HOME/.local/bin/medusa"
+          "$HOME/.local/bin/medusa" --version
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/dependencies
+          key: soldeer-17-${{ hashFiles('projects/17-seeded-bug-audit-lab/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Fuzz the fixed tree (16 properties must hold)
+        run: |
+          FOUNDRY_PROFILE=fixed medusa fuzz --config medusa.json --timeout 300 \
+            --corpus-dir medusa-corpus/fixed | tee medusa-fixed.log
+
+      - name: Keep the corpus, coverage and log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-lab-medusa
+          path: |
+            ${{ env.PROJECT }}/medusa-corpus
+            ${{ env.PROJECT }}/medusa-fixed.log
+          if-no-files-found: ignore
+
+  static-symbolic:
+    name: Slither (+ custom detectors, triage gate) and Halmos
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Sync the detectors environment (Slither 0.11.6 + kestrel plugin, locked)
+        run: uv sync --project detectors --locked --python "$PYTHON_VERSION"
+
+      - name: Install Halmos
+        run: |
+          uv tool install --python "$PYTHON_VERSION" "halmos==${HALMOS_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/dependencies
+          key: soldeer-17-${{ hashFiles('projects/17-seeded-bug-audit-lab/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Slither on the fixed tree, standard + kestrel-* detectors (every finding triaged)
+        run: bash scripts/slither-gate.sh slither-out
+
+      - name: Halmos symbolic properties on the fixed tree
+        run: |
+          FOUNDRY_PROFILE=fixed halmos --match-contract FixedProperties --forge-build-out out/fixed \
+            --json-output slither-out/halmos-fixed.json
+
+      - name: Upload Slither and Halmos output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-lab-static-symbolic
+          path: ${{ env.PROJECT }}/slither-out
+          if-no-files-found: ignore
+
+  detectors:
+    name: Custom detectors (ruff, pytest precision/recall)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: projects/17-seeded-bug-audit-lab/detectors
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Sync locked environment
+        run: uv sync --locked --python "$PYTHON_VERSION"
+
+      - name: Ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Install solc for the hermetic fixture compile
+        run: uv run solc-select install "$SOLC_VERSION"
+
+      - name: Pytest
+        run: uv run pytest
+
+  blind-run:
+    name: Blind run reproduces the committed scoreboard evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install analysis tools
+        run: |
+          uv sync --project detectors --locked --python "$PYTHON_VERSION"
+          uv tool install --python "$PYTHON_VERSION" "halmos==${HALMOS_VERSION}"
+          uv tool install --python "$PYTHON_VERSION" "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Medusa (official release, checksum verified)
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL -o medusa.tar.gz \
+            "https://github.com/crytic/medusa/releases/download/${MEDUSA_VERSION}/medusa-linux-x64.tar.gz"
+          echo "${MEDUSA_SHA256}  medusa.tar.gz" | sha256sum -c -
+          mkdir -p medusa-bin "$HOME/.local/bin" && tar -xzf medusa.tar.gz -C medusa-bin
+          install -m 0755 "$(find medusa-bin -type f -name medusa | head -n 1)" "$HOME/.local/bin/medusa"
+
+      - name: Cache Soldeer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/dependencies
+          key: soldeer-17-${{ hashFiles('projects/17-seeded-bug-audit-lab/soldeer.lock') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Deterministic blind run (Foundry, Halmos, Slither on both trees) must reproduce the evidence
+        env:
+          RAW_DIR: ${{ runner.temp }}/blind-raw
+        run: |
+          bash scripts/blind-run.sh --deterministic
+          git diff --exit-code -- scoreboard/ report/REPORT.md README.md
+
+      - name: Medusa blind run on the vulnerable tree (not seeded, so informational)
+        continue-on-error: true
+        env:
+          RAW_DIR: ${{ runner.temp }}/blind-raw
+        run: |
+          FOUNDRY_PROFILE=vulnerable medusa fuzz --config medusa.json --timeout 180 --workers 4 \
+            --corpus-dir medusa-corpus/vulnerable > "$RAW_DIR/medusa-vulnerable.log" 2>&1 || true
+          node scripts/evidence.mjs medusa "$RAW_DIR/medusa-vulnerable.log" "$RAW_DIR/medusa-vulnerable.json" \
+            --tree vulnerable --command ci
+          node -e '
+            const fs = require("fs");
+            const failing = (f) => JSON.parse(fs.readFileSync(f, "utf8")).results.filter((r) => r.status === "fail").map((r) => r.id).sort();
+            const committed = failing("scoreboard/evidence/medusa-vulnerable.json");
+            const now = failing(process.argv[1]);
+            const missing = committed.filter((id) => !now.includes(id));
+            console.log(`committed failing: ${committed.length}, this run: ${now.length}, missing: ${missing.join(", ") || "none"}`);
+            if (missing.length) process.exit(1);
+          ' "$RAW_DIR/medusa-vulnerable.json"
+
+      - name: Upload raw tool output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-lab-blind-run
+          path: ${{ runner.temp }}/blind-raw
+          if-no-files-found: ignore

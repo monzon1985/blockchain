@@ -1,0 +1,17 @@
+# H-02 [SC04] Emergency execution weighs live balances (flash-loan governance)
+# Fix 4 of 12. Apply the patches in order (SC01 ... REPLAY) on top of
+# src/vulnerable/ to obtain src/fixed/ exactly; `node scripts/fixdiffs.mjs --check` verifies this.
+diff --git a/KestrelGovernor.sol b/KestrelGovernor.sol
+--- a/KestrelGovernor.sol
++++ b/KestrelGovernor.sol
+@@ -203,7 +203,9 @@
+     {
+         uint256 timepoint = block.number > emergencyLookback ? block.number - emergencyLookback : 0;
+         uint256 supply = token.getPastTotalSupply(timepoint);
+-        uint256 weight = token.balanceOf(msg.sender);
++        // [SC04] Weight is the caller's checkpointed votes at `timepoint`, not its live balance:
++        // stake that was flash-minted, borrowed or bought within the lookback carries no weight.
++        uint256 weight = token.getPastVotes(msg.sender, timepoint);
+         uint256 required = supply * emergencyQuorumBps / BPS;
+         require(weight > 0 && weight >= required, InsufficientSupport(weight, required));
+         emit EmergencyExecuted(msg.sender, target, weight);

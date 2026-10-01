@@ -1,0 +1,133 @@
+{
+  "rule": "Every Slither finding on the fixed tree (standard detectors and the three kestrel-* detectors, run together through the plugin) is listed here with a justification. scripts/slither-triage.mjs fails CI on any unlisted finding and on any entry that no longer matches a finding. The source carries no slither-disable comments.",
+  "entries": [
+    {
+      "id": "arbitrary-send-erc20@KestrelRelayer.relaySwap(KestrelRelayer.SwapRequest,bytes)",
+      "justification": "The `from` of the transferFrom is `req.user`, whose EIP-712 signature (ECDSA or ERC-1271) over this exact request, chain and nonce was verified just before. Spending the signer's tokens is the purpose of a meta-transaction relayer."
+    },
+    {
+      "id": "arbitrary-send-eth@KestrelGovernor.emergencyExecute(address,uint256,bytes)",
+      "justification": "Executing an arbitrary call with treasury ETH is the intended emergency capability. It is gated on checkpointed votes held `emergencyLookback` blocks earlier reaching 66.66% of the supply at that block, which a flash or short-term loan cannot satisfy (SC04 fix, Halmos check_flashMintCannotPassEmergencyQuorum)."
+    },
+    {
+      "id": "assembly@KestrelProxy._delegate(address)",
+      "justification": "Standard delegating-proxy assembly (calldatacopy, delegatecall, returndatacopy, return/revert). The frame never returns to Solidity, so scratch memory use is safe; documented in the code."
+    },
+    {
+      "id": "assembly@KestrelProxy._getAdmin()",
+      "justification": "Reads the EIP-1967 admin slot. Fixed-slot storage outside the sequential layout is the SC10 fix; Solidity has no non-assembly way to address an arbitrary slot."
+    },
+    {
+      "id": "assembly@KestrelProxy._setAdmin(address)",
+      "justification": "Writes the EIP-1967 admin slot. Fixed-slot storage outside the sequential layout is the SC10 fix; Solidity has no non-assembly way to address an arbitrary slot."
+    },
+    {
+      "id": "assembly@KestrelProxy._getImplementation()",
+      "justification": "Reads the EIP-1967 implementation slot, the standard location block explorers and tooling expect; marked memory-safe."
+    },
+    {
+      "id": "assembly@KestrelProxy._setImplementation(address)",
+      "justification": "Writes the EIP-1967 implementation slot and emits Upgraded; marked memory-safe."
+    },
+    {
+      "id": "assembly@KestrelProxy.constructor(address,address,bytes)",
+      "justification": "Bubbles the implementation's revert data from a failed initialization delegatecall (reads only the returned bytes), the same pattern as OpenZeppelin's Address.verifyCallResult."
+    },
+    {
+      "id": "costly-loop@KestrelPool._setReserveOf(address,uint256)",
+      "justification": "Batch settlement writes each tracked reserve once per listed asset; with duplicates rejected (SC05 fix) a batch over the two pool tokens performs at most two SSTOREs, so the loop cost is bounded and small."
+    },
+    {
+      "id": "incorrect-equality@KestrelGovernor.propose(address,uint256,bytes)",
+      "justification": "`proposals[id].deadline == 0` is an existence check on an uninitialized storage slot (a created proposal always has deadline = block.number + votingPeriod > 0), not a balance or timestamp comparison an attacker could make unreachable."
+    },
+    {
+      "id": "incorrect-modifier@KestrelProxy.ifAdmin()",
+      "justification": "Transparent-proxy routing: for the admin the modifier runs the function body; for anyone else it delegates to the implementation and returns or reverts from assembly, never falling through. This is the OpenZeppelin 4.x TransparentUpgradeableProxy pattern."
+    },
+    {
+      "id": "incorrect-return@KestrelProxy.admin()",
+      "justification": "For non-admin callers `ifAdmin` deliberately ends the call frame with the implementation's return data (transparent proxy); the halting return is the intended behavior."
+    },
+    {
+      "id": "incorrect-return@KestrelProxy.changeAdmin(address)",
+      "justification": "For non-admin callers `ifAdmin` deliberately ends the call frame with the implementation's return data (transparent proxy); the halting return is the intended behavior."
+    },
+    {
+      "id": "incorrect-return@KestrelProxy.ifAdmin()",
+      "justification": "`_delegate` halts with the implementation's return data by design; the modifier relies on it to forward non-admin calls (transparent proxy)."
+    },
+    {
+      "id": "incorrect-return@KestrelProxy.implementation()",
+      "justification": "For non-admin callers `ifAdmin` deliberately ends the call frame with the implementation's return data (transparent proxy); the halting return is the intended behavior."
+    },
+    {
+      "id": "incorrect-return@KestrelProxy.upgradeTo(address)",
+      "justification": "For non-admin callers `ifAdmin` deliberately ends the call frame with the implementation's return data (transparent proxy); the halting return is the intended behavior."
+    },
+    {
+      "id": "kestrel-spot-price-collateral@KestrelLending.collateralValue(address)#convertToAssets",
+      "justification": "Accepted risk, reviewed: vault-share collateral is valued at the vault's share price. That price only moves up by donation (accrue), which the first-deposit dead shares make unprofitable to manipulate (Review_VaultInflation regressions), and the price views revert while a vault operation is in flight (SC08 fix), so it cannot be read mid-redemption. The spot-priced part, the ERC-20 collateral, now uses the TWAP oracle."
+    },
+    {
+      "id": "low-level-calls@KestrelGovernor.emergencyExecute(address,uint256,bytes)",
+      "justification": "Arbitrary governance execution needs a low-level call; the result is checked (ExecutionFailed) and the function is nonReentrant."
+    },
+    {
+      "id": "low-level-calls@KestrelGovernor.execute(uint256)",
+      "justification": "Arbitrary governance execution needs a low-level call; the result is checked (ExecutionFailed), the proposal is marked executed before the call (CEI) and the function is nonReentrant."
+    },
+    {
+      "id": "low-level-calls@KestrelPool.swapWithNativeSponsor(address,uint256,uint256,address)",
+      "justification": "Native-currency refund to the caller; the result is checked and a failed refund reverts the swap (SC06 fix). It uses call, not transfer, so smart wallets with expensive receive hooks work."
+    },
+    {
+      "id": "low-level-calls@KestrelPool.withdrawNativeFees(address,uint256)",
+      "justification": "Owner-only ETH withdrawal; accounting is updated before the call (CEI), the result is checked (NativeTransferFailed) and the function is nonReentrant."
+    },
+    {
+      "id": "low-level-calls@KestrelProxy.constructor(address,address,bytes)",
+      "justification": "Initialization delegatecall into the implementation that was just validated to be a contract; the standard proxy constructor pattern, with revert data bubbled."
+    },
+    {
+      "id": "low-level-calls@KestrelVault._sendEth(address,uint256)",
+      "justification": "Native ETH payout; the result is checked (EthTransferFailed), state is settled before the call in both withdraw and redeem (SC08 fix), and the callers are nonReentrant."
+    },
+    {
+      "id": "missing-inheritance@KestrelPool",
+      "justification": "KestrelPool implements observe() with the exact signature of PoolTwapOracle's minimal IObservablePool view, which is declared next to its only consumer in src/shared. Inheriting it would make every tree's pool depend on the oracle file; the oracle's constructor call to observe() checks the interface at deployment."
+    },
+    {
+      "id": "missing-zero-check@KestrelGovernor.emergencyExecute(address,uint256,bytes).target",
+      "justification": "A call to address(0) is a no-op (or an explicit ETH burn) that only a durable 66.66% stakeholder can trigger and could equally pass as a normal proposal; a zero check would not change the trust model."
+    },
+    {
+      "id": "timestamp@KestrelPool._globalRewardUpdate()",
+      "justification": "Reward emissions accrue per second by design; a validator's few seconds of timestamp drift changes emissions by rate x seconds, which is negligible and bounded by the funded reserve."
+    },
+    {
+      "id": "timestamp@KestrelPool._syncOracle()",
+      "justification": "The TWAP accumulator integrates price over elapsed seconds by construction (Uniswap v2 design); a few seconds of timestamp drift is negligible against the 30-60 minute averaging window."
+    },
+    {
+      "id": "timestamp@KestrelPool.claimReward()",
+      "justification": "Inherits the per-second reward accrual of _globalRewardUpdate; the comparison caps the payout at the funded reserve, it does not gate access."
+    },
+    {
+      "id": "timestamp@KestrelPool.observe()",
+      "justification": "View that brings the TWAP accumulator up to block.timestamp; the same per-second design as _syncOracle."
+    },
+    {
+      "id": "timestamp@KestrelRelayer.relaySwap(KestrelRelayer.SwapRequest,bytes)",
+      "justification": "Signature deadline check; the user picks the deadline and a few seconds of validator drift cannot meaningfully extend an authorization."
+    },
+    {
+      "id": "timestamp@PoolTwapOracle.priceToken0In1()",
+      "justification": "Staleness bound on the published TWAP (reverts once the average is older than maxAge, 1 hour in the fixtures); a few seconds of validator drift cannot make a meaningfully stale price readable, and the comparison fails closed."
+    },
+    {
+      "id": "unindexed-event-address@KestrelProxy.AdminChanged",
+      "justification": "The event signature follows EIP-1967 exactly (AdminChanged(address previousAdmin, address newAdmin), unindexed) so standard tooling decodes it."
+    }
+  ]
+}

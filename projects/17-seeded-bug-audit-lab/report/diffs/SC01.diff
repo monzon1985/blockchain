@@ -1,0 +1,17 @@
+# H-05 [SC01] Unprotected reward-rate setter drains the reward reserve
+# Fix 1 of 12. Apply the patches in order (SC01 ... REPLAY) on top of
+# src/vulnerable/ to obtain src/fixed/ exactly; `node scripts/fixdiffs.mjs --check` verifies this.
+diff --git a/KestrelPool.sol b/KestrelPool.sol
+--- a/KestrelPool.sol
++++ b/KestrelPool.sol
+@@ -434,8 +434,9 @@
+     }
+ 
+     /// @notice Set the reward emission rate.
++    /// @dev Owner only. [SC01]
+     /// @param newRate New reward rate in reward-token units per second.
+-    function setRewardRate(uint256 newRate) external {
++    function setRewardRate(uint256 newRate) external onlyOwner {
+         _globalRewardUpdate();
+         rewardRate = newRate;
+         emit RewardRateSet(newRate);

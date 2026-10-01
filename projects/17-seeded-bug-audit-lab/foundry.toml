@@ -1,0 +1,154 @@
+# Kestrel Audit Lab — Foundry configuration
+#
+# Two source trees describe the SAME protocol:
+#   src/vulnerable/  — the protocol with the 12 seeded bugs (v1)
+#   src/fixed/       — the same protocol with one minimal, tagged fix per bug (v2)
+#   src/shared/      — bug-free code used by both trees
+#
+# Tests import contracts through the `kestrel/` remapping. The profile decides which tree that
+# remapping points at, so one exploit test runs against both trees without changing an import.
+#
+#   FOUNDRY_PROFILE=vulnerable  -> kestrel/ = src/vulnerable/   out/vulnerable, cache/vulnerable
+#   FOUNDRY_PROFILE=fixed       -> kestrel/ = src/fixed/        out/fixed,      cache/fixed
+#
+# Each profile has its OWN `out` and `cache_path`. Forge does not treat a remapping change as a
+# source change, so with a shared cache a profile switch could silently re-run the other tree's
+# bytecode. Separate build directories make every gate independent of what ran before it.
+#
+# The default profile compiles both trees (with the fixed remapping) and exists for `forge fmt`
+# and editors; every gate names its profile explicitly.
+
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out/default"
+cache_path = "cache/default"
+snapshots = "gas/default"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+# Engineering Standards §1: Solidity 0.8.37, EVM `osaka` (the compiler default).
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+fs_permissions = [{ access = "read", path = "./" }]
+# Compile `new Contract(...)` in tests as real CREATEs (no `vm.deployCode` rewriting), so forge,
+# crytic-compile (Slither, Medusa) and Halmos all analyze the same bytecode.
+dynamic_test_linking = false
+remappings = [
+    "kestrel/=src/fixed/",
+    "shared/=src/shared/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "solady/=dependencies/solady-0.1.26/src/",
+]
+
+[profile.fixed]
+src = "src/fixed"
+out = "out/fixed"
+cache_path = "cache/fixed"
+snapshots = "gas/fixed"
+remappings = [
+    "kestrel/=src/fixed/",
+    "shared/=src/shared/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "solady/=dependencies/solady-0.1.26/src/",
+]
+
+[profile.vulnerable]
+src = "src/vulnerable"
+out = "out/vulnerable"
+cache_path = "cache/vulnerable"
+snapshots = "gas/vulnerable"
+remappings = [
+    "kestrel/=src/vulnerable/",
+    "shared/=src/shared/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "solady/=dependencies/solady-0.1.26/src/",
+]
+
+# Deterministic fuzzing and invariant campaigns everywhere (Engineering Standards §4): the seed
+# is pinned in the config, so local runs and CI replay the same sequences.
+[profile.default.fuzz]
+runs = 256
+seed = "0x4b65737472656c"
+
+[profile.default.invariant]
+runs = 128
+depth = 64
+# One worker: the campaign is reproducible bit-for-bit across machines with different core counts.
+workers = 1
+fail_on_revert = false
+
+# Persisted counterexamples are replayed first on the next run. Keep them per profile, so a
+# vulnerable-tree failure never leaks into a fixed-tree run (and the blind run starts clean).
+[profile.fixed.fuzz]
+failure_persist_dir = "cache/fixed/fuzz"
+
+[profile.fixed.invariant]
+failure_persist_dir = "cache/fixed/invariant"
+
+[profile.vulnerable.fuzz]
+failure_persist_dir = "cache/vulnerable/fuzz"
+
+[profile.vulnerable.invariant]
+failure_persist_dir = "cache/vulnerable/invariant"
+
+# forge lint gates the production tree and the shared code:
+#   `FOUNDRY_PROFILE=fixed forge lint src/fixed src/shared --deny warnings`
+# (without paths, lint covers only the profile's `src`, i.e. src/fixed, and skips src/shared).
+# Tests move the clock with vm.warp/vm.roll and read it back on purpose, and the vulnerable tree is
+# insecure on purpose, so neither is linted. Triaged lint classes, each with its justification
+# (every instance of the overlapping Slither checks is also triaged one by one in
+# slither.triage.json):
+#   arbitrary-send-erc20     KestrelRelayer.relaySwap pulls from the EIP-712 signer it just verified.
+#   arbitrary-send-eth       governance execute/emergencyExecute (quorum-gated, the intended
+#                            capability) and the vault paying the receiver a share owner chose.
+#   controlled-delegatecall  the proxy constructor initializes the implementation it validated.
+#   incorrect-modifier       the transparent-proxy `ifAdmin` delegates instead of running `_`.
+#   missing-zero-check       emergencyExecute's target (a supermajority's choice) and the proxy
+#                            constructor's implementation (checked to hold code, so non-zero).
+#   block-timestamp          the TWAP accumulator, reward accrual and signature deadlines are
+#                            time-based by design; seconds of validator drift are immaterial.
+#   reentrancy-events        every state-changing entry point is nonReentrant (transient guard), so
+#                            no reentrant call can interleave or reorder Kestrel's events.
+#   require-revert-in-loop   batch steps and the checked shift validate element by element on purpose.
+#   missing-events-access-control  collateralOf, vaultCollateralOf, debtOf and sharesOf are user
+#                            accounting, not access control, and every change emits an event.
+#   weak-prng                the proposal id hashes block.number for uniqueness, not randomness.
+[lint]
+lint_on_build = false
+ignore = ["test/**/*.sol", "src/vulnerable/**/*.sol"]
+exclude_lints = [
+    "arbitrary-send-erc20",
+    "arbitrary-send-eth",
+    "controlled-delegatecall",
+    "incorrect-modifier",
+    "missing-zero-check",
+    "block-timestamp",
+    "reentrancy-events",
+    "require-revert-in-loop",
+    "missing-events-access-control",
+    "weak-prng",
+]
+
+[fmt]
+line_length = 110
+tab_width = 4
+bracket_spacing = true
+int_types = "long"
+quote_style = "double"
+number_underscore = "thousands"
+multiline_func_header = "attributes_first"
+
+[soldeer]
+recursive_deps = false
+remappings_generate = false
+
+[dependencies]
+"@openzeppelin-contracts" = "5.7.0"
+forge-std = "1.16.2"
+solady = "0.1.26"

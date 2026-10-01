@@ -1,0 +1,143 @@
+{
+  "tool": "forge",
+  "tree": "vulnerable",
+  "command": "FOUNDRY_PROFILE=vulnerable forge test --match-path 'test/regression/*'",
+  "version": "forge 1.8.3",
+  "results": [
+    {
+      "id": "ReplayCrossChainRegression.test_regression_capturedSignatureCannotBeReplayed",
+      "status": "fail",
+      "reason": "nonce consumed"
+    },
+    {
+      "id": "ReplayCrossChainRegression.test_regression_signatureDoesNotCrossChains",
+      "status": "fail",
+      "reason": "domain separator binds the chain id"
+    },
+    {
+      "id": "ReviewOracleLivenessRegression.test_review_earlyUpdateCannotFreezeLending",
+      "status": "pass"
+    },
+    {
+      "id": "ReviewOracleLivenessRegression.test_review_staleAverageCannotBeBorrowedAgainst",
+      "status": "fail",
+      "reason": "Error != expected error"
+    },
+    {
+      "id": "ReviewOracleLivenessRegression.test_review_zeroDebtWithdrawalNeverTouchesTheOracle",
+      "status": "pass"
+    },
+    {
+      "id": "ReviewVaultInflationRegression.test_review_firstDepositMintsDeadShares",
+      "status": "pass"
+    },
+    {
+      "id": "ReviewVaultInflationRegression.test_review_inflationFrontRunLosesTheDonation",
+      "status": "pass"
+    },
+    {
+      "id": "ReviewVaultInflationRegression.test_review_minSharesRefusesAManipulatedPrice",
+      "status": "pass"
+    },
+    {
+      "id": "SC01RewardSetterRegression.test_regression_rewardRateIsOwnerGated",
+      "status": "fail",
+      "reason": "next call did not revert as expected"
+    },
+    {
+      "id": "SC02FeeBypassRegression.test_regression_batchChargesTheFee",
+      "status": "fail",
+      "reason": "batch output equals the fee-charging quote"
+    },
+    {
+      "id": "SC02FeeBypassRegression.testFuzz_regression_batchMatchesQuote",
+      "status": "fail"
+    },
+    {
+      "id": "SC03SpotOracleRegression.test_regression_pumpDoesNotMoveValuation",
+      "status": "fail",
+      "reason": "next call did not revert as expected"
+    },
+    {
+      "id": "SC03SpotOracleRegression.test_regression_valuationIgnoresSameBlockSwap",
+      "status": "fail",
+      "reason": "valuation unchanged in the same block"
+    },
+    {
+      "id": "SC04FlashGovernanceRegression.test_regression_flashLoanHasNoPastVotes",
+      "status": "fail",
+      "reason": "next call did not revert as expected"
+    },
+    {
+      "id": "SC04FlashGovernanceRegression.test_regression_oneBlockBorrowedStakeHasNoWeight",
+      "status": "fail",
+      "reason": "next call did not revert as expected"
+    },
+    {
+      "id": "SC04FlashGovernanceRegression.test_regression_stakeMustBeHeldForTheLookback",
+      "status": "fail",
+      "reason": "next call did not revert as expected"
+    },
+    {
+      "id": "SC05DuplicateBatchRegression.test_regression_duplicateAssetRejected",
+      "status": "fail",
+      "reason": "next call did not revert as expected"
+    },
+    {
+      "id": "SC06UncheckedRefundRegression.test_regression_exactFeeNeedsNoRefund",
+      "status": "pass"
+    },
+    {
+      "id": "SC06UncheckedRefundRegression.test_regression_failedRefundReverts",
+      "status": "fail",
+      "reason": "next call did not revert as expected"
+    },
+    {
+      "id": "SC07aScalingRoundingRegression.test_regression_batchRoundsTowardPool",
+      "status": "fail",
+      "reason": "no rounding value leaks to the trader"
+    },
+    {
+      "id": "SC07aScalingRoundingRegression.testFuzz_regression_noLeakAnySize",
+      "status": "fail"
+    },
+    {
+      "id": "SC07bVaultRoundingRegression.test_regression_dustWithdrawalsAreNotFree",
+      "status": "fail",
+      "reason": "no ETH beyond the value of the burned shares"
+    },
+    {
+      "id": "SC07bVaultRoundingRegression.testFuzz_regression_withdrawRoundsForTheVault",
+      "status": "fail"
+    },
+    {
+      "id": "SC08ReadOnlyReentrancyRegression.test_regression_readOnlyReentrancyBlocked",
+      "status": "fail",
+      "reason": "the borrow failed"
+    },
+    {
+      "id": "SC09ExactSharesOverflowRegression.test_regression_overflowIsFlagged",
+      "status": "fail",
+      "reason": "lost bit flagged"
+    },
+    {
+      "id": "SC09ExactSharesOverflowRegression.test_regression_wrappedShareCountReverts",
+      "status": "fail",
+      "reason": "next call did not revert as expected"
+    },
+    {
+      "id": "SC09ExactSharesOverflowRegression.testFuzz_regression_successfulShiftIsReversible",
+      "status": "fail"
+    },
+    {
+      "id": "SC10ProxyCollisionRegression.test_regression_adminLivesAtEip1967Slot",
+      "status": "fail",
+      "reason": "admin at EIP-1967 slot"
+    },
+    {
+      "id": "SC10ProxyCollisionRegression.test_regression_reinitializeReverts",
+      "status": "fail",
+      "reason": "next call did not revert as expected"
+    }
+  ]
+}

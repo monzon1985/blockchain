@@ -1,0 +1,328 @@
+{
+  "tool": "slither",
+  "tree": "fixed",
+  "command": "FOUNDRY_PROFILE=fixed uv run --project detectors slither . --config-file slither.config.json --json -",
+  "version": "slither 0.11.6",
+  "results": [
+    {
+      "id": "arbitrary-send-erc20@KestrelRelayer.relaySwap(KestrelRelayer.SwapRequest,bytes)",
+      "check": "arbitrary-send-erc20",
+      "custom": false,
+      "impact": "High",
+      "confidence": "High",
+      "member": "KestrelRelayer.relaySwap(KestrelRelayer.SwapRequest,bytes)",
+      "path": "src/fixed/KestrelRelayer.sol",
+      "count": 1
+    },
+    {
+      "id": "arbitrary-send-eth@KestrelGovernor.emergencyExecute(address,uint256,bytes)",
+      "check": "arbitrary-send-eth",
+      "custom": false,
+      "impact": "High",
+      "confidence": "Medium",
+      "member": "KestrelGovernor.emergencyExecute(address,uint256,bytes)",
+      "path": "src/fixed/KestrelGovernor.sol",
+      "count": 1
+    },
+    {
+      "id": "assembly@KestrelProxy._delegate(address)",
+      "check": "assembly",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "High",
+      "member": "KestrelProxy._delegate(address)",
+      "path": "src/fixed/KestrelProxy.sol",
+      "count": 1
+    },
+    {
+      "id": "assembly@KestrelProxy._getAdmin()",
+      "check": "assembly",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "High",
+      "member": "KestrelProxy._getAdmin()",
+      "path": "src/fixed/KestrelProxy.sol",
+      "count": 1
+    },
+    {
+      "id": "assembly@KestrelProxy._getImplementation()",
+      "check": "assembly",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "High",
+      "member": "KestrelProxy._getImplementation()",
+      "path": "src/fixed/KestrelProxy.sol",
+      "count": 1
+    },
+    {
+      "id": "assembly@KestrelProxy._setAdmin(address)",
+      "check": "assembly",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "High",
+      "member": "KestrelProxy._setAdmin(address)",
+      "path": "src/fixed/KestrelProxy.sol",
+      "count": 1
+    },
+    {
+      "id": "assembly@KestrelProxy._setImplementation(address)",
+      "check": "assembly",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "High",
+      "member": "KestrelProxy._setImplementation(address)",
+      "path": "src/fixed/KestrelProxy.sol",
+      "count": 1
+    },
+    {
+      "id": "assembly@KestrelProxy.constructor(address,address,bytes)",
+      "check": "assembly",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "High",
+      "member": "KestrelProxy.constructor(address,address,bytes)",
+      "path": "src/fixed/KestrelProxy.sol",
+      "count": 1
+    },
+    {
+      "id": "costly-loop@KestrelPool._setReserveOf(address,uint256)",
+      "check": "costly-loop",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "Medium",
+      "member": "KestrelPool._setReserveOf(address,uint256)",
+      "path": "src/fixed/KestrelPool.sol",
+      "count": 2
+    },
+    {
+      "id": "incorrect-equality@KestrelGovernor.propose(address,uint256,bytes)",
+      "check": "incorrect-equality",
+      "custom": false,
+      "impact": "Medium",
+      "confidence": "High",
+      "member": "KestrelGovernor.propose(address,uint256,bytes)",
+      "path": "src/fixed/KestrelGovernor.sol",
+      "count": 1
+    },
+    {
+      "id": "incorrect-modifier@KestrelProxy.ifAdmin()",
+      "check": "incorrect-modifier",
+      "custom": false,
+      "impact": "Low",
+      "confidence": "High",
+      "member": "KestrelProxy.ifAdmin()",
+      "path": "src/fixed/KestrelProxy.sol",
+      "count": 1
+    },
+    {
+      "id": "incorrect-return@KestrelProxy.admin()",
+      "check": "incorrect-return",
+      "custom": false,
+      "impact": "High",
+      "confidence": "Medium",
+      "member": "KestrelProxy.admin()",
+      "path": "src/fixed/KestrelProxy.sol",
+      "count": 1
+    },
+    {
+      "id": "incorrect-return@KestrelProxy.changeAdmin(address)",
+      "check": "incorrect-return",
+      "custom": false,
+      "impact": "High",
+      "confidence": "Medium",
+      "member": "KestrelProxy.changeAdmin(address)",
+      "path": "src/fixed/KestrelProxy.sol",
+      "count": 1
+    },
+    {
+      "id": "incorrect-return@KestrelProxy.ifAdmin()",
+      "check": "incorrect-return",
+      "custom": false,
+      "impact": "High",
+      "confidence": "Medium",
+      "member": "KestrelProxy.ifAdmin()",
+      "path": "src/fixed/KestrelProxy.sol",
+      "count": 1
+    },
+    {
+      "id": "incorrect-return@KestrelProxy.implementation()",
+      "check": "incorrect-return",
+      "custom": false,
+      "impact": "High",
+      "confidence": "Medium",
+      "member": "KestrelProxy.implementation()",
+      "path": "src/fixed/KestrelProxy.sol",
+      "count": 1
+    },
+    {
+      "id": "incorrect-return@KestrelProxy.upgradeTo(address)",
+      "check": "incorrect-return",
+      "custom": false,
+      "impact": "High",
+      "confidence": "Medium",
+      "member": "KestrelProxy.upgradeTo(address)",
+      "path": "src/fixed/KestrelProxy.sol",
+      "count": 1
+    },
+    {
+      "id": "kestrel-spot-price-collateral@KestrelLending.collateralValue(address)#convertToAssets",
+      "check": "kestrel-spot-price-collateral",
+      "custom": true,
+      "impact": "High",
+      "confidence": "Medium",
+      "member": "KestrelLending.collateralValue(address)",
+      "path": "src/fixed/KestrelLending.sol",
+      "count": 1
+    },
+    {
+      "id": "low-level-calls@KestrelGovernor.emergencyExecute(address,uint256,bytes)",
+      "check": "low-level-calls",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "High",
+      "member": "KestrelGovernor.emergencyExecute(address,uint256,bytes)",
+      "path": "src/fixed/KestrelGovernor.sol",
+      "count": 1
+    },
+    {
+      "id": "low-level-calls@KestrelGovernor.execute(uint256)",
+      "check": "low-level-calls",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "High",
+      "member": "KestrelGovernor.execute(uint256)",
+      "path": "src/fixed/KestrelGovernor.sol",
+      "count": 1
+    },
+    {
+      "id": "low-level-calls@KestrelPool.swapWithNativeSponsor(address,uint256,uint256,address)",
+      "check": "low-level-calls",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "High",
+      "member": "KestrelPool.swapWithNativeSponsor(address,uint256,uint256,address)",
+      "path": "src/fixed/KestrelPool.sol",
+      "count": 1
+    },
+    {
+      "id": "low-level-calls@KestrelPool.withdrawNativeFees(address,uint256)",
+      "check": "low-level-calls",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "High",
+      "member": "KestrelPool.withdrawNativeFees(address,uint256)",
+      "path": "src/fixed/KestrelPool.sol",
+      "count": 1
+    },
+    {
+      "id": "low-level-calls@KestrelProxy.constructor(address,address,bytes)",
+      "check": "low-level-calls",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "High",
+      "member": "KestrelProxy.constructor(address,address,bytes)",
+      "path": "src/fixed/KestrelProxy.sol",
+      "count": 1
+    },
+    {
+      "id": "low-level-calls@KestrelVault._sendEth(address,uint256)",
+      "check": "low-level-calls",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "High",
+      "member": "KestrelVault._sendEth(address,uint256)",
+      "path": "src/fixed/KestrelVault.sol",
+      "count": 1
+    },
+    {
+      "id": "missing-inheritance@KestrelPool",
+      "check": "missing-inheritance",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "High",
+      "member": "KestrelPool",
+      "path": "src/fixed/KestrelPool.sol",
+      "count": 1
+    },
+    {
+      "id": "missing-zero-check@KestrelGovernor.emergencyExecute(address,uint256,bytes).target",
+      "check": "missing-zero-check",
+      "custom": false,
+      "impact": "Low",
+      "confidence": "Medium",
+      "member": "KestrelGovernor.emergencyExecute(address,uint256,bytes).target",
+      "path": "src/fixed/KestrelGovernor.sol",
+      "count": 1
+    },
+    {
+      "id": "timestamp@KestrelPool._globalRewardUpdate()",
+      "check": "timestamp",
+      "custom": false,
+      "impact": "Low",
+      "confidence": "Medium",
+      "member": "KestrelPool._globalRewardUpdate()",
+      "path": "src/fixed/KestrelPool.sol",
+      "count": 1
+    },
+    {
+      "id": "timestamp@KestrelPool._syncOracle()",
+      "check": "timestamp",
+      "custom": false,
+      "impact": "Low",
+      "confidence": "Medium",
+      "member": "KestrelPool._syncOracle()",
+      "path": "src/fixed/KestrelPool.sol",
+      "count": 1
+    },
+    {
+      "id": "timestamp@KestrelPool.claimReward()",
+      "check": "timestamp",
+      "custom": false,
+      "impact": "Low",
+      "confidence": "Medium",
+      "member": "KestrelPool.claimReward()",
+      "path": "src/fixed/KestrelPool.sol",
+      "count": 1
+    },
+    {
+      "id": "timestamp@KestrelPool.observe()",
+      "check": "timestamp",
+      "custom": false,
+      "impact": "Low",
+      "confidence": "Medium",
+      "member": "KestrelPool.observe()",
+      "path": "src/fixed/KestrelPool.sol",
+      "count": 1
+    },
+    {
+      "id": "timestamp@KestrelRelayer.relaySwap(KestrelRelayer.SwapRequest,bytes)",
+      "check": "timestamp",
+      "custom": false,
+      "impact": "Low",
+      "confidence": "Medium",
+      "member": "KestrelRelayer.relaySwap(KestrelRelayer.SwapRequest,bytes)",
+      "path": "src/fixed/KestrelRelayer.sol",
+      "count": 1
+    },
+    {
+      "id": "timestamp@PoolTwapOracle.priceToken0In1()",
+      "check": "timestamp",
+      "custom": false,
+      "impact": "Low",
+      "confidence": "Medium",
+      "member": "PoolTwapOracle.priceToken0In1()",
+      "path": "src/shared/PoolTwapOracle.sol",
+      "count": 1
+    },
+    {
+      "id": "unindexed-event-address@KestrelProxy.AdminChanged",
+      "check": "unindexed-event-address",
+      "custom": false,
+      "impact": "Informational",
+      "confidence": "High",
+      "member": "KestrelProxy.AdminChanged",
+      "path": "src/fixed/KestrelProxy.sol",
+      "count": 1
+    }
+  ]
+}

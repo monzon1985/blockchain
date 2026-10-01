@@ -1,0 +1,124 @@
+{
+  "tool": "forge",
+  "tree": "fixed",
+  "command": "FOUNDRY_PROFILE=fixed forge test --match-path 'test/regression/*'",
+  "version": "forge 1.8.3",
+  "results": [
+    {
+      "id": "ReplayCrossChainRegression.test_regression_capturedSignatureCannotBeReplayed",
+      "status": "pass"
+    },
+    {
+      "id": "ReplayCrossChainRegression.test_regression_signatureDoesNotCrossChains",
+      "status": "pass"
+    },
+    {
+      "id": "ReviewOracleLivenessRegression.test_review_earlyUpdateCannotFreezeLending",
+      "status": "pass"
+    },
+    {
+      "id": "ReviewOracleLivenessRegression.test_review_staleAverageCannotBeBorrowedAgainst",
+      "status": "pass"
+    },
+    {
+      "id": "ReviewOracleLivenessRegression.test_review_zeroDebtWithdrawalNeverTouchesTheOracle",
+      "status": "pass"
+    },
+    {
+      "id": "ReviewVaultInflationRegression.test_review_firstDepositMintsDeadShares",
+      "status": "pass"
+    },
+    {
+      "id": "ReviewVaultInflationRegression.test_review_inflationFrontRunLosesTheDonation",
+      "status": "pass"
+    },
+    {
+      "id": "ReviewVaultInflationRegression.test_review_minSharesRefusesAManipulatedPrice",
+      "status": "pass"
+    },
+    {
+      "id": "SC01RewardSetterRegression.test_regression_rewardRateIsOwnerGated",
+      "status": "pass"
+    },
+    {
+      "id": "SC02FeeBypassRegression.test_regression_batchChargesTheFee",
+      "status": "pass"
+    },
+    {
+      "id": "SC02FeeBypassRegression.testFuzz_regression_batchMatchesQuote",
+      "status": "pass"
+    },
+    {
+      "id": "SC03SpotOracleRegression.test_regression_pumpDoesNotMoveValuation",
+      "status": "pass"
+    },
+    {
+      "id": "SC03SpotOracleRegression.test_regression_valuationIgnoresSameBlockSwap",
+      "status": "pass"
+    },
+    {
+      "id": "SC04FlashGovernanceRegression.test_regression_flashLoanHasNoPastVotes",
+      "status": "pass"
+    },
+    {
+      "id": "SC04FlashGovernanceRegression.test_regression_oneBlockBorrowedStakeHasNoWeight",
+      "status": "pass"
+    },
+    {
+      "id": "SC04FlashGovernanceRegression.test_regression_stakeMustBeHeldForTheLookback",
+      "status": "pass"
+    },
+    {
+      "id": "SC05DuplicateBatchRegression.test_regression_duplicateAssetRejected",
+      "status": "pass"
+    },
+    {
+      "id": "SC06UncheckedRefundRegression.test_regression_exactFeeNeedsNoRefund",
+      "status": "pass"
+    },
+    {
+      "id": "SC06UncheckedRefundRegression.test_regression_failedRefundReverts",
+      "status": "pass"
+    },
+    {
+      "id": "SC07aScalingRoundingRegression.test_regression_batchRoundsTowardPool",
+      "status": "pass"
+    },
+    {
+      "id": "SC07aScalingRoundingRegression.testFuzz_regression_noLeakAnySize",
+      "status": "pass"
+    },
+    {
+      "id": "SC07bVaultRoundingRegression.test_regression_dustWithdrawalsAreNotFree",
+      "status": "pass"
+    },
+    {
+      "id": "SC07bVaultRoundingRegression.testFuzz_regression_withdrawRoundsForTheVault",
+      "status": "pass"
+    },
+    {
+      "id": "SC08ReadOnlyReentrancyRegression.test_regression_readOnlyReentrancyBlocked",
+      "status": "pass"
+    },
+    {
+      "id": "SC09ExactSharesOverflowRegression.test_regression_overflowIsFlagged",
+      "status": "pass"
+    },
+    {
+      "id": "SC09ExactSharesOverflowRegression.test_regression_wrappedShareCountReverts",
+      "status": "pass"
+    },
+    {
+      "id": "SC09ExactSharesOverflowRegression.testFuzz_regression_successfulShiftIsReversible",
+      "status": "pass"
+    },
+    {
+      "id": "SC10ProxyCollisionRegression.test_regression_adminLivesAtEip1967Slot",
+      "status": "pass"
+    },
+    {
+      "id": "SC10ProxyCollisionRegression.test_regression_reinitializeReverts",
+      "status": "pass"
+    }
+  ]
+}
