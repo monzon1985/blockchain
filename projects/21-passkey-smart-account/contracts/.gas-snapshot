@@ -1,0 +1,7 @@
+GasBench:test_HandleOps_DeployAccountGuaranteedFirstOp() (gas: 534459)
+GasBench:test_HandleOps_Eip7702UpgradeInitialize() (gas: 307684)
+GasBench:test_HandleOps_Erc20PaidBatchOfTwoTransfers() (gas: 305714)
+GasBench:test_ValidateUserOp_Baseline_Simple7702Account() (gas: 59809)
+GasBench:test_ValidateUserOp_Eip7702EoaSigner() (gas: 60902)
+GasBench:test_ValidateUserOp_WebAuthn_Eip7951Precompile() (gas: 91668)
+GasBench:test_ValidateUserOp_WebAuthn_SolidityFallback() (gas: 333196)

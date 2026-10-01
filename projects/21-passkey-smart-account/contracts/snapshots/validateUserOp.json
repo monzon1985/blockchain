@@ -1,0 +1,6 @@
+{
+  "baseline_simple7702account_ecdsa": "31470",
+  "eip7702_eoa_ecdsa": "32463",
+  "webauthn_eip7951_precompile": "59029",
+  "webauthn_solidity_p256": "300530"
+}

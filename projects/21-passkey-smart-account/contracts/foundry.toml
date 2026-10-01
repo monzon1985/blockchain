@@ -1,0 +1,70 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 200
+auto_detect_remappings = false
+# Dependency warnings (OpenZeppelin's use of the future keyword `at`) and the deliberately deprecated `selfdestruct` in the
+# classifier corpus are expected and filtered; any other compiler warning fails the build.
+ignored_warnings_from = ["dependencies", "test/fixtures"]
+deny = "warnings"
+# No metadata hash: bytecode (and therefore gas snapshots and the classifier corpus) is identical on every OS.
+bytecode_hash = "none"
+cbor_metadata = false
+fs_permissions = [{ access = "read", path = "./out" }, { access = "read", path = "./test/fixtures" }]
+
+[profile.default.fuzz]
+runs = 256
+max_test_rejects = 65536
+
+# Handlers pre-filter their inputs and catch only the failures they expect (and count them), so any other revert is a
+# bug and fails the campaign.
+[profile.default.invariant]
+runs = 64
+depth = 64
+fail_on_revert = true
+
+# Deterministic CI profile: fixed seed, more runs.
+[profile.ci.fuzz]
+runs = 1024
+seed = "0x2121"
+
+[profile.ci.invariant]
+runs = 128
+depth = 96
+fail_on_revert = true
+
+# Coverage builds unoptimized (IR minimum), so its gas numbers are meaningless: never let it rewrite the committed
+# `vm.snapshotGasLastFrame` baselines in snapshots/.
+[profile.coverage]
+gas_snapshot_emit = false
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+quote_style = "double"
+number_underscore = "thousands"
+sort_imports = true
+
+[lint]
+lint_on_build = true
+# No global exclusions: every accepted finding is suppressed inline at its site, with the reason next to it, and listed
+# in docs/static-analysis.md. The naming lints (info severity) are outside the configured high/medium/low set.
+
+[soldeer]
+remappings_generate = false
+remappings_regenerate = false
+remappings_location = "txt"
+recursive_deps = false
+
+[dependencies]
+forge-std = "1.16.2"
+"@openzeppelin-contracts" = "5.7.0"
+account-abstraction = { version = "0.9.0", git = "https://github.com/eth-infinitism/account-abstraction.git", tag = "v0.9.0" }

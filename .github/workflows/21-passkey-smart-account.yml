@@ -1,0 +1,238 @@
+name: "21 · Passkey Smart Account (EIP-7702 + ERC-4337 v0.9)"
+
+on:
+  push:
+    paths:
+      - "projects/21-passkey-smart-account/**"
+      - ".github/workflows/21-passkey-smart-account.yml"
+  pull_request:
+    paths:
+      - "projects/21-passkey-smart-account/**"
+      - ".github/workflows/21-passkey-smart-account.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/21-passkey-smart-account
+
+env:
+  FOUNDRY_PROFILE: ci
+  CI: "true"
+
+jobs:
+  contracts:
+    name: Solidity (fmt, build, lint, test, gas, Prague fallback, coverage gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.3
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@v4
+        with:
+          path: |
+            projects/21-passkey-smart-account/contracts/dependencies
+            ~/.svm
+          key: p21-soldeer-${{ hashFiles('projects/21-passkey-smart-account/contracts/soldeer.lock', 'projects/21-passkey-smart-account/contracts/foundry.toml') }}
+
+      - name: Install dependencies (Soldeer)
+        working-directory: projects/21-passkey-smart-account/contracts
+        run: forge soldeer install
+
+      - name: Format
+        working-directory: projects/21-passkey-smart-account/contracts
+        run: forge fmt --check
+
+      # foundry.toml sets `deny = "warnings"`: any compiler warning (outside dependencies and the deliberately
+      # deprecated classifier fixtures) or lint finding fails the build.
+      - name: Build (compiler warnings and lint findings are errors)
+        working-directory: projects/21-passkey-smart-account/contracts
+        run: forge build
+
+      - name: Lint src/ (deny warnings)
+        working-directory: projects/21-passkey-smart-account/contracts
+        run: forge lint src --deny warnings
+
+      # FORGE_SNAPSHOT_CHECK makes every `vm.snapshotGasLastFrame` compare against snapshots/*.json and fail on
+      # drift instead of rewriting the committed baselines. Only this step runs the optimized GasBench.
+      - name: Test (fixed fuzz seed, 1024 fuzz runs, 128x96 invariant runs; gas baselines checked)
+        working-directory: projects/21-passkey-smart-account/contracts
+        env:
+          FORGE_SNAPSHOT_CHECK: "true"
+        run: forge test
+
+      - name: Gas snapshot check (.gas-snapshot)
+        working-directory: projects/21-passkey-smart-account/contracts
+        run: forge snapshot --check --match-contract GasBench
+
+      - name: Unit and hazard suites on a Prague EVM (no P-256 precompile, pure-Solidity fallback)
+        working-directory: projects/21-passkey-smart-account/contracts
+        env:
+          FOUNDRY_EVM_VERSION: prague
+          FOUNDRY_OUT: out-prague
+          FOUNDRY_CACHE_PATH: cache-prague
+        run: forge test --no-match-contract "GasBench|Invariants"
+
+      # The `coverage` profile disables snapshot emission, so the unoptimized coverage build never touches the
+      # committed gas baselines. The gate fails below 90% line coverage of src/.
+      - name: Coverage (IR minimum; stack-too-deep otherwise) with a 90% line gate
+        working-directory: projects/21-passkey-smart-account/contracts
+        env:
+          FOUNDRY_PROFILE: coverage
+        run: |
+          forge coverage --ir-minimum --report summary --report lcov --no-match-coverage "(test|script|dependencies)/"
+          python3 - <<'EOF'
+          found = hit = 0
+          in_src = False
+          for line in open("lcov.info", encoding="utf-8"):
+              line = line.strip()
+              if line.startswith("SF:"):
+                  in_src = line[3:].replace("\\", "/").startswith("src/")
+              elif in_src and line.startswith("LF:"):
+                  found += int(line[3:])
+              elif in_src and line.startswith("LH:"):
+                  hit += int(line[3:])
+          pct = 100.0 * hit / found if found else 0.0
+          print(f"src/ line coverage: {pct:.2f}% ({hit}/{found})")
+          if pct < 90.0:
+              raise SystemExit(f"line coverage {pct:.2f}% is below the 90% gate")
+          EOF
+
+      - name: Gas baselines untouched by coverage
+        working-directory: projects/21-passkey-smart-account/contracts
+        run: git diff --exit-code -- snapshots .gas-snapshot
+
+  static-analysis:
+    name: Slither
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.3
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@v4
+        with:
+          path: |
+            projects/21-passkey-smart-account/contracts/dependencies
+            ~/.svm
+          key: p21-soldeer-${{ hashFiles('projects/21-passkey-smart-account/contracts/soldeer.lock', 'projects/21-passkey-smart-account/contracts/foundry.toml') }}
+
+      - name: Install dependencies (Soldeer)
+        working-directory: projects/21-passkey-smart-account/contracts
+        run: forge soldeer install
+
+      - name: Slither 0.11.6 (no global exclusions; accepted findings are suppressed inline, see docs/static-analysis.md)
+        working-directory: projects/21-passkey-smart-account/contracts
+        run: uvx --from slither-analyzer==0.11.6 slither . --config-file slither.config.json --fail-low
+
+  typescript:
+    name: bundler-lite + Next.js wallet (typecheck, lint, tests, build, Playwright e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            projects/21-passkey-smart-account/bundler/package-lock.json
+            projects/21-passkey-smart-account/web/package-lock.json
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@v4
+        with:
+          path: |
+            projects/21-passkey-smart-account/contracts/dependencies
+            ~/.svm
+          key: p21-soldeer-${{ hashFiles('projects/21-passkey-smart-account/contracts/soldeer.lock', 'projects/21-passkey-smart-account/contracts/foundry.toml') }}
+
+      - name: Build contracts (artifacts for the devnet, the bundler and the classifier corpus)
+        working-directory: projects/21-passkey-smart-account/contracts
+        run: |
+          forge soldeer install
+          forge build
+
+      - name: bundler-lite install
+        working-directory: projects/21-passkey-smart-account/bundler
+        run: npm ci
+
+      - name: bundler-lite typecheck
+        working-directory: projects/21-passkey-smart-account/bundler
+        run: npm run typecheck
+
+      - name: bundler-lite lint (ESLint, typescript-eslint strict type-checked)
+        working-directory: projects/21-passkey-smart-account/bundler
+        run: npm run lint
+
+      - name: bundler-lite tests (unit, classifier corpus, integration on anvil)
+        working-directory: projects/21-passkey-smart-account/bundler
+        run: npm test
+
+      - name: Wallet install
+        working-directory: projects/21-passkey-smart-account/web
+        run: npm ci
+
+      - name: Playwright version
+        id: playwright
+        working-directory: projects/21-passkey-smart-account/web
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: p21-playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Playwright Chromium (with system dependencies)
+        working-directory: projects/21-passkey-smart-account/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Wallet typecheck
+        working-directory: projects/21-passkey-smart-account/web
+        run: npm run typecheck
+
+      - name: Wallet lint
+        working-directory: projects/21-passkey-smart-account/web
+        run: npm run lint
+
+      - name: Wallet build
+        working-directory: projects/21-passkey-smart-account/web
+        run: npm run build
+
+      - name: End-to-end (virtual WebAuthn authenticator, anvil osaka, EntryPoint v0.9, bundler-lite)
+        working-directory: projects/21-passkey-smart-account/web
+        run: npm run test:e2e
+
+      - name: Upload Playwright traces and devnet/Next.js logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-traces-and-logs
+          path: |
+            projects/21-passkey-smart-account/web/test-results
+            projects/21-passkey-smart-account/web/.e2e
+          include-hidden-files: true
+          retention-days: 7

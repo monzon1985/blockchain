@@ -1,0 +1,10 @@
+# Playwright and e2e artefacts
+test-results/
+playwright-report/
+blob-report/
+.e2e/
+next-env.d.ts
+# `next dev` (Next.js 16.3) writes these into the app root when it detects an AI coding agent
+# (node_modules/next/dist/server/lib/generate-agent-files.js); they are not project files.
+AGENTS.md
+CLAUDE.md

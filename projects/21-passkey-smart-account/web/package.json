@@ -1,0 +1,38 @@
+{
+  "name": "passkey-wallet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Next.js wallet for the passkey-first smart account: create a passkey, deploy or 7702-upgrade, send ERC-20-paid batches, guardians and recovery.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "next typegen && tsc --noEmit",
+    "lint": "eslint .",
+    "test:e2e": "playwright test",
+    "e2e:chain": "node scripts/e2e-chain.mjs",
+    "demo": "node scripts/demo.mjs"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.104.0",
+    "next": "16.3.7",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "viem": "2.57.0",
+    "wagmi": "3.7.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.19.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.7",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "bundler-lite",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal ERC-4337 v0.9 bundler for local development, plus the wallet's EIP-7702 safety tooling (delegation-target classifier, authorization policy).",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "viem": "2.57.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.19.0",
+    "eslint": "10.11.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.0",
+    "vitest": "5.0.2"
+  }
+}
