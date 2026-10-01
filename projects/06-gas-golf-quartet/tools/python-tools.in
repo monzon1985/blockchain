@@ -1,0 +1,8 @@
+# Python tools used by this project (installed with `uv tool install`, see the CI workflow).
+# Lock their whole dependency trees, for every platform, into constraints.txt with:
+#   uv pip compile --universal --python-version 3.12 tools/python-tools.in -o tools/constraints.txt
+# and pass `--constraints tools/constraints.txt` to every `uv tool install`.
+halmos==0.3.3
+vyper==0.4.3
+slither-analyzer==0.11.6
+crytic-compile==0.4.2

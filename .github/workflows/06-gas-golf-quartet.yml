@@ -1,0 +1,318 @@
+name: "6 · Gas Golf Quartet"
+
+on:
+  push:
+    paths:
+      - "projects/06-gas-golf-quartet/**"
+      - ".github/workflows/06-gas-golf-quartet.yml"
+  pull_request:
+    paths:
+      - "projects/06-gas-golf-quartet/**"
+      - ".github/workflows/06-gas-golf-quartet.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Only superseded pull-request runs are cancelled: every push (main included) runs to completion, so the
+  # README badge never points at a cancelled run.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: projects/06-gas-golf-quartet
+
+# Every action is pinned to a full commit SHA (the comment names the release it was taken from).
+env:
+  FOUNDRY_VERSION: v1.8.3
+  SOLC_VERSION: "0.8.37"
+  NODE_VERSION: "24"
+  PYTHON_VERSION: "3.12"
+  UV_VERSION: "0.12.20"
+  # Python tools: the versions are here, every transitive dependency (z3-solver, the yices wheel,
+  # crytic-compile's and Vyper's dependencies, ...) is pinned for all platforms by tools/constraints.txt.
+  VYPER_VERSION: "0.4.3"
+  HALMOS_VERSION: "0.3.3"
+  SLITHER_VERSION: "0.11.6"
+  CRYTIC_COMPILE_VERSION: "0.4.2"
+  CONSTRAINTS: tools/constraints.txt
+  PROJECT: projects/06-gas-golf-quartet
+
+jobs:
+  test:
+    name: Build, tests, gas snapshot and drift checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # Fixed fuzz seed, 5,000 fuzz runs, 256 x 64 invariant campaign (foundry.toml [profile.ci]).
+      FOUNDRY_PROFILE: ci
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: projects/06-gas-golf-quartet/package-lock.json
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          cache-dependency-glob: projects/06-gas-golf-quartet/tools/constraints.txt
+
+      - name: Install Vyper (forge compiles src/vyper/*.vy with it)
+        run: |
+          uv tool install --python "$PYTHON_VERSION" --constraints "$CONSTRAINTS" "vyper==$VYPER_VERSION"
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies, solc and the ci-profile build
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ${{ env.PROJECT }}/dependencies
+            ~/.svm
+            ~/.local/share/svm
+            ${{ env.PROJECT }}/out
+            ${{ env.PROJECT }}/cache
+            !${{ env.PROJECT }}/cache/fuzz
+            !${{ env.PROJECT }}/cache/invariant
+          key: forge-ci-${{ runner.os }}-${{ env.SOLC_VERSION }}-${{ hashFiles('projects/06-gas-golf-quartet/soldeer.lock', 'projects/06-gas-golf-quartet/foundry.toml', 'projects/06-gas-golf-quartet/src/**', 'projects/06-gas-golf-quartet/test/**', 'projects/06-gas-golf-quartet/script/**') }}
+          restore-keys: forge-ci-${{ runner.os }}-${{ env.SOLC_VERSION }}-
+
+      - name: Toolchain versions
+        run: |
+          forge --version
+          vyper --version
+          node --version
+
+      - name: Install dependencies (Soldeer + npm, both lockfile-pinned)
+        run: |
+          forge soldeer install
+          npm ci
+
+      - name: Yul bytecode is up to date (npm solc@0.8.37)
+        run: node scripts/build-yul.mjs --check
+
+      - name: Formatting
+        run: forge fmt --check
+
+      - name: Build (compiler warnings are errors)
+        run: forge build --deny warnings
+
+      - name: Lint (warnings are errors)
+        run: forge lint --deny warnings
+
+      - name: Tests (unit, fuzz, lockstep invariants, exhaustive math)
+        run: forge test
+
+      - name: Gas snapshot is up to date
+        run: forge snapshot --check --match-contract GasBench
+
+      - name: Committed gas data equals what the tests just wrote (snapshots/GasBench.json, .gas-snapshot)
+        run: git diff --exit-code -- snapshots/ .gas-snapshot
+
+      - name: README and TRICKS generated blocks are up to date (gas tables, headline, suite counts)
+        run: node scripts/gen-tables.mjs --check
+
+      - name: Local demo, deploy all four to anvil (free port, no keys)
+        run: |
+          PORT=$(node -e 'const s = require("net").createServer().listen(0, "127.0.0.1", () => { console.log(s.address().port); s.close(); })')
+          anvil --port "$PORT" --silent &
+          ANVIL_PID=$!
+          trap 'kill "$ANVIL_PID"' EXIT
+          for _ in $(seq 1 50); do cast chain-id --rpc-url "http://127.0.0.1:$PORT" > /dev/null 2>&1 && break; sleep 0.2; done
+          forge script script/DeployQuartet.s.sol --rpc-url "http://127.0.0.1:$PORT" --broadcast \
+            --unlocked --sender 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+
+  halmos:
+    name: Halmos equivalence proofs
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          cache-dependency-glob: projects/06-gas-golf-quartet/tools/constraints.txt
+
+      # The halmos profile skips *.vy, so no Vyper here. The yices solver ships in the yices-solver wheel
+      # pinned by the constraints, so halmos never needs to download a solver at run time.
+      - name: Install halmos
+        run: |
+          uv tool install --python "$PYTHON_VERSION" --constraints "$CONSTRAINTS" "halmos==$HALMOS_VERSION"
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies, solc and the halmos-profile build
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ${{ env.PROJECT }}/dependencies
+            ~/.svm
+            ~/.local/share/svm
+            ${{ env.PROJECT }}/out-halmos
+            ${{ env.PROJECT }}/cache-halmos
+          key: forge-halmos-${{ runner.os }}-${{ env.SOLC_VERSION }}-${{ hashFiles('projects/06-gas-golf-quartet/soldeer.lock', 'projects/06-gas-golf-quartet/foundry.toml', 'projects/06-gas-golf-quartet/src/**', 'projects/06-gas-golf-quartet/test/**') }}
+          restore-keys: forge-halmos-${{ runner.os }}-${{ env.SOLC_VERSION }}-
+
+      - name: Install Solidity dependencies
+        run: |
+          forge soldeer install
+          halmos --version
+
+      - name: Prove Solidity == assembly == Yul (ERC-20, ABI validation) and golf == reference (math)
+        env:
+          FOUNDRY_PROFILE: halmos
+        run: halmos --match-contract Equivalence
+
+  static-analysis:
+    name: Slither
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          cache-dependency-glob: projects/06-gas-golf-quartet/tools/constraints.txt
+
+      # The slither profile skips *.vy and *.yul, so no Vyper here.
+      - name: Install Slither
+        run: |
+          uv tool install --python "$PYTHON_VERSION" --constraints "$CONSTRAINTS" \
+            "slither-analyzer==$SLITHER_VERSION" --with "crytic-compile==$CRYTIC_COMPILE_VERSION"
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      # Slither runs `forge clean` on its profile, so only the dependencies and solc are worth caching.
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ${{ env.PROJECT }}/dependencies
+            ~/.svm
+            ~/.local/share/svm
+          key: forge-deps-${{ runner.os }}-${{ env.SOLC_VERSION }}-${{ hashFiles('projects/06-gas-golf-quartet/soldeer.lock') }}
+
+      - name: Install Solidity dependencies
+        run: forge soldeer install
+
+      - name: Slither (every remaining finding must be triaged in code or slither.config.json)
+        env:
+          FOUNDRY_PROFILE: slither
+        run: slither . --config-file slither.config.json
+
+  coverage:
+    name: Coverage (>= 90% of src lines)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Fixed fuzz seed (foundry.toml [profile.coverage.fuzz]): the coverage run is as deterministic as the
+      # test run.
+      FOUNDRY_PROFILE: coverage
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          cache-dependency-glob: projects/06-gas-golf-quartet/tools/constraints.txt
+
+      # The coverage profile compiles the Vyper source (the specification suite deploys it).
+      - name: Install Vyper
+        run: |
+          uv tool install --python "$PYTHON_VERSION" --constraints "$CONSTRAINTS" "vyper==$VYPER_VERSION"
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ${{ env.PROJECT }}/dependencies
+            ~/.svm
+            ~/.local/share/svm
+          key: forge-deps-${{ runner.os }}-${{ env.SOLC_VERSION }}-${{ hashFiles('projects/06-gas-golf-quartet/soldeer.lock') }}
+
+      - name: Install Solidity dependencies
+        run: forge soldeer install
+
+      - name: Coverage of production Solidity (inline assembly included)
+        run: |
+          forge coverage --report summary --report lcov \
+            --no-match-contract "LockstepInvariant|YulBytecodeTest" \
+            --no-match-coverage "(test|script|dependencies)/"
+          awk -F: '/^SF:/ { src = ($2 ~ /^src\//) }
+                   src && /^LH:/ { hit += $2 }
+                   src && /^LF:/ { found += $2 }
+                   END { pct = 100 * hit / found; printf "src line coverage: %.2f%% (%d/%d)\n", pct, hit, found; exit (pct < 90) }' lcov.info
+
+  mutants:
+    name: Mutation smoke test (the proofs and fuzzers must catch injected bugs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: projects/06-gas-golf-quartet/package-lock.json
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          cache-dependency-glob: projects/06-gas-golf-quartet/tools/constraints.txt
+
+      # Vyper for the default-profile forge runs (M9 mutates the Vyper source), halmos for the proof checks.
+      - name: Install Vyper and halmos
+        run: |
+          uv tool install --python "$PYTHON_VERSION" --constraints "$CONSTRAINTS" "vyper==$VYPER_VERSION"
+          uv tool install --python "$PYTHON_VERSION" --constraints "$CONSTRAINTS" "halmos==$HALMOS_VERSION"
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies, solc and the default and halmos builds
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ${{ env.PROJECT }}/dependencies
+            ~/.svm
+            ~/.local/share/svm
+            ${{ env.PROJECT }}/out
+            ${{ env.PROJECT }}/cache
+            !${{ env.PROJECT }}/cache/fuzz
+            !${{ env.PROJECT }}/cache/invariant
+            ${{ env.PROJECT }}/out-halmos
+            ${{ env.PROJECT }}/cache-halmos
+          key: forge-mutants-${{ runner.os }}-${{ env.SOLC_VERSION }}-${{ hashFiles('projects/06-gas-golf-quartet/soldeer.lock', 'projects/06-gas-golf-quartet/foundry.toml', 'projects/06-gas-golf-quartet/src/**', 'projects/06-gas-golf-quartet/test/**') }}
+          restore-keys: forge-mutants-${{ runner.os }}-${{ env.SOLC_VERSION }}-
+
+      - name: Install dependencies
+        run: |
+          forge soldeer install
+          npm ci
+
+      - name: Every mutant must be caught, and the README's mutants table must be current
+        run: node scripts/mutants.mjs --check

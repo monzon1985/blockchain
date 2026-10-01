@@ -1,0 +1,6 @@
+{
+  "filter_paths": "dependencies|test",
+  "detectors_to_exclude": "assembly,naming-convention,too-many-digits",
+  "exclude_dependencies": true,
+  "fail_on": "pedantic"
+}

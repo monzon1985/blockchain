@@ -1,0 +1,129 @@
+# Gas Golf Quartet: one toolchain root for Solidity, inline assembly, Vyper and the
+# Yul object (the Yul object is compiled by scripts/build-yul.mjs with npm solc@0.8.37
+# using the same optimizer settings, then embedded in src/generated/YulBytecode.sol).
+
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+evm_version = "osaka"
+optimizer = true
+# Runtime gas is what users pay forever; deployment is paid once. Every Solidity-compiled
+# artifact (including the Yul object, see scripts/build-yul.mjs) uses the same setting.
+optimizer_runs = 1000000
+via_ir = false
+# Deterministic bytecode on every OS: no metadata hash, no CBOR trailer. This keeps the
+# runtime-size table and the gas snapshot identical on Windows and Linux CI.
+bytecode_hash = "none"
+cbor_metadata = false
+# Each top-level call from a test runs as its own transaction (cold storage, real refunds),
+# so the gas numbers in snapshots/ are what a user would see.
+isolate = true
+# Compile `new Contract(...)` in tests to a real CREATE. Dynamic test linking would turn it into a
+# `vm.deployCode` cheatcode, which halmos does not implement and which hides the real deployment path.
+dynamic_test_linking = false
+fs_permissions = [{ access = "read", path = "./out" }]
+remappings = [
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "solady/=dependencies/solady-0.1.26/src/",
+    # The only file that emits the EIP-7939 CLZ opcode. The halmos profile swaps it for a
+    # plain-Solidity model because halmos 0.3.3 does not implement opcode 0x1e.
+    "clz/=src/math/clz/",
+]
+auto_detect_remappings = false
+
+[profile.default.fuzz]
+runs = 1000
+
+[profile.default.invariant]
+runs = 128
+depth = 64
+fail_on_revert = true
+
+[profile.default.vyper]
+# Vyper 0.4.3 targets at most Prague; forge caps the EVM version automatically.
+optimize = "gas"
+
+# CI: deterministic seeds, a heavier campaign, and the committed snapshots/GasBench.json checked instead
+# of rewritten (the workflow also runs `git diff --exit-code -- snapshots/ .gas-snapshot`).
+[profile.ci]
+gas_snapshot_check = true
+
+[profile.ci.fuzz]
+runs = 5000
+seed = "0x6a5e0f60"
+
+[profile.ci.invariant]
+runs = 256
+depth = 64
+fail_on_revert = true
+
+# Halmos symbolic equivalence proofs. Vyper sources are skipped (halmos cannot execute
+# Vyper artifacts through forge), and the CLZ primitive is swapped for its model.
+[profile.halmos]
+test = "test/halmos"
+out = "out-halmos"
+cache_path = "cache-halmos"
+skip = ["*.vy"]
+remappings = [
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "solady/=dependencies/solady-0.1.26/src/",
+    "clz/=test/halmos/clz-model/",
+]
+
+# forge coverage analyses Solidity sources only: skip the Yul source (the tests deploy the committed
+# bytecode from src/generated/YulBytecode.sol, so they do not need its artifact).
+[profile.coverage]
+out = "out-coverage"
+cache_path = "cache-coverage"
+skip = ["*.yul"]
+# Coverage builds are unoptimized and instrumented, so GasBench measures different numbers here: never let
+# them overwrite the committed snapshots/GasBench.json.
+gas_snapshot_emit = false
+
+# The coverage job runs the fuzz suites too, so it gets the CI seed: a coverage run must be as
+# deterministic as the test run (profiles other than `ci` do not inherit [profile.ci.fuzz]).
+[profile.coverage.fuzz]
+runs = 1000
+seed = "0x6a5e0f60"
+
+[profile.coverage.invariant]
+runs = 128
+depth = 64
+fail_on_revert = true
+
+# Slither (crytic-compile) parses Solidity build-info only, and runs `forge clean` on the active
+# profile: skip the Yul and Vyper sources and keep its artifacts apart from the default profile.
+[profile.slither]
+out = "out-slither"
+cache_path = "cache-slither"
+skip = ["*.vy", "*.yul"]
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+quote_style = "double"
+number_underscore = "thousands"
+sort_imports = true
+# The Yul object is not Solidity; the generated file is owned by scripts/build-yul.mjs.
+ignore = ["src/yul/QuartetYul.yul", "src/generated/YulBytecode.sol"]
+
+[lint]
+# solar (forge lint) parses Solidity only; the Yul object and Vyper file are checked by their compilers.
+ignore = ["src/yul/QuartetYul.yul", "src/vyper/QuartetVyper.vy", "src/generated/YulBytecode.sol"]
+
+[soldeer]
+remappings_generate = false
+remappings_regenerate = false
+
+[dependencies]
+forge-std = "1.16.2"
+"@openzeppelin-contracts" = "5.7.0"
+solady = "0.1.26"

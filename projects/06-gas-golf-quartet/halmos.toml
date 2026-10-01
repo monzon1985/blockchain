@@ -1,0 +1,12 @@
+# Halmos 0.3.3 configuration, read automatically from the project root.
+# Run with: FOUNDRY_PROFILE=halmos halmos --match-contract Equivalence
+[global]
+# Must match `out` of [profile.halmos] in foundry.toml.
+forge-build-out = "out-halmos"
+# The storage of all three tokens is written through vm.store with keccak-derived and identity-keyed
+# slots; the generic model handles all of them uniformly.
+storage-layout = "generic"
+# Leave room for other workloads on the machine; CI runners have 4 cores anyway.
+solver-threads = 4
+# Assertion queries over 512-bit mulmod terms can take a while on the first run.
+solver-timeout-assertion = "300s"

@@ -1,0 +1,23 @@
+{
+  "name": "gas-golf-quartet",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build and drift-check scripts for the Gas Golf Quartet (Yul object compilation, README gas tables).",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build:yul": "node scripts/build-yul.mjs",
+    "check:yul": "node scripts/build-yul.mjs --check",
+    "tables": "node scripts/gen-tables.mjs",
+    "check:tables": "node scripts/gen-tables.mjs --check"
+  },
+  "devDependencies": {
+    "solc": "0.8.37"
+  },
+  "overrides": {
+    "tmp": "0.2.7"
+  }
+}

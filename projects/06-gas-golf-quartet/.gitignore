@@ -1,0 +1,17 @@
+# Halmos profile build (isolated from the default profile's out/ and cache/)
+out-halmos/
+cache-halmos/
+# Coverage profile build and reports
+out-coverage/
+cache-coverage/
+lcov.info
+# Slither profile build
+out-slither/
+cache-slither/
+# Halmos/solver scratch
+*.smt2
+*.smt2.err
+# Foundry fuzz/invariant failure persistence lives under cache/ (ignored at the root)
+# forge script --broadcast output. The root pattern `broadcast/*/31337/` contains a slash, so git anchors it
+# at the repository root and it does not match this project's broadcast/ directory.
+broadcast/
