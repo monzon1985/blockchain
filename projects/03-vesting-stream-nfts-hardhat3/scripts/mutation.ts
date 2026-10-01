@@ -179,11 +179,28 @@ const MUTANTS: Mutant[] = [
   },
 ];
 
-/** Runs a command in the project root; returns its exit status and the tail of its output. */
-function run(command: string): { ok: boolean; tail: string } {
-  const result = spawnSync(command, { cwd: ROOT, shell: true, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+/** Hardhat's CLI entry point, run directly with this Node binary so a timeout kills the real process (no shell). */
+const HARDHAT_CLI = path.join(ROOT, "node_modules", "hardhat", "dist", "src", "cli.js");
+
+/**
+ * Upper bound for one Hardhat invocation. The unmutated suite takes well under a minute; a mutant that makes it hang
+ * (for example M12, where the gas-guzzling hook receives all remaining gas and loops until it runs out) must still
+ * end the campaign. A run that hits the bound counts as failing, i.e. the mutant is detected.
+ */
+const COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** Runs `hardhat <args>` in the project root; returns whether it passed, whether it timed out, and its output tail. */
+function run(args: string[]): { ok: boolean; timedOut: boolean; tail: string } {
+  const result = spawnSync(process.execPath, [HARDHAT_CLI, ...args], {
+    cwd: ROOT,
+    encoding: "utf8",
+    maxBuffer: 256 * 1024 * 1024,
+    timeout: COMMAND_TIMEOUT_MS,
+    killSignal: "SIGKILL",
+  });
+  const timedOut = result.error !== undefined && (result.error as NodeJS.ErrnoException).code === "ETIMEDOUT";
   const output = `${result.stdout}${result.stderr}`;
-  return { ok: result.status === 0, tail: output.split(/\r?\n/).slice(-15).join("\n") };
+  return { ok: result.status === 0, timedOut, tail: output.split(/\r?\n/).slice(-15).join("\n") };
 }
 
 async function restoreBackups(): Promise<string[]> {
@@ -218,10 +235,12 @@ for (const m of mutants) {
 }
 
 console.log("Baseline: the unmutated suite must pass.");
-for (const command of ["npx hardhat build", "npx hardhat test"]) {
-  const result = run(command);
+for (const args of [["build"], ["test"]]) {
+  const result = run(args);
   if (!result.ok) {
-    console.error(`baseline \`${command}\` failed:\n${result.tail}`);
+    console.error(
+      `baseline \`hardhat ${args.join(" ")}\` ${result.timedOut ? "timed out" : "failed"}:\n${result.tail}`,
+    );
     process.exit(1);
   }
 }
@@ -244,15 +263,23 @@ for (const m of mutants) {
     );
     let outcome: "killed" | "survived" | "invalid" = "survived";
     let by = "-";
-    if (!run("npx hardhat build").ok) {
+    const solidity = () => run(["test", "solidity"]);
+    const nodejs = () => run(["test", "nodejs"]);
+    if (!run(["build"]).ok) {
       outcome = "invalid";
       by = "does not compile";
-    } else if (!run("npx hardhat test solidity").ok) {
-      outcome = "killed";
-      by = "Solidity tests";
-    } else if (!run("npx hardhat test nodejs").ok) {
-      outcome = "killed";
-      by = "node:test suite";
+    } else {
+      const sol = solidity();
+      if (!sol.ok) {
+        outcome = "killed";
+        by = sol.timedOut ? "Solidity (timeout)" : "Solidity tests";
+      } else {
+        const js = nodejs();
+        if (!js.ok) {
+          outcome = "killed";
+          by = js.timedOut ? "node:test (timeout)" : "node:test suite";
+        }
+      }
     }
     results.push({ mutant: m, outcome, by });
     console.log(`${m.id} ${outcome.toUpperCase().padEnd(8)} ${by.padEnd(17)} ${m.file}: ${m.bug}`);
@@ -263,7 +290,7 @@ for (const m of mutants) {
 }
 
 // Leave fresh artifacts of the pristine sources behind.
-run("npx hardhat build");
+run(["build"]);
 
 const killed = results.filter((r) => r.outcome === "killed").length;
 console.log(`\n${killed}/${results.length} mutants killed`);

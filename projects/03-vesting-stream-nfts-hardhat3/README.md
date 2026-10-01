@@ -214,7 +214,7 @@ Known limitations (details in the threat model):
   reads. The trade-off is one extra contract deployment per milestone stream and an `EXTCODECOPY` on every read of a
   milestone stream; linear streams skip it entirely, and milestone streams skip it outside `(start, end)`.
 - **The renderer is a separate contract.** It keeps `VestingStreams` at 18,341 bytes of runtime code (the renderer is
-  16,678; both under the 24,576-byte limit), lets the art evolve without touching escrow, and limits the owner's power
+  16,686; both under the 24,576-byte limit), lets the art evolve without touching escrow, and limits the owner's power
   to metadata. The static SVG fragments are written to SSTORE2 by the renderer's constructor, so they live in two data
   contracts instead of in its runtime bytecode.
 - **Exact-delta deposits instead of a token allowlist.** Any standard ERC-20 works permissionlessly; tokens that
@@ -312,11 +312,11 @@ From [`gas-table.json`](gas-table.json), produced by [`scripts/gas-check.ts`](sc
 | `cancel`: contract recipient (hook) | 151,164 |
 | `renounceCancelability` | 29,745 |
 | `transferFrom` (stream NFT) | 42,822 |
-| `tokenURI`: linear with cliff | 628,151 |
-| `tokenURI`: tranched x32 | 962,133 |
-| `tokenURI`: segmented x16 | 731,930 |
-| `tokenURI`: canceled tranched x12 | 734,132 |
-| Runtime size: `VestingStreams` / `StreamRenderer` (bytes) | 18,341 / 16,678 |
+| `tokenURI`: linear with cliff | 631,305 |
+| `tokenURI`: tranched x32 | 965,112 |
+| `tokenURI`: segmented x16 | 736,675 |
+| `tokenURI`: canceled tranched x12 | 736,119 |
+| Runtime size: `VestingStreams` / `StreamRenderer` (bytes) | 18,341 / 16,686 |
 
 Baseline comparison (same milestones, [`MilestoneStorageBench`](contracts/mocks/MilestoneStorageBench.sol)):
 

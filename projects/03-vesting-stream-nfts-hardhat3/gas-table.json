@@ -17,10 +17,10 @@
   "cancel: contract recipient (hook)": 151164,
   "renounceCancelability": 29745,
   "transferFrom (stream NFT)": 42822,
-  "tokenURI: linear with cliff (eth_estimateGas)": 628151,
-  "tokenURI: tranched x32 (eth_estimateGas)": 962133,
-  "tokenURI: segmented x16 (eth_estimateGas)": 731930,
-  "tokenURI: canceled tranched x12 (eth_estimateGas)": 734132,
+  "tokenURI: linear with cliff (eth_estimateGas)": 631305,
+  "tokenURI: tranched x32 (eth_estimateGas)": 965112,
+  "tokenURI: segmented x16 (eth_estimateGas)": 736675,
+  "tokenURI: canceled tranched x12 (eth_estimateGas)": 736119,
   "bench: store x16 milestones in slots": 418462,
   "bench: store x16 milestones via SSTORE2": 163502,
   "bench: read x16 milestones from slots (eth_estimateGas)": 63997,
@@ -30,5 +30,5 @@
   "bench: read x32 milestones from slots (eth_estimateGas)": 104269,
   "bench: read x32 milestones via SSTORE2 (eth_estimateGas)": 43814,
   "runtime size: VestingStreams (bytes)": 18341,
-  "runtime size: StreamRenderer (bytes)": 16678
+  "runtime size: StreamRenderer (bytes)": 16686
 }
