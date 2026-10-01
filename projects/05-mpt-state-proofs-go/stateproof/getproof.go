@@ -58,6 +58,10 @@ func (o *Outcome) OK() bool { return len(o.Mismatches) == 0 }
 // For an address without an account the claims must be the zero account: nonce 0, balance
 // 0, and a code hash and storage hash that are either zero (go-ethereum's convention) or the
 // empty code hash and empty trie root (the hashes of an empty account).
+//
+// The proofs are checked for the address and slots the response names (r.Address and the
+// keys in r.StorageProof). The caller must check that these are the ones it asked for, as
+// the inspect package does: a valid proof of another account verifies here.
 func CheckGetProof(stateRoot keccak.Hash, r *GetProofResult) (*Outcome, error) {
 	acct, steps, err := VerifyAccount(stateRoot, r.Address, r.AccountProof)
 	if err != nil {

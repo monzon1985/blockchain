@@ -106,13 +106,10 @@ func FuzzTrieOrderIndependence(f *testing.F) {
 			t.Fatalf("Len() = %d, want %d", a.Len(), len(model))
 		}
 
+		// The rebuild order is a pure function of the fuzz input, so a crasher reproduces.
 		seed := keccak.Sum256(data)
 		rng := rand.New(rand.NewPCG(binary.BigEndian.Uint64(seed[:8]), binary.BigEndian.Uint64(seed[8:16])))
-		keys := make([]string, 0, len(model))
-		for k := range model {
-			keys = append(keys, k)
-		}
-		rng.Shuffle(len(keys), func(i, j int) { keys[i], keys[j] = keys[j], keys[i] })
+		keys := shuffledKeys(rng, model)
 		b := New()
 		var junk [][]byte
 		for i, k := range keys {

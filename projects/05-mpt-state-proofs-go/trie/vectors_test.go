@@ -15,7 +15,9 @@ import (
 	"github.com/monzon1985/blockchain/projects/05-mpt-state-proofs-go/keccak"
 )
 
-// Vectors vendored from ethereum/tests (TrieTests), MIT-licensed; see testdata/ethereum-tests.
+// Vectors vendored unmodified from ethereum/tests v17.2 (TrieTests), MIT-licensed. The upstream
+// commit, paths and git blob hashes are in testdata/ethereum-tests/SOURCE.md, and
+// internal/archtest checks the files against those hashes.
 
 // vectorBytes decodes the ethereum/tests notation: "0x..." is hex, anything else is the raw
 // string, and null (a nil pointer) is no value, which deletes the key.

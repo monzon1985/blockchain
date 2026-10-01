@@ -1,5 +1,7 @@
-# Coverage data and logs written by script/coverage.sh and CI.
+# Coverage data and logs written by script/coverage.sh, script/check.sh and CI.
 covdata/
 *.log
-# Locally built binaries.
+# Locally built binaries (`go build -o bin/trie ./cmd/trie`). Only the root-level bin/ and
+# *.exe are ignored by the repository's .gitignore; never ignore the trie/ package itself.
+/bin/
 /trie.exe

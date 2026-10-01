@@ -13,7 +13,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
 	"time"
@@ -23,7 +22,7 @@ import (
 )
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := cli.SignalContext(context.Background()) // Ctrl-C and SIGTERM stop anvil cleanly
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()

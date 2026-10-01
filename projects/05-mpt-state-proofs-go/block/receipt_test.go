@@ -176,6 +176,7 @@ func TestTxTypeRejects(t *testing.T) {
 		"typed with no payload":     {0x02},
 		"legacy with trailing data": {0xc0, 0x00},
 		"truncated legacy":          {0xc3, 0x80},
+		"type-0 envelope":           {0x00, 0xc0},
 	}
 	for name, raw := range cases {
 		_, err := TxType(raw)
@@ -183,6 +184,27 @@ func TestTxTypeRejects(t *testing.T) {
 	}
 	for typ, name := range map[uint8]string{0: "legacy", 1: "access-list", 2: "dynamic-fee", 3: "blob", 4: "set-code", 0x7e: "type-0x7e"} {
 		require.Equal(t, name, TxTypeName(typ))
+	}
+}
+
+// TestTypeZeroEnvelopeIsRejected pins the regression where 0x00 || legacy-RLP was accepted
+// and labelled legacy: go-ethereum, the oracle, rejects it, and so must TxType. The same
+// transaction without the prefix is valid for both.
+func TestTypeZeroEnvelopeIsRejected(t *testing.T) {
+	to := common.Address{0x42}
+	tx := types.NewTx(&types.LegacyTx{Nonce: 7, GasPrice: big.NewInt(1), Gas: 21000, To: &to, Value: big.NewInt(1), V: big.NewInt(27), R: big.NewInt(1), S: big.NewInt(1)})
+	legacy, err := tx.MarshalBinary()
+	require.NoError(t, err)
+
+	typ, err := TxType(legacy)
+	require.NoError(t, err)
+	require.Equal(t, uint8(LegacyTxType), typ)
+	require.NoError(t, new(types.Transaction).UnmarshalBinary(legacy))
+
+	for _, raw := range [][]byte{append([]byte{0x00}, legacy...), {0x00, 0xc0}} {
+		_, err := TxType(raw)
+		require.ErrorIs(t, err, ErrInvalidTx, "%x", raw)
+		require.Error(t, new(types.Transaction).UnmarshalBinary(raw), "go-ethereum must reject %x too", raw)
 	}
 }
 

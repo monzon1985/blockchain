@@ -373,6 +373,82 @@ func TestRebuildStorage(t *testing.T) {
 	}
 }
 
+// TestRequestedBlockAndAddressAreEnforced is the regression test for two false VERIFIED
+// verdicts: a node answering `--block N` with another (older, internally consistent) block,
+// and a node answering eth_getProof for another account. Every command must fail both, even
+// though every proof in the substituted answer is valid.
+func TestRequestedBlockAndAddressAreEnforced(t *testing.T) {
+	ctx := context.Background()
+	other := keccak.Address{0xde, 0xad, 0xbe, 0xef}
+	slotsOf := func(f *fake) []keccak.Hash {
+		slots := make([]keccak.Hash, 0, len(f.storage))
+		for s := range f.storage {
+			slots = append(slots, s)
+		}
+		return slots
+	}
+	proofSlots := func(f *fake) []keccak.Hash {
+		slots := make([]keccak.Hash, len(f.proof.StorageProof))
+		for i, s := range f.proof.StorageProof {
+			slots[i] = s.Key
+		}
+		return slots
+	}
+	type run func(t *testing.T, f *fake, addr keccak.Address, ref ethrpc.BlockRef) Checks
+	verifyProof := func(t *testing.T, f *fake, addr keccak.Address, ref ethrpc.BlockRef) Checks {
+		rep, err := VerifyProof(ctx, f, addr, proofSlots(f), ref)
+		require.NoError(t, err)
+		return rep.Checks
+	}
+	rebuildStorage := func(t *testing.T, f *fake, addr keccak.Address, ref ethrpc.BlockRef) Checks {
+		rep, err := RebuildStorage(ctx, f, addr, slotsOf(f), ref)
+		require.NoError(t, err)
+		return rep.Checks
+	}
+	blockChecks := func(t *testing.T, f *fake, _ keccak.Address, ref ethrpc.BlockRef) Checks {
+		return verifyBlock(t, f, ref).Checks
+	}
+	for _, tc := range []struct {
+		name     string
+		cassette string
+		run      run
+	}{
+		{"verify-proof", "verify-proof-contract", verifyProof},
+		{"storage-root", "storage-root", rebuildStorage},
+		{"verify-block", "verify-block-3", blockChecks},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := load(t, tc.cassette)
+			var addr keccak.Address
+			if f.proof != nil {
+				addr = f.proof.Address
+			}
+			// The honest answer verifies, by number and by tag.
+			for _, ref := range []ethrpc.BlockRef{ethrpc.Number(3), ethrpc.Latest()} {
+				checks := tc.run(t, f, addr, ref)
+				require.True(t, checks.OK(true), "%s: %s", ref, checks.Verdict())
+				require.Equal(t, Status(255), statusOf(checks, "block number"), "no check when the block matches")
+				require.Equal(t, Status(255), statusOf(checks, "address"), "no check when the address matches")
+			}
+
+			// Asked for block 9, answered with block 3 and its (valid) state.
+			checks := tc.run(t, f, addr, ethrpc.Number(9))
+			require.Equal(t, Fail, statusOf(checks, "block number"), checks.Verdict())
+			require.False(t, checks.OK(false))
+			require.Contains(t, checks.Verdict(), "FAILED")
+
+			if f.proof == nil {
+				return // verify-block has no address
+			}
+			// Asked about another account, answered with the recorded account's valid proof.
+			checks = tc.run(t, f, other, ethrpc.Number(3))
+			require.Equal(t, Fail, statusOf(checks, "address"), checks.Verdict())
+			require.False(t, checks.OK(false))
+			require.Contains(t, checks.Verdict(), "FAILED")
+		})
+	}
+}
+
 func TestDescribePath(t *testing.T) {
 	require.Equal(t, "branch > extension > branch(inline) > leaf(inline)", describePath([]trie.Step{
 		{Kind: trie.Branch}, {Kind: trie.Extension}, {Kind: trie.Branch, Inline: true}, {Kind: trie.Leaf, Inline: true},

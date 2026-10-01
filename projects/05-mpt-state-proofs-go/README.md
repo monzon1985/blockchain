@@ -4,19 +4,19 @@ A from-scratch Go implementation of RLP, the secure Merkle-Patricia Trie and blo
 
 [![CI](https://github.com/monzon1985/blockchain/actions/workflows/05-mpt-state-proofs-go.yml/badge.svg)](https://github.com/monzon1985/blockchain/actions/workflows/05-mpt-state-proofs-go.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../LICENSE)
-![Go 1.27](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go)
+![Go 1.27.1](https://img.shields.io/badge/Go-1.27.1-00ADD8?logo=go)
 ![CGO_ENABLED=0](https://img.shields.io/badge/CGO__ENABLED-0-lightgrey)
 ![Foundry 1.8.3](https://img.shields.io/badge/Foundry-1.8.3-orange)
 
 ## What's interesting here
 
-- **The core is written from scratch, and a test enforces it.** RLP, the trie, header hashing, receipts, blooms and state proofs depend only on the Go standard library and `x/crypto/sha3` (plus its `x/sys/cpu` dependency). `internal/archtest` fails the build if go-ethereum appears in their transitive dependencies. go-ethereum 1.17.6 serves only as the RPC transport and as a **differential oracle in tests**, where every root, encoding and proof is cross-checked against it: random tries, 5,000 random RLP trees, 48,000 mutated encodings, 1,700 random headers across six eras and transactions of all five envelope types.
-- **The checks run against a live chain, not just test vectors.** The integration suite runs anvil on **6 hardforks (Berlin to Osaka)**. For every block it recomputes the block hash, `transactionsRoot`, `receiptsRoot`, receipt blooms, `logsBloom`, `gasUsed`, `withdrawalsRoot`, `blobGasUsed`, `requestsHash` and `ommersHash` from raw data. The blocks cover all **5 transaction types**: legacy, EIP-2930, EIP-1559, EIP-4844 blob transactions (sidecar versions 0 and 1) and EIP-7702 set-code, whose delegation shows up in the authority's proven code hash.
+- **The core is written from scratch, and a test enforces it.** RLP, the trie, header hashing, receipts, blooms and state proofs depend only on the Go standard library and `x/crypto/sha3` (plus its `x/sys/cpu` dependency). A test in `internal/archtest` fails if go-ethereum enters their transitive dependencies. go-ethereum 1.17.6 serves only as the RPC transport and as a **differential oracle in tests**, where every root, encoding and proof is cross-checked against it: random tries, 5,000 random RLP trees, 48,000 mutated encodings, 1,700 random headers across six eras and transactions of all five envelope types.
+- **The checks run against a live chain, not just test vectors.** The integration suite runs anvil on **6 hardforks (Berlin to Osaka)**. For every block it recomputes the block hash, `transactionsRoot`, `receiptsRoot`, receipt blooms, `logsBloom`, `gasUsed`, `withdrawalsRoot` and `blobGasUsed` from raw data, and checks `ommersHash` and `requestsHash` against the empty-list commitments (ommers and EIP-7685 requests are not fetched). The blocks cover all **5 transaction types**: legacy, EIP-2930, EIP-1559, EIP-4844 blob transactions (sidecar versions 0 and 1) and EIP-7702 set-code, whose delegation shows up in the authority's proven code hash.
 - **Whole-storage reconstruction.** A fixture contract writes **200 pseudo-random slots**. The test rebuilds the storage trie from the seed alone, and its root must equal `eth_getProof`'s `storageHash` before and after clearing 50 slots, including historical state. Proofs built locally from that trie are **byte-identical to anvil's** for all 205 slots checked.
-- **A lying node does not get a pass.** A proxy injects **14 distinct lies**: altered raw transactions, receipts from another block, dropped logs, a failed transaction reported as successful, altered header fields and hashes, false balances and slot values, corrupted or truncated proofs. The hardest case forges a storage trie *and* a matching `storageHash`. Each lie produces a specific failed check. 17 golden CLI outputs (10 recorded sessions, 6 tampered variants, 1 offline command) replay a recorded anvil session, and the recording reproduces byte for byte.
+- **A lying node does not get a pass.** A proxy injects **16 distinct lies**: altered raw transactions, receipts from another block, dropped logs, a failed transaction reported as successful, altered header fields and hashes, false balances and slot values, corrupted or truncated proofs. The hardest cases forge a storage trie *and* a matching `storageHash`, answer with anvil's own valid proof of *another* account, or serve a genuine older block for the one requested. Each lie produces a specific failed check. 17 golden CLI outputs (10 recorded sessions, 6 tampered variants, 1 offline command) replay a recorded anvil session, and the recording reproduces byte for byte.
 - **It found real anvil 1.8.3 behaviour.** (1) On pre-Cancun hardforks, anvil's **genesis** header carries `blobGasUsed`/`excessBlobGas`, so it mixes fork eras. On Berlin and London its hash is only reproducible by skipping the absent fields (go-ethereum would encode them as empty strings). (2) The genesis `stateRoot` is the empty root even though the dev accounts are funded, so no genesis account proof verifies. (3) For an empty trie, anvil's proof is `[0x80]` where go-ethereum's is `[]`. All three are pinned by tests and reported, not hidden.
 
-**Numbers** (from `go test -json`, `script/coverage.sh` and `forge test`): 112 Go test functions with 259 subtests, 13 integration tests with 27 subtests, 5 native fuzz targets, 9 Foundry tests, and **99.8 % line coverage** of the production packages (unit and integration suites merged).
+**Numbers** (from `script/check.sh`, `script/coverage.sh` and `forge test`): 117 Go test functions with 264 subtests (plus one Unix-only SIGTERM test), 13 integration tests with 29 subtests, 5 native fuzz targets, 9 Foundry tests, and **99.8 % statement coverage** of the production packages (unit and integration suites merged).
 
 ## Overview
 
@@ -61,11 +61,11 @@ flowchart LR
 | `keccak` | Keccak-256, the `Hash` and `Address` types, well-known roots | `x/crypto/sha3` |
 | `rlp` | Canonical encoder/decoder: rejects wrapped single bytes, non-minimal lengths, leading zeros, trailing bytes, nesting > 1024 | none |
 | `trie` | MPT with insert/get/delete, inline nodes, collapse on delete, `SecureTrie`, inclusion/exclusion proofs, strict `VerifyProof` with a walk trace | none |
-| `block` | Header RLP for every era (Frontier to Amsterdam) with explicit layouts; transaction/receipt/withdrawal roots; logs bloom; blob counting; ommers hash | none |
+| `block` | Header RLP with explicit per-era layouts: Frontier to Prague verified on anvil; Amsterdam (EIP-7928/7843) follows go-ethereum 1.17.6's layout of the unfinalised fork and is covered by differential tests only. Transaction/receipt/withdrawal roots; logs bloom; blob counting; ommers hash | none |
 | `stateproof` | Account and storage-value codecs, `VerifyAccount`, `VerifyStorage`, storage-root rebuild, `CheckGetProof` (claims vs proofs) | none |
 | `ethrpc` | Fetches blocks, raw transactions (batched), receipts, proofs, storage; strict hex decoding into this module's types | go-ethereum `rpc` client |
 | `inspect` | `VerifyBlock`, `VerifyProof`, `RebuildStorage`: named checks, text and JSON reports | through the `Source` interface |
-| `internal/cli`, `cmd/trie` | The `trie` command, exit codes, `slog` logging, context-aware shutdown | |
+| `internal/cli`, `cmd/trie` | The `trie` command, exit codes, `slog` logging, context-aware shutdown (Ctrl-C and SIGTERM cancel the running command) | |
 | `internal/devnet`, `internal/rpcreplay`, `internal/tools` | Test infrastructure: anvil on a free port, scenario builder, record/replay/rewrite proxy, fixture recorder, demo | anvil |
 | `fixtures/` | `SlotWriter.sol`: writes and clears pseudo-random slots (Foundry project, 9 tests) | |
 
@@ -87,10 +87,11 @@ Each property is enforced by the tests linked to it.
 4. **Proof soundness.** A proof that verifies gives the true value or true absence. No single-byte mutation, truncation, junk substitution, extra node or duplicate makes a proof verify with a different answer. Tests: [`FuzzVerifyProof`](trie/fuzz_test.go), [`TestProofTamperingIsDetected`](trie/proof_test.go), [`TestNonCanonicalProofsAreRejected`](trie/proof_test.go).
 5. **Proof interoperability.** Proofs from this trie and from go-ethereum's trie verify with both verifiers and contain the same node sets. Proofs from anvil verify, and equal locally built ones. Tests: [`TestDifferentialRandomOperations`](trie/differential_test.go), [`TestProofsAreMinimal`](integration/state_test.go).
 6. **Header hash fidelity.** For every era and every gap pattern of optional fields, the canonical encoding equals go-ethereum's, and the hash of every anvil block in the matrix is reproduced. Tests: [`TestDifferentialHeaderEveryEra`](block/header_test.go), [`TestDifferentialHeaderGaps`](block/header_test.go), [`TestHardforkMatrix`](integration/blocks_test.go).
-7. **Block commitments.** `transactionsRoot`, `receiptsRoot`, `withdrawalsRoot`, `logsBloom`, `gasUsed`, `blobGasUsed` and `ommersHash` recomputed from raw data equal the header's. Tests: [`TestHardforkMatrix`](integration/blocks_test.go), [`TestBlobAndSetCodeTransactions`](integration/txtypes_test.go), the differential tests in [`block`](block/receipt_test.go).
+7. **Block commitments.** `transactionsRoot`, `receiptsRoot`, `withdrawalsRoot`, `logsBloom`, `gasUsed` and `blobGasUsed` recomputed from raw data equal the header's; `ommersHash` and `requestsHash` equal the empty-list commitments when the block has no ommers or requests (otherwise: a warning, since they are not fetched). Tests: [`TestHardforkMatrix`](integration/blocks_test.go), [`TestBlobAndSetCodeTransactions`](integration/txtypes_test.go), the differential tests in [`block`](block/receipt_test.go).
 8. **Storage completeness.** The storage trie rebuilt from known slot values equals the proven `storageRoot`, and dropping one live slot breaks equality. Tests: [`TestStorageRootReconstruction`](integration/state_test.go), [`TestCLIEndToEnd`](integration/cli_test.go).
 9. **Claims never outrank proofs.** Storage proofs are verified against the storage root inside the *proven* account. Any `eth_getProof` claim that disagrees with the proofs is a failure. Tests: [`TestCheckGetProofInvalidProofs`](stateproof/stateproof_test.go), [`TestLyingNodeIsCaught`](integration/tamper_test.go).
-10. **Decoders never panic.** Arbitrary bytes into the JSON-RPC decoders return an error, never a crash. Test: [`FuzzDecodeRPC`](ethrpc/fuzz_test.go).
+10. **Answers are bound to the question.** A response about another account, or a block other than the requested `--block N`, fails even when every proof in it is valid. Tests: [`TestRequestedBlockAndAddressAreEnforced`](inspect/inspect_test.go), [`TestLyingNodeIsCaught`](integration/tamper_test.go).
+11. **Decoders never panic.** Arbitrary bytes into the JSON-RPC decoders return an error, never a crash. Quantities are strict: hex digits only, no sign, no leading zeros. Tests: [`FuzzDecodeRPC`](ethrpc/fuzz_test.go), [`TestQuantityAndData`](ethrpc/ethrpc_test.go).
 
 ## Security considerations
 
@@ -117,63 +118,89 @@ These came out of the integration suite. They are pinned by tests, so a change i
 - **Header layouts are explicit.** `Header.Encode` follows go-ethereum's canonical rule. `EncodeLayout(PresentOnly)` exists only to *explain* the anvil genesis anomaly: the tool never treats a present-only match as a pass.
 - **Immutable trie nodes with memoized encodings.** Insert and delete build new nodes along the path and share the rest, so cached encodings and hashes stay valid without invalidation logic. The cost is allocation per update, which is irrelevant at the sizes a verifier handles. The trie is in-memory only; there is no database layer.
 - **The verification core is free of go-ethereum; transport and test oracles are not.** Reusing go-ethereum's JSON-RPC client avoids reimplementing batching and HTTP/WebSocket handling, which is not the point of the project. Using go-ethereum as a *test-only* oracle gives an independent reference for every encoding.
-- **`--block` defaults to `latest`, then pins the number.** Every later call targets the block number of the first answer, and receipts must carry its hash, so a reorg between calls shows up as a failure instead of a mixed answer.
+- **`--block` defaults to `latest`, then pins the number.** Every later call targets the block number of the first answer, and receipts must carry its hash, so a reorg between calls shows up as a failure instead of a mixed answer. With `--block N`, the first answer must be block N: a genuine older block, whose state verifies perfectly, is still the wrong answer.
 - **The fixture targets the London EVM, not Osaka.** The same bytecode runs on every hardfork in the matrix: London is the oldest target solc 0.8.37 supports without a deprecation warning, and the fixture uses no London-only opcode, so it also runs on Berlin. This is a documented exception to the repository's `osaka` default ([fixtures/foundry.toml](fixtures/foundry.toml)).
+- **No gas snapshots or Slither for the fixture.** `fixtures/SlotWriter.sol` is test scaffolding that is never deployed and holds no value, so the gas-snapshot and Slither rules of the engineering standards (§4, §6) are deliberately not applied to it. `forge fmt --check`, `forge lint` and its 9 unit and fuzz tests run in CI.
 - **Golden tests use recorded sessions, not a live node.** They run offline and deterministically. A fixed genesis timestamp, fixed block timestamps and FIFO ordering make the recording reproducible, and `TestRecordedFixturesAreReproducible` re-records it and requires byte equality.
 
 ## Testing
 
+Every gate is a stage of [`script/check.sh`](script/check.sh), and the CI workflow runs the same stages, so a local run and CI cannot drift apart:
+
 ```bash
-cd fixtures && forge build && cd ..                                   # the fixture the integration tests deploy
-CGO_ENABLED=0 go vet ./...
-CGO_ENABLED=0 go test -count=1 ./...                                  # unit, vectors, differential, property, golden
-CGO_ENABLED=0 go test -count=1 -tags integration ./integration/...    # anvil, Berlin to Osaka
-CGO_ENABLED=0 go test ./rlp  -run '^$' -fuzz=FuzzRLPRoundTrip          -fuzztime=30s
-CGO_ENABLED=0 go test ./trie -run '^$' -fuzz=FuzzTrieOrderIndependence -fuzztime=30s
-COVERAGE_MIN=90 bash script/coverage.sh                                # merged coverage of the production packages
+bash script/check.sh             # fixture, hygiene, unit, integration, demo: everything CI gates except the three below
+bash script/check.sh fuzz        # the 5 fuzz targets, 30 s each (CI: FUZZTIME_GATE=60s for the two gate targets)
+bash script/check.sh coverage    # merged unit + integration statement coverage, at least 90 %
+bash script/check.sh race        # unit + integration under -race (needs cgo: CI only here)
 ```
+
+What each stage runs (from the project root; `script/check.sh` exports `CGO_ENABLED=0`):
+
+```bash
+(cd fixtures && export FOUNDRY_PROFILE=ci && forge fmt --check && forge build && forge lint && forge test)   # fixture
+go mod tidy -diff && go mod verify && test -z "$(gofmt -l .)"                                          # hygiene
+go vet ./... && go vet -tags integration ./...                                                          # hygiene
+git ls-files --others --ignored --exclude-standard -- '*.go'   # hygiene: must be empty (and bin/trie must be ignored)
+go test -count=1 -p 4 ./...                                     # unit: unit, vectors, differential, property, golden
+go test -count=1 -tags integration ./integration/...            # integration: anvil, Berlin to Osaka
+go run ./internal/tools/demo                                    # demo: the walkthrough below, end to end
+go test ./rlp  -run '^$' -fuzz='^FuzzRLPRoundTrip$'          -fuzztime=30s   # fuzz (plus FuzzVerifyProof,
+go test ./trie -run '^$' -fuzz='^FuzzTrieOrderIndependence$' -fuzztime=30s   #   FuzzHexPrefix, FuzzDecodeRPC)
+COVERAGE_MIN=90 bash script/coverage.sh                         # coverage
+```
+
+The test stages keep their full output in `*.log` files (`unit.log`, `integration.log`, `demo.log`, `fuzz-<target>.log`, `coverage.log`, `race*.log`) and print the per-package results, the test counts and, when a test fails, the output that explains it.
 
 | Suite | Where | Count | What it covers |
 |---|---|---|---|
-| Spec vectors | `rlp/`, `trie/` | 28 valid + 26 invalid RLP vectors; 25 trie vectors (5 files), each also proven key by key, the any-order ones in every permutation | ethereum/tests `RLPTests` and `TrieTests`, vendored (MIT) |
-| Unit and table tests | every package | 112 test functions, 259 subtests in total (including vectors, golden and fuzz seed corpora) | Boundaries, every error path, non-canonical encodings |
+| Spec vectors | `rlp/`, `trie/` | 28 valid + 26 invalid RLP vectors; 25 trie vectors (5 files), each also proven key by key, the any-order ones in every permutation | ethereum/tests `RLPTests` and `TrieTests` at tag v17.2, vendored unmodified (MIT); upstream paths and blob hashes in each `testdata/ethereum-tests/SOURCE.md`, checked by `internal/archtest` |
+| Unit and table tests | every package | 117 test functions, 264 subtests in total (including vectors, golden and fuzz seed corpora), plus 1 Unix-only test that sends a real SIGTERM | Boundaries, every error path, non-canonical encodings, answers bound to the requested block and address |
 | Differential (go-ethereum 1.17.6 as oracle) | `rlp/`, `trie/`, `block/`, `stateproof/` | 5,000 RLP trees; 48,000 mutated encodings; 200 random trie histories with every proof cross-verified; 1,700 headers; 100 transaction and 100 receipt lists; 500 accounts; 30 storage tries | Encodings, roots, proofs and hashes equal the reference |
 | Native fuzzing | `rlp/`, `trie/`, `ethrpc/` | 5 targets | Round trip and acceptance parity (RLP), order independence vs go-ethereum, proof soundness under mutation, hex-prefix bijection, JSON decoder robustness |
 | CLI golden tests | `internal/cli/` | 10 recorded cases + 6 tampered + 1 offline | Exact text and JSON output, exit codes, usage errors |
-| Integration (anvil) | `integration/` | 13 tests, 27 subtests, about 25 s | Hardfork matrix, 5 transaction types, storage reconstruction, account proofs, 14 lies, CLI binary end to end, fixture reproducibility |
+| Integration (anvil) | `integration/` | 13 tests, 29 subtests, about 20 to 40 s | Hardfork matrix, 5 transaction types, storage reconstruction, account proofs, 16 lies, CLI binary end to end, fixture reproducibility |
 | Fixture contract | `fixtures/test/` | 9 Foundry tests (incl. 1 fuzz, 1,000 runs and a fixed seed in the CI profile) | The formulas the Go tests mirror, every revert path |
 
-**Coverage:** 99.8 % of statements in the production packages (`keccak`, `rlp`, `trie`, `block`, `stateproof`, `ethrpc`, `inspect`, `internal/cli`), with the unit and integration suites merged by `script/coverage.sh`. The uncovered lines are defensive guards that the code's own invariants make unreachable: re-encoding a node the strict decoder accepted, an inline-node nesting limit that the 32-byte rule cannot reach, and a branch collapsing with no entries left. Test infrastructure and the three-line `main` are excluded from the denominator. CI enforces at least 90 %.
+**Coverage:** 99.8 % of statements in the production packages (`keccak`, `rlp`, `trie`, `block`, `stateproof`, `ethrpc`, `inspect`, `internal/cli`), with the unit and integration suites merged by `script/coverage.sh` (Go's cover tool counts statements, not lines). The three uncovered statements are defensive guards that the code's own invariants make unreachable: re-encoding a node the strict decoder accepted, an inline-node nesting limit that the 32-byte rule cannot reach, and a branch collapsing with no entries left. Test infrastructure and the three-line `main` are excluded from the denominator. CI enforces at least 90 %.
 
-**Fuzzing:** locally, the two spec targets ran for 30 s each (752,473 and 176,655 executions in the final run on this machine). CI runs them for 60 s each and the other three for 30 s. Go's fuzzer cannot fix a seed. The deterministic counterparts are the seed corpora and the seeded property tests (`math/rand/v2` PCG with fixed seeds), which run on every `go test`.
+**Fuzzing:** locally, the two gate targets (`FuzzRLPRoundTrip`, `FuzzTrieOrderIndependence`) ran for 30 s each, with 774,156 and 153,951 executions in the final run on a 16-core Windows 11 workstation (execution counts vary by run); the other three also ran for 30 s each. CI runs the two gate targets for 60 s each and the other three for 30 s. Go's fuzzer cannot fix a seed. The deterministic counterparts are the seed corpora and the seeded property tests (`math/rand/v2` PCG with fixed seeds), which run on every `go test`. Wherever a test shuffles keys taken from a map, it sorts them first, so the order is a pure function of the seed (or of the fuzz input) and a failure reproduces.
 
 **Race detector:** CI only (`go test -race` needs cgo; local builds are `CGO_ENABLED=0`).
 
 ## Getting started
 
-Prerequisites: Go 1.27, Foundry 1.8.3 (`forge`, `anvil`). Nothing else: no RPC endpoint, no API keys.
+Prerequisites: Go 1.27.1 or later (`go.mod` requires `go 1.27.1`), Foundry 1.8.3 (`forge`, `anvil`). Nothing else: no RPC endpoint, no API keys.
 
 ```bash
 cd projects/05-mpt-state-proofs-go
 (cd fixtures && forge build)
-go build -o bin/trie ./cmd/trie          # CGO_ENABLED=0 works
+go build -o bin/trie ./cmd/trie          # CGO_ENABLED=0 works; bin/ is gitignored
 
 # One-command demo: anvil on a free port, a 200-slot contract, three verifications.
 go run ./internal/tools/demo
 ```
 
-Against any node (pass `--rpc`, or set `ETH_RPC_URL`):
+Against any node (pass `--rpc`, or set `ETH_RPC_URL`), with the binary built above:
 
 ```text
-trie verify-block  [--rpc URL] [--json] [--strict] <block>
-trie verify-proof  [--rpc URL] --address A [--slot S]... [--block B] [--json] [--strict]
-trie storage-root  [--rpc URL] --address A --slots-file F [--block B] [--json]
-trie rlp <hex>
+bin/trie verify-block  [flags] <block>
+bin/trie verify-proof  [flags] --address A [--slot S]... [--block B]
+bin/trie storage-root  [flags] --address A --slots-file F [--block B]
+bin/trie rlp <hex>
+
+flags of the three node commands:
+  --rpc URL     JSON-RPC endpoint (default $ETH_RPC_URL, else http://127.0.0.1:8545)
+  --json        print the report as JSON
+  --strict      exit 1 on warnings too
+  --timeout D   give up after D (default 60s)
+  --verbose     log RPC progress to stderr
 
 exit status: 0 verified, 1 verification failed, 2 usage or connection error
 ```
 
-Output of `trie verify-proof` on the recorded chain ([golden file](internal/cli/testdata/golden/verify-proof-contract.golden)):
+`bin/trie help` prints the full usage. Ctrl-C or SIGTERM cancels a running command.
+
+Output of `bin/trie verify-proof` on the recorded chain ([golden file](internal/cli/testdata/golden/verify-proof-contract.golden)):
 
 ```text
 account 0x5fbdb2315678afecb367f032d93f642f64180aa3 at block 3 0xc4f194a810194135ef41afa75763204d0d6ba5628a1f4afff8734672e548ef3f
@@ -213,24 +240,24 @@ To re-record the golden sessions after an intentional change: `go run ./internal
 │   ├── devnet/    anvil launcher (free port, kill by PID) and the test scenario
 │   ├── rpcreplay/ JSON-RPC record / replay / rewrite proxy
 │   ├── tools/     recordfixtures (golden sessions), demo
-│   └── archtest/  layering rule: no go-ethereum in the core
+│   └── archtest/  layering rule (no go-ethereum in the core), vendored-vector provenance
 ├── integration/   anvil tests (build tag integration)
 ├── fixtures/      SlotWriter.sol (Foundry project) and its tests
-├── script/        coverage.sh
+├── script/        check.sh (every gate, shared with CI), coverage.sh
 └── docs/          THREAT_MODEL.md
 ```
 
 ## Scope notes and future work
 
-- **Implemented as specified**, including every feature in the brief. The CLI also has `storage-root` and `rlp`, beyond the two required commands.
+- **Implemented:** everything listed above. Beyond the two core commands (`verify-block`, `verify-proof`), the CLI also has `storage-root` and `rlp`.
 - **Not implemented:** fetching ommer headers and EIP-7685 requests, blob/KZG verification, consensus-layer finality (a sync-committee light client would supply the trusted block hash), and range proofs (`eth_getProof` has no range form).
-- **Possible extensions:** a persistent node store to inspect real state tries, `debug_storageRangeAt`-based discovery of a contract's slots (so `storage-root` needs no slot list), and an on-chain verifier for these proofs (project #23 in this repository verifies state proofs on-chain).
+- **Possible extensions:** a persistent node store to inspect real state tries, `debug_storageRangeAt`-based discovery of a contract's slots (so `storage-root` needs no slot list), and an on-chain verifier for these proofs ([project 23](../23-erc7683-intents-settlement/) in this repository verifies state proofs on-chain, in `src/libraries/MerklePatriciaExclusion.sol`).
 
 ## References
 
 - Ethereum Yellow Paper (Gavin Wood): Appendix B (RLP), Appendix C (hex-prefix encoding), Appendix D (Modified Merkle-Patricia Trie), section 4.3 (block header).
 - [ethereum.org: Merkle Patricia Trie](https://ethereum.org/en/developers/docs/data-structures-and-encoding/patricia-merkle-trie/) and [RLP](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
 - EIPs: [1186](https://eips.ethereum.org/EIPS/eip-1186) (`eth_getProof`), [2718](https://eips.ethereum.org/EIPS/eip-2718) (typed envelopes), [2930](https://eips.ethereum.org/EIPS/eip-2930), [1559](https://eips.ethereum.org/EIPS/eip-1559), [658](https://eips.ethereum.org/EIPS/eip-658) (receipt status), [4895](https://eips.ethereum.org/EIPS/eip-4895) (withdrawals), [4844](https://eips.ethereum.org/EIPS/eip-4844) (blobs), [4788](https://eips.ethereum.org/EIPS/eip-4788) (beacon root), [7685](https://eips.ethereum.org/EIPS/eip-7685) (requests), [7702](https://eips.ethereum.org/EIPS/eip-7702) (set code), [7594](https://eips.ethereum.org/EIPS/eip-7594) (PeerDAS cell proofs), [7928](https://eips.ethereum.org/EIPS/eip-7928) and [7843](https://eips.ethereum.org/EIPS/eip-7843) (Amsterdam header fields).
-- [ethereum/tests](https://github.com/ethereum/tests): `RLPTests` and `TrieTests` vectors, vendored under MIT (see `rlp/testdata` and `trie/testdata`).
+- [ethereum/tests](https://github.com/ethereum/tests) tag [v17.2](https://github.com/ethereum/tests/tree/v17.2) (commit `c67e485ff8b5be9abc8ad15345ec21aa22e290d9`): `RLPTests` and `TrieTests` vectors, vendored unmodified under MIT (see `SOURCE.md` in `rlp/testdata/ethereum-tests` and `trie/testdata/ethereum-tests`).
 - [go-ethereum](https://github.com/ethereum/go-ethereum) 1.17.6: the differential oracle (`rlp`, `trie`, `core/types`) and the JSON-RPC client. Its `trie` package and `rlp` decoder are the reference implementations this project checks itself against.
 - [Foundry](https://github.com/foundry-rs/foundry) (anvil) and [alloy](https://github.com/alloy-rs/alloy), whose header encoding explains the present-only layout seen in anvil's genesis blocks.

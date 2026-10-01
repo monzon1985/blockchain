@@ -27,7 +27,9 @@ var ErrInvalidTx = errors.New("block: invalid transaction envelope")
 
 // TxType returns the EIP-2718 type of a raw transaction (its canonical, hash-committed
 // encoding): 0 for a legacy transaction, which is an RLP list, and the leading type byte
-// (0x00..0x7f) for a typed one, whose payload must be a single RLP list.
+// (0x01..0x7f) for a typed one, whose payload must be a single RLP list. Type 0 is never an
+// envelope: 0x00 || payload is rejected, as go-ethereum rejects it, because the legacy
+// transaction already has a canonical encoding and a second one would change its hash.
 func TxType(raw []byte) (uint8, error) {
 	if len(raw) == 0 {
 		return 0, fmt.Errorf("%w: empty", ErrInvalidTx)
@@ -35,6 +37,8 @@ func TxType(raw []byte) (uint8, error) {
 	payload, typ := raw, uint8(LegacyTxType)
 	switch {
 	case raw[0] >= 0xc0:
+	case raw[0] == LegacyTxType:
+		return 0, fmt.Errorf("%w: type 0x00 is the legacy transaction, which has no envelope", ErrInvalidTx)
 	case raw[0] <= 0x7f:
 		payload, typ = raw[1:], raw[0]
 	default:

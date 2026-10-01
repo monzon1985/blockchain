@@ -8,13 +8,12 @@ package main
 import (
 	"context"
 	"os"
-	"os/signal"
 
 	"github.com/monzon1985/blockchain/projects/05-mpt-state-proofs-go/internal/cli"
 )
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := cli.SignalContext(context.Background()) // Ctrl-C and SIGTERM
 	code := cli.Run(ctx, os.Args[1:], os.Stdout, os.Stderr)
 	stop()
 	os.Exit(code)

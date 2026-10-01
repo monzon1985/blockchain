@@ -5,7 +5,9 @@ package trie
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"math/rand/v2"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -294,12 +296,7 @@ func TestRandomOrderIndependence(t *testing.T) {
 		require.Equal(t, len(model), tr.Len(), "round %d", round)
 		for range 3 {
 			other := New()
-			keys := make([]string, 0, len(model))
-			for k := range model {
-				keys = append(keys, k)
-			}
-			rng.Shuffle(len(keys), func(i, j int) { keys[i], keys[j] = keys[j], keys[i] })
-			for _, k := range keys {
+			for _, k := range shuffledKeys(rng, model) {
 				other.Put([]byte(k), model[k])
 			}
 			require.Equal(t, tr.Hash(), other.Hash(), "round %d", round)
@@ -310,6 +307,32 @@ func TestRandomOrderIndependence(t *testing.T) {
 			require.Equal(t, v, got)
 		}
 	}
+}
+
+// shuffledKeys returns the keys of model in an order that is a pure function of rng's state.
+// The keys are sorted before the shuffle because Go randomizes map iteration order on every
+// run: shuffling them in iteration order would make the insertion order, and so any failure
+// that depends on it, impossible to reproduce from the seed (or from a fuzz input).
+func shuffledKeys(rng *rand.Rand, model map[string][]byte) []string {
+	keys := slices.Sorted(maps.Keys(model))
+	rng.Shuffle(len(keys), func(i, j int) { keys[i], keys[j] = keys[j], keys[i] })
+	return keys
+}
+
+// TestShuffledKeysIsReproducible is the regression test for the order-independence property
+// tests: the same seed must give the same insertion order every time, whatever order the map
+// iterates in.
+func TestShuffledKeysIsReproducible(t *testing.T) {
+	model := map[string][]byte{}
+	for i := range 64 {
+		model[fmt.Sprintf("key-%02d", i)] = []byte{byte(i)}
+	}
+	want := shuffledKeys(rand.New(rand.NewPCG(7, 2026)), model)
+	require.ElementsMatch(t, slices.Collect(maps.Keys(model)), want)
+	for range 50 {
+		require.Equal(t, want, shuffledKeys(rand.New(rand.NewPCG(7, 2026)), model))
+	}
+	require.NotEqual(t, want, shuffledKeys(rand.New(rand.NewPCG(8, 2026)), model), "the seed drives the order")
 }
 
 // randomKey draws from a small alphabet with short lengths, so keys often share prefixes and

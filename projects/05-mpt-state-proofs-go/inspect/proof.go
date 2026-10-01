@@ -57,7 +57,8 @@ func describePath(steps []trie.Step) string {
 	return strings.Join(parts, " > ")
 }
 
-// VerifyProof anchors a state proof to a verified block: it checks the block hash, then
+// VerifyProof anchors a state proof to a verified block: it checks that the node returned the
+// requested block and its hash, that the response is for the requested address and slots, then
 // verifies eth_getProof's account proof against the header's stateRoot and every storage proof
 // against the proven account's storage root, and compares the node's claims with the proofs.
 func VerifyProof(ctx context.Context, src Source, addr keccak.Address, slots []keccak.Hash, ref ethrpc.BlockRef) (*ProofReport, error) {
@@ -67,15 +68,14 @@ func VerifyProof(ctx context.Context, src Source, addr keccak.Address, slots []k
 	}
 	rep := &ProofReport{Block: b.Header.Number, BlockHash: b.Hash, StateRoot: b.Header.StateRoot, Address: addr.Hex(), Slots: []SlotView{}}
 	c := &rep.Checks
+	checkBlockNumber(c, ref, b.Header.Number)
 	checkHeader(c, b)
 
 	res, err := src.GetProof(ctx, addr, slots, ethrpc.Number(b.Header.Number))
 	if err != nil {
 		return nil, err
 	}
-	if res.Address != addr {
-		c.add("address", Fail, fmt.Sprintf("asked for %s, the response is for %s", addr, res.Address))
-	}
+	checkAddress(c, addr, res.Address)
 	if len(res.StorageProof) != len(slots) {
 		c.add("storage proofs", Fail, fmt.Sprintf("asked for %s, got %s", plural(len(slots), "slot"), plural(len(res.StorageProof), "proof")))
 	} else {

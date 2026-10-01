@@ -30,8 +30,10 @@ type BlockReport struct {
 var emptyRequestsHash = keccak.Hash(sha256.Sum256(nil))
 
 // VerifyBlock fetches block ref and recomputes its hash, transactionsRoot, receiptsRoot,
-// logs bloom, gas used, withdrawalsRoot, blob gas and ommers hash from raw data. Transport
-// errors are returned as errors; inconsistent data becomes failed checks in the report.
+// logs bloom, gas used, withdrawalsRoot and blob gas from raw data. ommersHash and
+// requestsHash are compared with the empty-list commitments (ommers and EIP-7685 requests are
+// not fetched; other values are warnings). Transport errors are returned as errors;
+// inconsistent data becomes failed checks in the report.
 func VerifyBlock(ctx context.Context, src Source, ref ethrpc.BlockRef) (*BlockReport, error) {
 	b, err := src.BlockByRef(ctx, ref)
 	if err != nil {
@@ -41,9 +43,7 @@ func VerifyBlock(ctx context.Context, src Source, ref ethrpc.BlockRef) (*BlockRe
 	rep := &BlockReport{Number: h.Number, Hash: b.Hash, Era: h.Era().String(), Transactions: len(b.TxHashes), TxTypes: map[string]int{}}
 	c := &rep.Checks
 
-	if want, ok := ref.Num(); ok && want != h.Number {
-		c.add("block number", Fail, fmt.Sprintf("asked for block %d, the node returned block %d", want, h.Number))
-	}
+	checkBlockNumber(c, ref, h.Number)
 	checkHeader(c, b)
 	pinned := ethrpc.Number(h.Number) // every later call targets this exact block
 
@@ -67,6 +67,25 @@ func VerifyBlock(ctx context.Context, src Source, ref ethrpc.BlockRef) (*BlockRe
 		c.add("ommersHash", Warn, fmt.Sprintf("%s not fetched; ommersHash not recomputed", plural(len(b.Uncles), "ommer")))
 	}
 	return rep, nil
+}
+
+// checkBlockNumber fails when the user asked for a block number and the node returned a
+// different block. Without it, a node could answer `--block N` with an older, internally
+// consistent block and its state, and the verdict would cover the wrong block. A tag such as
+// latest has no number to compare.
+func checkBlockNumber(c *Checks, ref ethrpc.BlockRef, got uint64) {
+	if want, ok := ref.Num(); ok && want != got {
+		c.add("block number", Fail, fmt.Sprintf("asked for block %d, the node returned block %d", want, got))
+	}
+}
+
+// checkAddress fails when an eth_getProof response is for another account than the one asked
+// for. CheckGetProof proves the response about the address it names, so without this check a
+// node could answer with a valid proof of a different account.
+func checkAddress(c *Checks, want, got keccak.Address) {
+	if got != want {
+		c.add("address", Fail, fmt.Sprintf("asked for %s, the response is for %s", want, got))
+	}
 }
 
 // checkHeader verifies the block hash and the header's field set.

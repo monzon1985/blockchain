@@ -28,7 +28,8 @@ type StorageReport struct {
 // trie from them, and compares its root with the storage root proven (via eth_getProof) under
 // the verified block's stateRoot. Equal roots prove that the non-zero slots in the list are
 // exactly the contract's storage, with exactly these values: a missing slot or a wrong value
-// changes the root.
+// changes the root. The block must be the requested one and the proof must be for addr, or
+// the report fails.
 func RebuildStorage(ctx context.Context, src Source, addr keccak.Address, slots []keccak.Hash, ref ethrpc.BlockRef) (*StorageReport, error) {
 	b, err := src.BlockByRef(ctx, ref)
 	if err != nil {
@@ -37,12 +38,14 @@ func RebuildStorage(ctx context.Context, src Source, addr keccak.Address, slots 
 	pinned := ethrpc.Number(b.Header.Number)
 	rep := &StorageReport{Block: b.Header.Number, BlockHash: b.Hash, Address: addr.Hex(), Slots: len(slots)}
 	c := &rep.Checks
+	checkBlockNumber(c, ref, b.Header.Number)
 	checkHeader(c, b)
 
 	res, err := src.GetProof(ctx, addr, nil, pinned)
 	if err != nil {
 		return nil, err
 	}
+	checkAddress(c, addr, res.Address)
 	out, err := stateproof.CheckGetProof(b.Header.StateRoot, res)
 	switch {
 	case err != nil:

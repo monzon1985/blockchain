@@ -50,8 +50,8 @@ func only(method string, f rpcreplay.Rewrite) rpcreplay.Rewrite {
 	}
 }
 
-// TestLyingNodeIsCaught runs the verifiers through a proxy that corrupts one thing at a time.
-// Every corruption must turn into a failed check (never a pass, never a crash).
+// TestLyingNodeIsCaught runs the verifiers through a proxy that tells one lie at a time (16
+// in all). Every lie must turn into a failed check (never a pass, never a crash).
 func TestLyingNodeIsCaught(t *testing.T) {
 	n, sc := scenario(t, "prague")
 	ctx := testContext(t)
@@ -188,6 +188,11 @@ func TestLyingNodeIsCaught(t *testing.T) {
 		})
 	}
 
+	allSlots := make([]keccak.Hash, 0, devnet.ScenarioWrites)
+	for i := range uint64(devnet.ScenarioWrites) {
+		allSlots = append(allSlots, devnet.Slot(devnet.ScenarioSeed, i))
+	}
+
 	t.Run("one storage value altered", func(t *testing.T) {
 		target := fmt.Sprintf("%q", slot60.Hex())
 		c := dial(t, lyingNode(t, n, only("eth_getStorageAt", func(_ string, params, r json.RawMessage) json.RawMessage {
@@ -196,13 +201,75 @@ func TestLyingNodeIsCaught(t *testing.T) {
 			}
 			return edit(t, r, func(v any) any { return flipHex(v.(string)) })
 		})))
-		slots := make([]keccak.Hash, 0, devnet.ScenarioWrites)
-		for i := range uint64(devnet.ScenarioWrites) {
-			slots = append(slots, devnet.Slot(devnet.ScenarioSeed, i))
-		}
-		rep, err := inspect.RebuildStorage(ctx, c, sc.SlotWriter, slots, ethrpc.Number(3))
+		rep, err := inspect.RebuildStorage(ctx, c, sc.SlotWriter, allSlots, ethrpc.Number(3))
 		require.NoError(t, err)
 		require.Equal(t, inspect.Fail, statuses(rep.Checks)["storage root"])
+	})
+
+	// The node answers about another account: anvil's own, valid proof of the recipient EOA
+	// (empty storage) and zero for every slot. Every proof and the rebuilt storage root check
+	// out; only the address in the response gives the lie away.
+	recipientProof := func(slots ...string) json.RawMessage {
+		var out json.RawMessage
+		require.NoError(t, n.Call(ctx, &out, "eth_getProof", sc.Recipient.Hex(), append([]string{}, slots...), "0x3"))
+		return out
+	}
+	proofNoSlots, proofSlot60 := recipientProof(), recipientProof(slot60.Hex())
+	anotherAccount := func(m string, params, r json.RawMessage) json.RawMessage {
+		switch {
+		case m == "eth_getProof" && strings.Contains(string(params), slot60.Hex()):
+			return proofSlot60
+		case m == "eth_getProof":
+			return proofNoSlots
+		case m == "eth_getStorageAt":
+			return json.RawMessage(`"0x` + strings.Repeat("00", 32) + `"`)
+		}
+		return r
+	}
+	t.Run("proof and storage of another account", func(t *testing.T) {
+		c := dial(t, lyingNode(t, n, anotherAccount))
+		rep, err := inspect.RebuildStorage(ctx, c, sc.SlotWriter, allSlots, ethrpc.Number(3))
+		require.NoError(t, err)
+		require.Equal(t, inspect.Fail, statuses(rep.Checks)["address"], rep.Checks.Verdict())
+		// Everything else passes, the storage root included (empty storage, zero values).
+		requireAllPass(t, rep.Checks, "address")
+		require.False(t, rep.Checks.OK(false))
+
+		prep, err := inspect.VerifyProof(ctx, c, sc.SlotWriter, []keccak.Hash{slot60}, ethrpc.Number(3))
+		require.NoError(t, err)
+		require.Equal(t, inspect.Fail, statuses(prep.Checks)["address"], prep.Checks.Verdict())
+		requireAllPass(t, prep.Checks, "address")
+		require.False(t, prep.Checks.OK(false))
+	})
+
+	// The node answers `--block 3` with block 2: a genuine block, so its hash, proofs and
+	// storage all verify. Only the block number gives the lie away.
+	var block2 json.RawMessage
+	require.NoError(t, n.Call(ctx, &block2, "eth_getBlockByNumber", "0x2", false))
+	olderBlock := only("eth_getBlockByNumber", func(_ string, params, r json.RawMessage) json.RawMessage {
+		if strings.Contains(string(params), `"0x3"`) {
+			return block2
+		}
+		return r
+	})
+	t.Run("an older block served for the requested one", func(t *testing.T) {
+		c := dial(t, lyingNode(t, n, olderBlock))
+		// Block 2 is genuine and its state consistent: every other check passes.
+		prep, err := inspect.VerifyProof(ctx, c, sc.SlotWriter, []keccak.Hash{slot60}, ethrpc.Number(3))
+		require.NoError(t, err)
+		require.Equal(t, inspect.Fail, statuses(prep.Checks)["block number"], prep.Checks.Verdict())
+		requireAllPass(t, prep.Checks, "block number")
+		require.Equal(t, uint64(2), prep.Block)
+
+		rep, err := inspect.RebuildStorage(ctx, c, sc.SlotWriter, allSlots, ethrpc.Number(3))
+		require.NoError(t, err)
+		require.Equal(t, inspect.Fail, statuses(rep.Checks)["block number"], rep.Checks.Verdict())
+		requireAllPass(t, rep.Checks, "block number")
+
+		brep, err := inspect.VerifyBlock(ctx, c, ethrpc.Number(3))
+		require.NoError(t, err)
+		require.Equal(t, inspect.Fail, statuses(brep.Checks)["block number"], brep.Checks.Verdict())
+		requireAllPass(t, brep.Checks, "block number")
 	})
 
 	// Sanity: the honest node passes the same checks.

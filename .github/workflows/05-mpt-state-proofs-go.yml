@@ -2,6 +2,7 @@ name: "5 · Trie Inspector: RLP, MPT and state proofs (Go)"
 
 on:
   push:
+    branches: [main]
     paths:
       - "projects/05-mpt-state-proofs-go/**"
       - ".github/workflows/05-mpt-state-proofs-go.yml"
@@ -14,10 +15,12 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request supersedes the running checks; runs on main always finish.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+# Every gate is a stage of script/check.sh, the same script the README runs locally.
 defaults:
   run:
     working-directory: projects/05-mpt-state-proofs-go
@@ -34,37 +37,26 @@ jobs:
     name: Fixture contract (Foundry)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: projects/05-mpt-state-proofs-go/fixtures
-        shell: bash
-    env:
-      FOUNDRY_PROFILE: ci
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
           version: ${{ env.FOUNDRY_VERSION }}
 
-      - name: Format
-        run: forge fmt --check
-
-      - name: Build
-        run: forge build
-
-      - name: Lint
-        run: forge lint
-
-      - name: Test (unit and fuzz; fixed seed in the ci profile)
-        run: forge test -vv
+      - name: forge fmt --check, build, lint, test (ci profile, fixed fuzz seed)
+        run: bash script/check.sh fixture
 
   gates:
-    name: Go gates (vet, unit + golden, integration on anvil)
+    name: Go gates (hygiene, vet, unit + golden, integration on anvil, demo)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
@@ -75,31 +67,17 @@ jobs:
           go-version-file: projects/05-mpt-state-proofs-go/go.mod
           cache-dependency-path: projects/05-mpt-state-proofs-go/go.sum
 
-      - name: Build the fixture contract
-        working-directory: projects/05-mpt-state-proofs-go/fixtures
-        run: forge build
-
-      - name: Module hygiene (go.mod and go.sum tidy, module cache verified)
-        run: |
-          go mod tidy -diff
-          go mod verify
-
-      - name: gofmt
-        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
-
-      - name: go vet (both build tags)
-        run: |
-          go vet ./...
-          go vet -tags integration ./...
+      - name: Hygiene (go mod tidy -diff, go mod verify, gofmt, go vet with both tags, ignore rules)
+        run: bash script/check.sh hygiene
 
       - name: Unit, vector, differential, property and CLI golden tests
-        run: go test -count=1 -p 4 -v ./... 2>&1 | tee unit.log | grep -E "^(ok|FAIL|---)|^panic" | grep -vE "^\s+--- PASS"
+        run: bash script/check.sh unit
 
       - name: Integration tests (anvil, every hardfork from Berlin to Osaka)
-        run: go test -count=1 -tags integration -v ./integration/... 2>&1 | tee integration.log | grep -E "^(ok|FAIL|--- )|^\s+--- (PASS|FAIL)|^panic"
+        run: bash script/check.sh integration
 
       - name: Local demo (end-to-end smoke test of the README walkthrough)
-        run: go run ./internal/tools/demo 2>&1 | tee demo.log
+        run: bash script/check.sh demo
 
       - name: Keep the logs
         if: always()
@@ -116,6 +94,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
@@ -126,12 +106,8 @@ jobs:
           go-version-file: projects/05-mpt-state-proofs-go/go.mod
           cache-dependency-path: projects/05-mpt-state-proofs-go/go.sum
 
-      - name: Build the fixture contract
-        working-directory: projects/05-mpt-state-proofs-go/fixtures
-        run: forge build
-
-      - name: Merged coverage of the production packages
-        run: COVERAGE_MIN=90 bash script/coverage.sh 2>&1 | tee coverage.log
+      - name: Merged statement coverage of the production packages
+        run: COVERAGE_MIN=90 bash script/check.sh coverage
 
       - name: Keep the merged profile
         if: always()
@@ -152,6 +128,8 @@ jobs:
       CGO_ENABLED: "1"
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
@@ -162,15 +140,8 @@ jobs:
           go-version-file: projects/05-mpt-state-proofs-go/go.mod
           cache-dependency-path: projects/05-mpt-state-proofs-go/go.sum
 
-      - name: Build the fixture contract
-        working-directory: projects/05-mpt-state-proofs-go/fixtures
-        run: forge build
-
-      - name: Unit tests under the race detector
-        run: go test -race -count=1 ./... 2>&1 | tee race.log | grep -E "^(ok|FAIL|---)|DATA RACE"
-
-      - name: Integration tests under the race detector
-        run: go test -race -count=1 -tags integration ./integration/... 2>&1 | tee race-integration.log | grep -E "^(ok|FAIL|---)|DATA RACE"
+      - name: Unit and integration tests under the race detector
+        run: bash script/check.sh race
 
       - name: Keep the logs
         if: always()
@@ -187,22 +158,16 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: projects/05-mpt-state-proofs-go/go.mod
           cache-dependency-path: projects/05-mpt-state-proofs-go/go.sum
 
-      - name: Fuzz RLP round trip and trie order independence (60 s each, differential against go-ethereum)
-        run: |
-          go test ./rlp -run '^$' -fuzz='^FuzzRLPRoundTrip$' -fuzztime=60s 2>&1 | tee fuzz-rlp.log
-          go test ./trie -run '^$' -fuzz='^FuzzTrieOrderIndependence$' -fuzztime=60s 2>&1 | tee fuzz-trie.log
-
-      - name: Fuzz proof verification, hex-prefix and JSON-RPC decoding (30 s each)
-        run: |
-          go test ./trie -run '^$' -fuzz='^FuzzVerifyProof$' -fuzztime=30s 2>&1 | tee fuzz-proof.log
-          go test ./trie -run '^$' -fuzz='^FuzzHexPrefix$' -fuzztime=30s 2>&1 | tee fuzz-hp.log
-          go test ./ethrpc -run '^$' -fuzz='^FuzzDecodeRPC$' -fuzztime=30s 2>&1 | tee fuzz-rpc.log
+      - name: RLP round trip and trie order independence 60 s each (differential vs go-ethereum); proofs, hex-prefix, JSON-RPC 30 s each
+        run: FUZZTIME_GATE=60s FUZZTIME_OTHER=30s bash script/check.sh fuzz
 
       - name: Keep the logs
         if: always()

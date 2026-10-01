@@ -68,6 +68,15 @@ func TestQuantityAndData(t *testing.T) {
 		{"0x01", "", false}, // leading zero
 		{"0x" + strings.Repeat("f", 65), "", false},
 		{"0xg", "", false},
+		// Signs: big.Int.SetString accepts them, the JSON-RPC quantity grammar does not.
+		{"0x+1", "", false},
+		{"0x-1", "", false},
+		{"0x-0", "", false},
+		{"0x+ff", "", false},
+		{"0x+01", "", false}, // a sign must not hide a leading zero
+		{"0x+0ff", "", false},
+		{"0x 1", "", false},
+		{"0x1_0", "", false},
 	} {
 		v, err := parseQuantity(tc.in)
 		if !tc.ok {
@@ -108,7 +117,7 @@ func TestSlots(t *testing.T) {
 	got, err := parseSlot("0x0")
 	require.NoError(t, err)
 	require.Equal(t, keccak.Hash{}, got)
-	for _, bad := range []string{"-1", "x", "0x", "0xzz", "0x" + strings.Repeat("1", 65), "115792089237316195423570985008687907853269984665640564039457584007913129639936"} {
+	for _, bad := range []string{"-1", "+5", "-0", "+0", " 1", "1_000", "", "x", "0x", "0xzz", "0x+1", "0x-1", "0x" + strings.Repeat("1", 65), "115792089237316195423570985008687907853269984665640564039457584007913129639936"} {
 		_, err := ParseSlot(bad)
 		require.Error(t, err, bad)
 	}
@@ -276,6 +285,9 @@ func TestDecodeProof(t *testing.T) {
 		"entry not object": func(m map[string]any) { m["storageProof"] = []any{"x"} },
 		"missing balance":  func(m map[string]any) { delete(m, "balance") },
 		"node not string":  func(m map[string]any) { m["accountProof"] = []any{1} },
+		"negative balance": func(m map[string]any) { m["balance"] = "0x-5" },
+		"signed nonce":     func(m map[string]any) { m["nonce"] = "0x+1" },
+		"negative value":   func(m map[string]any) { m["storageProof"].([]any)[0].(map[string]any)["value"] = "0x-1" },
 	} {
 		_, err := DecodeProof(patch(t, raw, f))
 		require.Error(t, err, name)

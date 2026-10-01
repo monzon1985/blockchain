@@ -5,7 +5,9 @@ package trie
 import (
 	"bytes"
 	"errors"
+	"maps"
 	"math/rand/v2"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,8 +29,8 @@ func sampleTrie() (*Trie, map[string][]byte) {
 		"\x01":  bytes.Repeat([]byte{0xee}, 33),
 	}
 	tr := New()
-	for k, v := range entries {
-		tr.Put([]byte(k), v)
+	for _, k := range slices.Sorted(maps.Keys(entries)) { // a fixed insertion order
+		tr.Put([]byte(k), entries[k])
 	}
 	return tr, entries
 }
@@ -102,7 +104,9 @@ func TestProofTamperingIsDetected(t *testing.T) {
 	tr, entries := sampleTrie()
 	root := tr.Hash()
 	rng := rand.New(rand.NewPCG(3, 2026))
-	for k := range entries {
+	// Sorted keys: the mutations drawn from rng then depend on the seed only, not on the
+	// (randomized) map iteration order.
+	for _, k := range slices.Sorted(maps.Keys(entries)) {
 		proof := tr.Prove([]byte(k))
 		for i := range proof {
 			for range 20 {

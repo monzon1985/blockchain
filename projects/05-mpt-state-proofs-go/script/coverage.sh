@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 #
-# Line coverage of the production packages, merged across the unit and integration suites.
+# Statement coverage (what Go's cover tool measures) of the production packages, merged across
+# the unit and integration suites. `bash script/check.sh coverage` runs it with COVERAGE_MIN=90.
 #
 #   bash script/coverage.sh            # run both suites and print the per-package summary
 #   COVERAGE_MIN=90 bash script/coverage.sh   # also fail below 90 %

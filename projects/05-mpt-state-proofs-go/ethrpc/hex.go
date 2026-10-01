@@ -43,23 +43,40 @@ func parseData(s string) ([]byte, error) {
 	return b, nil
 }
 
+// onlyDigits reports whether every byte of s is a digit in base 10 or 16. big.Int.SetString
+// alone is not enough: it also accepts a leading sign ("+ff", "-1"), which would let negative
+// values and a hidden leading zero ("+0ff") through.
+func onlyDigits(s string, base int) bool {
+	for i := range len(s) {
+		c := s[i]
+		ok := '0' <= c && c <= '9'
+		if base == 16 {
+			ok = ok || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F'
+		}
+		if !ok {
+			return false
+		}
+	}
+	return true
+}
+
 // parseQuantity decodes a quantity: "0x" followed by hex digits without leading zeros
-// ("0x0" for zero), as the JSON-RPC specification requires.
+// ("0x0" for zero) and without a sign, as the JSON-RPC specification requires.
 func parseQuantity(s string) (*big.Int, error) {
 	if !strings.HasPrefix(s, "0x") || len(s) == 2 {
 		return nil, fmt.Errorf("%w: quantity %q", ErrBadHex, s)
 	}
 	digits := s[2:]
+	if !onlyDigits(digits, 16) {
+		return nil, fmt.Errorf("%w: quantity %q has a character that is not a hex digit", ErrBadHex, s)
+	}
 	if len(digits) > 1 && digits[0] == '0' {
 		return nil, fmt.Errorf("%w: quantity %q has leading zeros", ErrBadHex, s)
 	}
 	if len(digits) > 64 {
 		return nil, fmt.Errorf("%w: quantity %q exceeds 256 bits", ErrBadHex, s)
 	}
-	v, ok := new(big.Int).SetString(digits, 16)
-	if !ok {
-		return nil, fmt.Errorf("%w: quantity %q", ErrBadHex, s)
-	}
+	v, _ := new(big.Int).SetString(digits, 16) // cannot fail: 1 to 64 hex digits, checked above
 	return v, nil
 }
 
@@ -118,14 +135,14 @@ func parseSlot(s string) (keccak.Hash, error) {
 	return keccak.Hash(b), nil
 }
 
-// ParseSlot parses a user-supplied storage slot: decimal, or 0x-prefixed hex of up to 32
-// bytes, left-padded to a 32-byte word.
+// ParseSlot parses a user-supplied storage slot: unsigned decimal, or 0x-prefixed hex of up
+// to 32 bytes, left-padded to a 32-byte word.
 func ParseSlot(s string) (keccak.Hash, error) {
 	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
 		return parseSlot("0x" + s[2:])
 	}
 	v, ok := new(big.Int).SetString(s, 10)
-	if !ok || v.Sign() < 0 || v.BitLen() > 256 {
+	if !ok || !onlyDigits(s, 10) || v.BitLen() > 256 {
 		return keccak.Hash{}, fmt.Errorf("ethrpc: slot %q is neither a decimal nor a 0x-prefixed number below 2^256", s)
 	}
 	var h keccak.Hash

@@ -14,7 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Vectors vendored from ethereum/tests (RLPTests), MIT-licensed; see testdata/ethereum-tests.
+// Vectors vendored unmodified from ethereum/tests v17.2 (RLPTests), MIT-licensed. The upstream
+// commit, paths and git blob hashes are in testdata/ethereum-tests/SOURCE.md, and
+// internal/archtest checks the files against those hashes.
 
 func loadVectors(t *testing.T, name string) map[string]struct {
 	In  json.RawMessage `json:"in"`
