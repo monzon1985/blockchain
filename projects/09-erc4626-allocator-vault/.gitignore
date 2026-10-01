@@ -1,0 +1,12 @@
+# crytic-compile / Slither / Medusa build artifacts and caches.
+crytic-export/
+.medusa-artifact-hash
+medusa-corpus/
+slither_results.json
+# Coverage output.
+lcov.info
+coverage/
+# forge script output of the local demo (the root pattern only matches a top-level broadcast/).
+broadcast/
+# Attack PoC report written by the CI step (and by the same command run locally).
+attacks.txt

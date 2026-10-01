@@ -1,0 +1,59 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["dependencies"]
+solc_version = "0.8.37"
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 1_000
+via_ir = false
+bytecode_hash = "none"
+cbor_metadata = false
+auto_detect_remappings = false
+ignored_warnings_from = ["dependencies"]
+remappings = [
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.7.0/",
+    "solady/=dependencies/solady-0.1.26/src/",
+    "erc4626-tests/=dependencies/erc4626-tests-1.0.0/",
+]
+
+[profile.default.fuzz]
+runs = 256
+max_test_rejects = 262144
+
+[profile.default.invariant]
+runs = 64
+depth = 128
+fail_on_revert = true
+
+# CI: fixed seed shared by fuzz and invariant campaigns (reproducible), deeper campaigns.
+[profile.ci.fuzz]
+runs = 1024
+seed = "0x09"
+max_test_rejects = 262144
+
+[profile.ci.invariant]
+runs = 128
+depth = 128
+fail_on_revert = true
+
+[soldeer]
+remappings_generate = false
+remappings_regenerate = false
+recursive_deps = false
+
+[dependencies]
+forge-std = "1.16.2"
+"@openzeppelin-contracts" = "5.7.0"
+solady = "0.1.26"
+erc4626-tests = { version = "1.0.0", git = "https://github.com/a16z/erc4626-tests.git", rev = "ac485460e014f22807c1ff687e0b4dc3af96ee40" }
+
+[lint]
+lint_on_build = false
+# Production code only; tests, mocks and scripts are not linted. Every excluded rule and every inline
+# `forge-lint: disable-next-line` is justified in docs/STATIC_ANALYSIS.md.
+ignore = ["test/**/*.sol", "script/**/*.sol"]
+exclude_lints = ["reentrancy-events", "calls-loop", "require-revert-in-loop", "block-timestamp"]

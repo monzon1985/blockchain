@@ -1,0 +1,232 @@
+name: "9 · ERC-4626 Allocator Vault"
+
+on:
+  push:
+    paths:
+      - "projects/09-erc4626-allocator-vault/**"
+      - ".github/workflows/09-erc4626-allocator-vault.yml"
+  pull_request:
+    paths:
+      - "projects/09-erc4626-allocator-vault/**"
+      - ".github/workflows/09-erc4626-allocator-vault.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: projects/09-erc4626-allocator-vault
+    shell: bash
+
+env:
+  FOUNDRY_VERSION: v1.8.3
+  UV_VERSION: "0.12.20"
+  MEDUSA_VERSION: v1.5.1
+  SLITHER_VERSION: "0.11.6"
+  CRYTIC_COMPILE_VERSION: "0.4.2"
+  # Every fuzzing run in CI uses the same seed as the CI profile, so a failure reproduces locally.
+  FUZZ_SEED: "0x09"
+
+jobs:
+  foundry:
+    name: Format, build, lint, test, gas, coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@v4
+        with:
+          path: |
+            projects/09-erc4626-allocator-vault/dependencies
+            ~/.svm
+          key: soldeer-09-${{ hashFiles('projects/09-erc4626-allocator-vault/soldeer.lock', 'projects/09-erc4626-allocator-vault/foundry.toml') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Format
+        run: forge fmt --check
+
+      - name: Build
+        run: forge build
+
+      - name: Contract sizes (production code, EIP-170 and EIP-3860)
+        run: forge build --sizes src
+
+      - name: Lint (production code, warnings are errors; triage in docs/STATIC_ANALYSIS.md)
+        run: forge lint --deny warnings
+
+      - name: Test (CI profile, fixed seed, deeper fuzz and invariant campaigns)
+        env:
+          FOUNDRY_PROFILE: ci
+        run: forge test
+
+      - name: Gas snapshot
+        run: forge snapshot --check --match-contract GasBench
+
+      - name: Coverage (src/, fail below 90 % lines; same fixed seed)
+        run: |
+          forge coverage --fuzz-seed "${FUZZ_SEED}" --report summary --report lcov \
+            --no-match-coverage "(test|script|dependencies)"
+          awk -F: '/^LF:/{found+=$2} /^LH:/{hit+=$2} END {
+            pct = 100 * hit / found; printf "Line coverage of src/: %.2f%% (%d/%d)\n", pct, hit, found;
+            if (pct < 90) exit 1 }' lcov.info
+
+      - name: Attack PoC report (same fixed seed)
+        run: |
+          forge test --match-path "test/attacks/*" --fuzz-seed "${FUZZ_SEED}" -vv | tee attacks.txt
+          {
+            echo "### Attack PoCs: naive variant vs AllocatorVault"
+            echo '```'
+            grep -E "naive|hardened|OpenZeppelin|AllocatorVault|attacker|victim|mover|bound" attacks.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  medusa:
+    name: Medusa stateful fuzzing (300 s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@v4
+        with:
+          path: |
+            projects/09-erc4626-allocator-vault/dependencies
+            ~/.svm
+          key: soldeer-09-${{ hashFiles('projects/09-erc4626-allocator-vault/soldeer.lock', 'projects/09-erc4626-allocator-vault/foundry.toml') }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install crytic-compile
+        run: |
+          uv tool install "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Medusa (official release)
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL -o medusa.tar.gz \
+            "https://github.com/crytic/medusa/releases/download/${MEDUSA_VERSION}/medusa-linux-x64.tar.gz"
+          mkdir -p medusa-bin "$HOME/.local/bin" && tar -xzf medusa.tar.gz -C medusa-bin
+          install -m 0755 "$(find medusa-bin -type f -name medusa | head -n 1)" "$HOME/.local/bin/medusa"
+          "$HOME/.local/bin/medusa" --version
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Fuzz
+        run: medusa fuzz --config medusa.json --timeout 300
+
+      - name: Keep the corpus (and any failing call sequence) for local replay
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: medusa-corpus-09
+          path: projects/09-erc4626-allocator-vault/medusa-corpus
+          if-no-files-found: ignore
+
+  slither:
+    name: Slither
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@v4
+        with:
+          path: |
+            projects/09-erc4626-allocator-vault/dependencies
+            ~/.svm
+          key: soldeer-09-${{ hashFiles('projects/09-erc4626-allocator-vault/soldeer.lock', 'projects/09-erc4626-allocator-vault/foundry.toml') }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install Slither
+        run: |
+          uv tool install "slither-analyzer==${SLITHER_VERSION}" --with "crytic-compile==${CRYTIC_COMPILE_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Analyze (fails on any medium or high finding; triage in docs/STATIC_ANALYSIS.md)
+        run: slither . --config-file slither.config.json --fail-medium
+
+  mutation:
+    name: Mutation check (each defense removed must fail its test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@v4
+        with:
+          path: |
+            projects/09-erc4626-allocator-vault/dependencies
+            ~/.svm
+          key: soldeer-09-${{ hashFiles('projects/09-erc4626-allocator-vault/soldeer.lock', 'projects/09-erc4626-allocator-vault/foundry.toml') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Build once (warms the cache for the mutants)
+        run: forge build
+
+      - name: Fifteen hand-written mutants (each must compile and fail its suite)
+        run: bash scripts/mutation-check.sh
+
+  local-demo:
+    name: Local anvil demo (end to end, real chain time, outcomes asserted)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Cache Soldeer dependencies and solc
+        uses: actions/cache@v4
+        with:
+          path: |
+            projects/09-erc4626-allocator-vault/dependencies
+            ~/.svm
+          key: soldeer-09-${{ hashFiles('projects/09-erc4626-allocator-vault/soldeer.lock', 'projects/09-erc4626-allocator-vault/foundry.toml') }}
+
+      - name: Install dependencies (Soldeer, locked)
+        run: forge soldeer install
+
+      - name: Deploy, allocate, harvest and redeem on anvil (free port chosen at runtime)
+        run: bash script/local-demo.sh
