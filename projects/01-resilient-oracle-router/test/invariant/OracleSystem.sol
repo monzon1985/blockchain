@@ -232,6 +232,14 @@ contract OracleSystem {
     ///         witness, breaker, history), which the properties check against the reference model.
     function silencePrimary(uint256 assetSeed, uint256 lagSeed) external action {
         lagSeed = _mix(lagSeed);
+        // This scenario models a stale primary behind a healthy sequencer. Started during an outage or grace period it
+        // could never be bridged (keepers are refused, and nothing recorded before a recovery is served after it), so
+        // it first lets the sequencer recover and its grace period elapse. Outages still happen between scenarios
+        // through `toggleSequencer`.
+        if (sequencer.answer() != 0) sequencer.setUp();
+        if (!sequencer.reverts() && !_sequencerHealthy()) {
+            VM.warp(Math.max(block.timestamp, sequencer.startedAt() + GRACE + 1));
+        }
         uint256 index = assetSeed % ASSET_COUNT;
         Asset storage a = _assets[index];
         (, MockAggregatorV3.RoundData memory last) = a.primary.latestRoundRaw();
